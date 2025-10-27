@@ -166,7 +166,7 @@
     </aside>
   </div>
 
-  <audio id="bgm" preload="none" loop></audio>
+  <audio id="bgm" preload="metadata" loop crossorigin="anonymous"></audio>
 
 <script>
 // ===== Utils for UI =====
@@ -267,10 +267,13 @@ function setMusicTrack(index, autoplay=false){
   currentTrackIndex = index;
   const track = MUSIC_TRACKS[index];
   musicAudio.src = track.url;
-  updateMusicMeta(track, 'Loading…');
+  updateMusicMeta(track, autoplay ? 'Loading…' : 'Ready');
   musicAudio.load();
   if(autoplay){
-    musicAudio.play().catch(()=>{});
+    musicAudio.play().catch((err)=>{
+      updateMusicMeta(track, 'Play blocked');
+      console.warn('Music play request was blocked', err);
+    });
   }
 }
 
@@ -308,7 +311,10 @@ function initMusicPanel(){
       return;
     }
     if(musicAudio.paused){
-      musicAudio.play().catch(()=>{});
+      musicAudio.play().catch((err)=>{
+        updateMusicMeta(MUSIC_TRACKS[currentTrackIndex], 'Play blocked');
+        console.warn('Music play request was blocked', err);
+      });
     } else {
       musicAudio.pause();
     }
@@ -325,6 +331,20 @@ function initMusicPanel(){
   musicAudio.addEventListener('loadeddata', ()=>{
     const status = musicAudio.paused ? 'Ready' : 'Playing';
     updateMusicMeta(MUSIC_TRACKS[currentTrackIndex], status);
+  });
+  musicAudio.addEventListener('waiting', ()=>{
+    updateMusicMeta(MUSIC_TRACKS[currentTrackIndex], 'Buffering…');
+  });
+  musicAudio.addEventListener('canplaythrough', ()=>{
+    const status = musicAudio.paused ? 'Ready' : 'Playing';
+    updateMusicMeta(MUSIC_TRACKS[currentTrackIndex], status);
+    if(!musicAudio.paused){
+      musicAudio.play().catch(()=>{});
+    }
+  });
+  musicAudio.addEventListener('error', ()=>{
+    updateMusicMeta(MUSIC_TRACKS[currentTrackIndex], 'Load failed');
+    Q('lbMusicNow').textContent = 'Try another track from the list.';
   });
 
   setMusicTrack(currentTrackIndex, false);
