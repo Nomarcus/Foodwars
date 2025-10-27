@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Katt & Råtta – Två lag med NEAT-lite</title>
+  <style>
+    :root { --bg1:#0d111f; --bg2:#1a1f3b; --ink:#e5e7eb; }
+    *{box-sizing:border-box}
+    html,body{height:100%;margin:0}
+    body{background:radial-gradient(circle at 50% 20%, var(--bg2) 0%, var(--bg1) 80%); color:var(--ink); font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial; display:flex; justify-content:center; align-items:flex-start}
+
+    .wrap{display:flex; align-items:flex-start; justify-content:center; gap:40px; padding:24px}
+    canvas{border-radius:20px; box-shadow:0 0 40px rgba(0,0,0,.6); background:#020617; cursor:crosshair}
+
+    .side{width:360px; display:flex; flex-direction:column; gap:20px}
+    .panel{background:rgba(2,6,23,.7); border:1px solid rgba(148,163,184,.25); padding:18px; border-radius:16px; backdrop-filter:blur(10px); box-shadow:0 10px 30px rgba(0,0,0,.25); position:relative}
+    .panel-head{display:flex; align-items:center; justify-content:space-between; gap:12px; cursor:pointer; user-select:none; padding-bottom:6px; margin-bottom:10px; border-bottom:1px dashed rgba(148,163,184,.25)}
+    .panel-head .h{margin:0; font-size:16px}
+    .chev{font-weight:900; font-size:16px; opacity:.9; transition:transform .25s ease}
+    .panel-body{max-height:1200px; overflow:hidden; transition:max-height .35s ease, opacity .25s ease; opacity:1}
+    .panel.collapsed .panel-body{max-height:0; opacity:.0}
+    .panel.collapsed .chev{transform:rotate(-90deg)}
+
+    .grid{display:grid; grid-template-columns: 1fr 1.3fr auto; gap:12px 12px; align-items:center}
+    .label{font-size:13px}
+    .val{font-family:ui-monospace,Menlo,Consolas,monospace; font-size:12px; padding:2px 6px; border-radius:6px; background:#0b1223; border:1px solid #1f2a42}
+    input[type=range]{width:100%; accent-color:#3b82f6}
+    .btn{display:block; width:100%; padding:8px 10px; border-radius:10px; border:1px solid #2f3b58; background:#1f2a42; color:#cfe0ff; cursor:pointer; text-align:center; margin-top:10px}
+    .btn:hover{filter:brightness(1.08)}
+    .sub{font-weight:800; font-size:14px; opacity:.9; margin:10px 0 8px}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <!-- Vänster panel: Lärning (NEAT) -->
+    <aside class="side" id="left-panel">
+      <div class="panel" id="panel-learn">
+        <div class="panel-head"><div class="h">Lärning (NEAT‑lite)</div><span class="chev">▾</span></div>
+        <div class="panel-body">
+          <div class="grid">
+            <div class="label">Steg / gen</div>
+            <input id="slGenSteps" type="range" min="600" max="8000" value="2800"><div class="val" id="lbGenSteps">2800</div>
+
+            <div class="label">Mutation %</div>
+            <input id="slMut" type="range" min="1" max="80" value="16"><div class="val" id="lbMut">16</div>
+
+            <div class="label">Elit‑andel</div>
+            <input id="slElite" type="range" min="5" max="50" value="20"><div class="val" id="lbElite">0.20</div>
+          </div>
+          <div class="grid" style="margin-top:8px">
+            <div class="label">Auto‑nästa gen</div>
+            <input id="chkAuto" type="checkbox" checked><div class="val" id="lbAuto">på</div>
+          </div>
+          <div class="sub" style="margin-top:10px">Status</div>
+          <div class="grid">
+            <div class="label">Generation</div><div></div><div class="val" id="lbGen">1</div>
+            <div class="label">Bäst 🟢</div><div></div><div class="val" id="lbBestG">0</div>
+            <div class="label">Bäst 🔴</div><div></div><div class="val" id="lbBestR">0</div>
+          </div>
+          <button id="btnNextGen" class="btn">Nästa generation nu</button>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Mitt: spelplan -->
+    <canvas id="world" width="1100" height="640"></canvas>
+
+    <!-- Höger paneler: kontroller och lag -->
+    <aside class="side" id="right-panel">
+      <div class="panel" id="panel-global">
+        <div class="panel-head"><div class="h">Globala kontroller</div><span class="chev">▾</span></div>
+        <div class="panel-body">
+          <div class="grid">
+            <div class="label">Frukt (max)</div>
+            <input id="slFruits" type="range" min="2" max="160" value="32"><div class="val" id="lbFruits">32</div>
+
+            <div class="label">Spawn (ms)</div>
+            <input id="slSpawn" type="range" min="120" max="5000" value="900"><div class="val" id="lbSpawn">900</div>
+
+            <div class="label">Hinder</div>
+            <input id="slObst" type="range" min="0" max="40" value="8"><div class="val" id="lbObst">8</div>
+
+            <div class="label">Svanslängd</div>
+            <input id="slTail" type="range" min="4" max="200" value="24"><div class="val" id="lbTail">24</div>
+          </div>
+          <button id="btnReset" class="btn">Starta om</button>
+        </div>
+      </div>
+
+      <div class="panel" id="panel-teams">
+        <div class="panel-head"><div class="h">Laginställningar</div><span class="chev">▾</span></div>
+        <div class="panel-body">
+          <div class="sub">🟢 Gröna</div>
+          <div class="grid">
+            <div class="label">Antal</div>
+            <input id="slGCount" type="range" min="2" max="200" value="28"><div class="val" id="lbGCount">28</div>
+            <div class="label">Fart</div>
+            <input id="slGSpeed" type="range" min="10" max="600" value="260"><div class="val" id="lbGSpeed">2.60</div>
+            <div class="label">Smarthet</div>
+            <input id="slGSmart" type="range" min="0" max="300" value="180"><div class="val" id="lbGSmart">1.80</div>
+            <div class="label">Strategi</div>
+            <input id="slGStrat" type="range" min="0" max="300" value="140"><div class="val" id="lbGStrat">1.40</div>
+            <div class="label">Separation</div>
+            <input id="slGSep" type="range" min="0" max="300" value="110"><div class="val" id="lbGSep">1.10</div>
+          </div>
+
+          <div class="sub" style="margin-top:14px">🔴 Röda</div>
+          <div class="grid">
+            <div class="label">Antal</div>
+            <input id="slRCount" type="range" min="2" max="200" value="28"><div class="val" id="lbRCount">28</div>
+            <div class="label">Fart</div>
+            <input id="slRSpeed" type="range" min="10" max="600" value="260"><div class="val" id="lbRSpeed">2.60</div>
+            <div class="label">Smarthet</div>
+            <input id="slRSmart" type="range" min="0" max="300" value="180"><div class="val" id="lbRSmart">1.80</div>
+            <div class="label">Strategi</div>
+            <input id="slRStrat" type="range" min="0" max="300" value="140"><div class="val" id="lbRStrat">1.40</div>
+            <div class="label">Separation</div>
+            <input id="slRSep" type="range" min="0" max="300" value="110"><div class="val" id="lbRSep">1.10</div>
+          </div>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+<script>
+// ===== Utils for UI =====
+const Q = (id)=>document.getElementById(id);
+function bindRange(sl, lb, fmt=(v)=>v){ const s=Q(sl), l=Q(lb); const apply=()=>{ l.textContent = fmt(+s.value); readParams(); }; s.addEventListener('input', apply); apply(); }
+
+// === Make panels collapsible ===
+(function makePanelsCollapsible(){
+  const panels = document.querySelectorAll('.panel');
+  panels.forEach((p)=>{
+    const head = p.querySelector('.panel-head');
+    if(!head) return;
+    head.addEventListener('click', (e)=>{
+      // Ignore clicks on inputs inside header (none for now)
+      p.classList.toggle('collapsed');
+    });
+  });
+})();
+
+// ===== Färger =====
+const COLORS = {
+  green: '#00ff91',
+  red:   '#ff0055',
+  fruit: '#ffd43b',
+  goal:  '#3b82f6',
+  goalFill: 'rgba(59,130,246,0.18)',
+  obstS: 'rgba(226,232,240,0.90)',
+  obstF: 'rgba(226,232,240,0.08)',
+  greenOutline:'#003322',
+  redOutline:'#5a001a',
+  fruitOutline:'#000'
+};
+
+const canvas = document.getElementById('world');
+const ctx = canvas.getContext('2d');
+const W = canvas.width, H = canvas.height;
+
+// ===== Parametrar =====
+const params = {
+  maxFruits: 32,
+  spawnMs: 900,
+  obstacles: 8,
+  tailLen: 24,
+  green: { count:28, speed:2.60, smart:1.80, strat:1.40, sep:1.10 },
+  red:   { count:28, speed:2.60, smart:1.80, strat:1.40, sep:1.10 },
+  learn: { genSteps:2800, mut:0.16, elite:0.20, auto:true }
+};
+let lastObstCount = params.obstacles;
+
+function readParams(){
+  params.maxFruits = +Q('slFruits').value; Q('lbFruits').textContent=params.maxFruits;
+  params.spawnMs = +Q('slSpawn').value; Q('lbSpawn').textContent=params.spawnMs;
+  params.obstacles = +Q('slObst').value; Q('lbObst').textContent=params.obstacles; if(params.obstacles !== lastObstCount){ makeObstacles(params.obstacles); lastObstCount = params.obstacles; }
+  params.tailLen = +Q('slTail').value; Q('lbTail').textContent=params.tailLen;
+
+  params.green.count = +Q('slGCount').value; Q('lbGCount').textContent=params.green.count;
+  params.green.speed = (+Q('slGSpeed').value)/100; Q('lbGSpeed').textContent=params.green.speed.toFixed(2);
+  params.green.smart = (+Q('slGSmart').value)/100; Q('lbGSmart').textContent=params.green.smart.toFixed(2);
+  params.green.strat = (+Q('slGStrat').value)/100; Q('lbGStrat').textContent=params.green.strat.toFixed(2);
+  params.green.sep   = (+Q('slGSep').value)/100; Q('lbGSep').textContent=params.green.sep.toFixed(2);
+
+  params.red.count = +Q('slRCount').value; Q('lbRCount').textContent=params.red.count;
+  params.red.speed = (+Q('slRSpeed').value)/100; Q('lbRSpeed').textContent=params.red.speed.toFixed(2);
+  params.red.smart = (+Q('slRSmart').value)/100; Q('lbRSmart').textContent=params.red.smart.toFixed(2);
+  params.red.strat = (+Q('slRStrat').value)/100; Q('lbRStrat').textContent=params.red.strat.toFixed(2);
+  params.red.sep   = (+Q('slRSep').value)/100; Q('lbRSep').textContent=params.red.sep.toFixed(2);
+
+  params.learn.genSteps = +Q('slGenSteps').value; Q('lbGenSteps').textContent=params.learn.genSteps;
+  params.learn.mut = (+Q('slMut').value)/100; Q('lbMut').textContent=Math.round(params.learn.mut*100);
+  params.learn.elite = (+Q('slElite').value)/100; Q('lbElite').textContent=params.learn.elite.toFixed(2);
+  params.learn.auto = Q('chkAuto').checked; Q('lbAuto').textContent = params.learn.auto? 'på':'av';
+}
+['Fruits','Spawn','Obst','Tail','GCount','GSpeed','GSmart','GStrat','GSep','RCount','RSpeed','RSmart','RStrat','RSep','GenSteps','Mut','Elite'].forEach(k=>{
+  bindRange('sl'+k, 'lb'+k, (v)=> (k.includes('Speed')||k.includes('Smart')||k.includes('Strat')||k.includes('Sep')) ? (v/100).toFixed(2) : v);
+});
+Q('btnReset').onclick = ()=> setup();
+Q('btnNextGen').onclick = ()=> { forceNextGen = true; };
+Q('chkAuto').addEventListener('change', ()=> readParams());
+
+// ===== Datastrukturer =====
+const greens=[], reds=[], fruits=[], obstacles=[];
+
+// Pheromon-grid – separata fält per lag
+let grid, GW, GH, CS = 22; // cellstorlek
+function makeGrid(){ GW=Math.floor(W/CS); GH=Math.floor(H/CS);
+  grid={ foodG:new Float32Array(GW*GH), homeG:new Float32Array(GW*GH), foodR:new Float32Array(GW*GH), homeR:new Float32Array(GW*GH) };
+}
+const gi=(x,y)=> y*GW + x;
+const clampi=(v,a,b)=> v<a?a:(v>b?b:v);
+function deposit(field,x,y,amt){ const cx=clampi((x/CS)|0,0,GW-1), cy=clampi((y/CS)|0,0,GH-1); grid[field][gi(cx,cy)] += amt; }
+function senseGrad(field,x,y){ const cx=clampi((x/CS)|0,0,GW-1), cy=clampi((y/CS)|0,0,GH-1); let best=-1e9,bx=cx,by=cy; for(let dy=-1;dy<=1;dy++) for(let dx=-1;dx<=1;dx++){ const nx=clampi(cx+dx,0,GW-1), ny=clampi(cy+dy,0,GH-1); const v=grid[field][gi(nx,ny)]; if(v>best){best=v; bx=nx; by=ny;} } return {gx:(bx-cx), gy:(by-cy), val:grid[field][gi(bx,by)]}; }
+function evaporate(){ const keep=0.985; const names=['foodG','homeG','foodR','homeR']; const tmps={}; for(const n of names) tmps[n]=new Float32Array(GW*GH); for(const n of names){ const src=grid[n], dst=tmps[n]; for(let y=0;y<GH;y++){ for(let x=0;x<GW;x++){ let v=src[gi(x,y)]*keep; let sum=v*0.4; let cnt=0; for(let dy=-1;dy<=1;dy++) for(let dx=-1;dx<=1;dx++) if(dx||dy){ const nx=clampi(x+dx,0,GW-1), ny=clampi(y+dy,0,GH-1); sum += src[gi(nx,ny)]*0.075; cnt++; } dst[gi(x,y)]= sum/(0.4+0.075*cnt); } } } for(const n of names) grid[n]=tmps[n]; }
+
+// Mål – ett per lag (dragbara)
+const goalG={ x:W*0.86, y:H*0.35, r:34, delivered:0 },
+      goalR={ x:W*0.14, y:H*0.65, r:34, delivered:0 };
+let dragTarget=null, dragDX=0, dragDY=0, dragKind=null, dragIndex=-1;
+canvas.addEventListener('mousedown', (e)=>{
+  const r=canvas.getBoundingClientRect();
+  const x=e.clientX - r.left, y=e.clientY - r.top;
+  dragTarget=null; dragKind=null; dragIndex=-1;
+  // Prioritera hinder (översta först)
+  for(let i=obstacles.length-1; i>=0; i--){
+    const o=obstacles[i];
+    if(Math.hypot(x-o.x, y-o.y) <= o.r + 8){
+      dragTarget=o; dragKind='obst'; dragIndex=i; dragDX=o.x - x; dragDY=o.y - y; return;
+    }
+  }
+  // Målringar
+  if(Math.hypot(x-goalG.x,y-goalG.y) <= goalG.r+12){ dragTarget=goalG; dragKind='goalG'; dragDX=goalG.x-x; dragDY=goalG.y-y; return; }
+  if(Math.hypot(x-goalR.x,y-goalR.y) <= goalR.r+12){ dragTarget=goalR; dragKind='goalR'; dragDX=goalR.x-x; dragDY=goalR.y-y; return; }
+});
+window.addEventListener('mousemove', (e)=>{
+  if(!dragTarget) return;
+  const r=canvas.getBoundingClientRect();
+  const x=e.clientX - r.left, y=e.clientY - r.top;
+  if(dragKind==='obst'){
+    dragTarget.x = Math.max(dragTarget.r+4, Math.min(W - dragTarget.r - 4, x + dragDX));
+    dragTarget.y = Math.max(dragTarget.r+4, Math.min(H - dragTarget.r - 4, y + dragDY));
+  } else {
+    dragTarget.x = Math.max(dragTarget.r+8, Math.min(W - dragTarget.r - 8, x + dragDX));
+    dragTarget.y = Math.max(dragTarget.r+8, Math.min(H - dragTarget.r - 8, y + dragDY));
+  }
+});
+window.addEventListener('mouseup', ()=>{ dragTarget=null; dragKind=null; dragIndex=-1; });
+
+// Utils
+function rand(a,b){ return a + Math.random()*(b-a); }
+function nearest(arr,x,y){ if(!arr.length) return null; let best=arr[0],bd=1e9; for(const o of arr){ const d=Math.hypot(o.x-x,o.y-y); if(d<bd){bd=d; best=o;} } return best; }
+function pointInsideObstacle(x,y){ for(const o of obstacles){ if(Math.hypot(x-o.x,y-o.y) < o.r + 7) return true; } return false; }
+function findFreeFruitSpot(maxTry=80){ for(let i=0;i<maxTry;i++){ const x=rand(40,W-40), y=rand(40,H-40); if(!pointInsideObstacle(x,y)) return {x,y}; } return null; }
+function spawnFruit(x=null,y=null){ if(fruits.length>=params.maxFruits) return; if(x==null||y==null){ const pos=findFreeFruitSpot(); if(!pos) return; x=pos.x; y=pos.y; } if(pointInsideObstacle(x,y)){ const pos=findFreeFruitSpot(); if(!pos) return; x=pos.x; y=pos.y; } fruits.push({x,y,r:6,color:COLORS.fruit}); }
+function makeObstacles(n){ obstacles.length=0; for(let i=0;i<n;i++){ const r=rand(16,40); let tries=0,x,y; do{ x=rand(80,W-80); y=rand(60,H-60); tries++; } while(tries<80 && (Math.hypot(x-goalG.x,y-goalG.y)<goalG.r+50 || Math.hypot(x-goalR.x,y-goalR.y)<goalR.r+50)); obstacles.push({x,y,r}); } }
+
+// ===== NEAT‑lite (7→16→2) =====
+function randn(){ let u=0,v=0; while(u===0) u=Math.random(); while(v===0) v=Math.random(); return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v); }
+function matmulVec(W, x, out){ const rows=W.length, cols=W[0].length; for(let i=0;i<rows;i++){ let s=0; const Wi=W[i]; for(let j=0;j<cols;j++) s+=Wi[j]*x[j]; out[i]=s; } return out; }
+function tanhVec(v){ for(let i=0;i<v.length;i++) v[i]=Math.tanh(v[i]); return v; }
+function addBias(v,b){ for(let i=0;i<v.length;i++) v[i]+=b[i]; return v; }
+function makeNet(inDim=7,h=16,out=2){ return { W1:Array.from({length:h},()=>Array.from({length:inDim},()=> (Math.random()*2-1)*0.5)), b1:Array.from({length:h},()=> (Math.random()*2-1)*0.2), W2:Array.from({length:out},()=>Array.from({length:h},()=> (Math.random()*2-1)*0.5)), b2:Array.from({length:out},()=> (Math.random()*2-1)*0.2) }; }
+function cloneNet(n){ return { W1:n.W1.map(r=>r.slice()), b1:n.b1.slice(), W2:n.W2.map(r=>r.slice()), b2:n.b2.slice() }; }
+function mutateNet(n, rate){ const sW=0.2, sB=0.2; for(const r of n.W1) for(let i=0;i<r.length;i++) if(Math.random()<rate) r[i]+=randn()*sW; for(let i=0;i<n.b1.length;i++) if(Math.random()<rate) n.b1[i]+=randn()*sB; for(const r of n.W2) for(let i=0;i<r.length;i++) if(Math.random()<rate) r[i]+=randn()*sW; for(let i=0;i<n.b2.length;i++) if(Math.random()<rate) n.b2[i]+=randn()*sB; }
+function crossover(a,b){ const c=cloneNet(a); for(let i=0;i<c.W1.length;i++) for(let j=0;j<c.W1[0].length;j++) c.W1[i][j]=(Math.random()<0.5?a.W1[i][j]:b.W1[i][j]); for(let i=0;i<c.b1.length;i++) c.b1[i]=(Math.random()<0.5?a.b1[i]:b.b1[i]); for(let i=0;i<c.W2.length;i++) for(let j=0;j<c.W2[0].length;j++) c.W2[i][j]=(Math.random()<0.5?a.W2[i][j]:b.W2[i][j]); for(let i=0;i<c.b2.length;i++) c.b2[i]=(Math.random()<0.5?a.b2[i]:b.b2[i]); return c; }
+function forward(n, x){ const h=new Array(n.b1.length).fill(0), o=new Array(n.b2.length).fill(0); matmulVec(n.W1,x,h); addBias(h,n.b1); tanhVec(h); matmulVec(n.W2,h,o); addBias(o,n.b2); tanhVec(o); return o; }
+function makePopulation(size){ return Array.from({length:size}, ()=> ({ net:makeNet(), fitness:0 })); }
+const evo = { gen:1, G: makePopulation(28), R: makePopulation(28) };
+function resizePop(){ if(evo.G.length!==params.green.count){ if(evo.G.length<params.green.count){ while(evo.G.length<params.green.count) evo.G.push({ net:makeNet(), fitness:0 }); } else { evo.G.length=params.green.count; } } if(evo.R.length!==params.red.count){ if(evo.R.length<params.red.count){ while(evo.R.length<params.red.count) evo.R.push({ net:makeNet(), fitness:0 }); } else { evo.R.length=params.red.count; } } }
+function nextGeneration(team){ const pop=evo[team]; pop.sort((a,b)=> b.fitness - a.fitness); const eliteN=Math.max(1, Math.floor(pop.length*params.learn.elite)); const elites=pop.slice(0,eliteN).map(e=> cloneNet(e.net)); const best=pop[0]?.fitness||0; if(team==='G') Q('lbBestG').textContent=best.toFixed(0); else Q('lbBestR').textContent=best.toFixed(0); const newPop=[]; for(let i=0;i<eliteN;i++) newPop.push({ net:cloneNet(elites[i]), fitness:0 }); function pick(){ const k=Math.min(pop.length, Math.max(2,eliteN*2)); const a=pop[Math.floor(Math.random()*k)], b=pop[Math.floor(Math.random()*k)]; return (a.fitness>b.fitness?a:b).net; } while(newPop.length<pop.length){ const pa=pick(), pb=pick(); let child=crossover(pa,pb); mutateNet(child, params.learn.mut); newPop.push({ net:child, fitness:0 }); } for(let i=0;i<pop.length;i++){ pop[i].net=newPop[i].net; pop[i].fitness=0; } }
+
+// ===== Agentbas =====
+class Agent{
+  constructor(x,y,color,maxSpeed,team){ this.x=x; this.y=y; this.vx=rand(-1,1); this.vy=rand(-1,1); this.color=color; this.maxSpeed=maxSpeed; this.trail=[]; this.carry=false; this.team=team; this.side=Math.random()<0.5?-1:1; this.stuckT=0; this.wander={x:rand(-1,1), y:rand(-1,1)}; }
+  stepSpeed(v){ this.maxSpeed=v; }
+  steerSeparation(peers, radius=18, gain=0.12){ let sx=0,sy=0; for(const p of peers){ if(p===this) continue; const dx=this.x-p.x, dy=this.y-p.y; const d=Math.hypot(dx,dy); if(d>0 && d<radius){ sx+=dx/(d*d); sy+=dy/(d*d); } } this.vx+=sx*gain; this.vy+=sy*gain; }
+  applyWander(str=0.055, damp=0.92){ this.wander.x=this.wander.x*damp+(Math.random()*2-1)*(1-damp); this.wander.y=this.wander.y*damp+(Math.random()*2-1)*(1-damp); const wn=Math.hypot(this.wander.x,this.wander.y)||1; this.vx+=(this.wander.x/wn)*str; this.vy+=(this.wander.y/wn)*str; }
+  avoidObstacles(){ for(const o of obstacles){ const dx=this.x-o.x, dy=this.y-o.y; const d=Math.hypot(dx,dy); const minD=o.r+8; if(d<minD+12){ const push=(minD+12-d)*0.055; const nx=dx/(d||1), ny=dy/(d||1); this.vx+=nx*push; this.vy+=ny*push; } } }
+  keepInBounds(){ if(this.x<10){this.x=10; this.vx=Math.abs(this.vx);} if(this.x>W-10){this.x=W-10; this.vx=-Math.abs(this.vx);} if(this.y<10){this.y=10; this.vy=Math.abs(this.vy);} if(this.y>H-10){this.y=H-10; this.vy=-Math.abs(this.vy);} }
+  integrate(){ const sp=Math.hypot(this.vx,this.vy); if(sp>this.maxSpeed){ this.vx*=this.maxSpeed/sp; this.vy*=this.maxSpeed/sp; } this.trail.push({x:this.x,y:this.y}); if(this.trail.length>params.tailLen) this.trail.shift(); this.x+=this.vx; this.y+=this.vy; this.stuckT=(sp<0.10)?(this.stuckT+1):0; }
+}
+
+class Collector extends Agent{
+  constructor(x,y,team,netRef){ const cfg=(team==='G')? params.green: params.red; const color=(team==='G')? COLORS.green: COLORS.red; super(x,y,color,cfg.speed,team); this.netRef=netRef; this.fitness=0; }
+  update(){ const cfg=(this.team==='G')? params.green: params.red; const myFood=(this.team==='G')? 'foodG':'foodR'; const myHome=(this.team==='G')? 'homeG':'homeR'; const myGoal=(this.team==='G')? goalG:goalR; this.stepSpeed(cfg.speed);
+    const tgt = this.carry? myGoal : nearest(fruits, this.x, this.y);
+    let tx=0,ty=0, dn=1; if(tgt){ tx=tgt.x-this.x; ty=tgt.y-this.y; dn=Math.hypot(tx,ty)||1; tx/=dn; ty/=dn; }
+    const g = senseGrad(this.carry? myHome: myFood, this.x, this.y);
+    const mates = (this.team==='G')? greens: reds; let sx=0, sy=0; for(const p of mates){ if(p===this) continue; const dx=this.x-p.x, dy=this.y-p.y; const d=Math.hypot(dx,dy); if(d>0 && d<22){ sx+=dx/(d*d); sy+=dy/(d*d); } }
+    const input = [tx,ty, g.gx, g.gy, sx, sy, 1.0];
+    const out = forward(this.netRef.net, input);
+    this.vx += out[0]*(0.45 + 0.15*cfg.smart) + (tx*0.15*cfg.strat);
+    this.vy += out[1]*(0.45 + 0.15*cfg.smart) + (ty*0.15*cfg.strat);
+    if(!this.carry && tgt && Math.hypot(tgt.x-this.x,tgt.y-this.y)<9){ const i=fruits.indexOf(tgt); if(i>-1) fruits.splice(i,1); this.carry=true; this.fitness += 8; }
+    if(this.carry && Math.hypot(myGoal.x-this.x,myGoal.y-this.y)<myGoal.r){ this.carry=false; myGoal.delivered++; this.fitness += 120; }
+    if(this.carry){ const dGoal=Math.hypot(myGoal.x-this.x,myGoal.y-this.y); this.fitness += (1/(1+dGoal))*0.2; }
+    deposit(this.carry? myFood: myHome, this.x, this.y, 0.30);
+    if(this.stuckT>35){ this.vx += tx*(0.9+0.2*cfg.strat); this.vy += ty*(0.9+0.2*cfg.strat); this.stuckT=0; }
+    this.avoidObstacles(); this.keepInBounds(); this.integrate();
+  }
+}
+
+// ===== Setup & loop =====
+let lastSpawn=performance.now();
+function setup(){ greens.length=0; reds.length=0; fruits.length=0; goalG.delivered=0; goalR.delivered=0; makeGrid(); if(obstacles.length===0){ makeObstacles(params.obstacles); } resizePop(); for(let i=0;i<params.maxFruits;i++) spawnFruit(); for(let i=0;i<params.green.count;i++) greens.push(new Collector(rand(40,W*0.45), rand(40,H-40), 'G', evo.G[i])); for(let i=0;i<params.red.count;i++) reds.push(new Collector(rand(W*0.55,W-40), rand(40,H-40), 'R', evo.R[i])); lastSpawn=performance.now(); Q('lbGen').textContent=evo.gen; }
+
+function drawTrail(trail,color){ if(trail.length<2) return; ctx.lineWidth=2; const grad=ctx.createLinearGradient(trail[0].x,trail[0].y,trail[trail.length-1].x,trail[trail.length-1].y); grad.addColorStop(0,'rgba(255,255,255,0)'); grad.addColorStop(1,color); ctx.strokeStyle=grad; ctx.beginPath(); ctx.moveTo(trail[0].x,trail[0].y); for(let i=1;i<trail.length;i++) ctx.lineTo(trail[i].x,trail[i].y); ctx.stroke(); }
+function drawGoal(g, tint){
+  ctx.beginPath();
+  ctx.arc(g.x,g.y,g.r,0,Math.PI*2);
+  ctx.fillStyle=COLORS.goalFill;
+  ctx.fill();
+  ctx.save();
+  ctx.strokeStyle=tint;
+  ctx.lineWidth = 4; // static
+  ctx.shadowColor='transparent';
+  ctx.shadowBlur=0;
+  ctx.stroke();
+  ctx.restore();
+  ctx.fillStyle='#fff';
+  ctx.font='bold 18px ui-sans-serif';
+  ctx.textAlign='center';
+  ctx.textBaseline='middle';
+  ctx.fillText(String(g.delivered), g.x, g.y);
+}
+function draw(){
+  ctx.clearRect(0,0,W,H);
+
+  // Goals (static, no blinking)
+  drawGoal(goalG, COLORS.green);
+  drawGoal(goalR, COLORS.red);
+
+  // Obstacles (static stroke)
+  for(const o of obstacles){
+    ctx.beginPath();
+    ctx.arc(o.x,o.y,o.r,0,Math.PI*2);
+    ctx.fillStyle=COLORS.obstF;
+    ctx.fill();
+    ctx.strokeStyle=COLORS.obstS;
+    ctx.lineWidth=2;
+    ctx.stroke();
+  }
+
+  // Fruits
+  for(const f of fruits){
+    ctx.beginPath();
+    ctx.arc(f.x,f.y,f.r,0,Math.PI*2);
+    ctx.fillStyle=COLORS.fruit;
+    ctx.fill();
+    ctx.lineWidth=1.5;
+    ctx.strokeStyle=COLORS.fruitOutline;
+    ctx.stroke();
+  }
+
+  // Agents (no shadow flash)
+  for(const a of greens){
+    ctx.beginPath();
+    ctx.arc(a.x,a.y,5,0,Math.PI*2);
+    ctx.fillStyle=COLORS.green;
+    ctx.fill();
+    ctx.lineWidth=2;
+    ctx.strokeStyle=COLORS.greenOutline;
+    ctx.stroke();
+    if(a.carry){ ctx.lineWidth=2; ctx.strokeStyle='#ffff33'; ctx.stroke(); }
+    drawTrail(a.trail, COLORS.green);
+  }
+  for(const a of reds){
+    ctx.beginPath();
+    ctx.arc(a.x,a.y,5.5,0,Math.PI*2);
+    ctx.fillStyle=COLORS.red;
+    ctx.fill();
+    ctx.lineWidth=2;
+    ctx.strokeStyle=COLORS.redOutline;
+    ctx.stroke();
+    if(a.carry){ ctx.lineWidth=2; ctx.strokeStyle='#ffff33'; ctx.stroke(); }
+    drawTrail(a.trail, COLORS.red);
+  }
+}
+
+let simSteps=0, forceNextGen=false;
+function loop(){ requestAnimationFrame(loop); const now=performance.now(); for(const a of greens) a.update(); for(const a of reds) a.update(); evaporate(); if(now-lastSpawn>=params.spawnMs){ spawnFruit(); lastSpawn=now; } draw(); simSteps++; const end = simSteps>=params.learn.genSteps || forceNextGen; if(end){ for(let i=0;i<greens.length;i++) evo.G[i].fitness += greens[i].fitness; for(let i=0;i<reds.length;i++) evo.R[i].fitness += reds[i].fitness; nextGeneration('G'); nextGeneration('R'); evo.gen++; Q('lbGen').textContent=evo.gen; simSteps=0; forceNextGen=false; setup(); } }
+
+// Bind ranges after DOM ready
+['Fruits','Spawn','Obst','Tail','GCount','GSpeed','GSmart','GStrat','GSep','RCount','RSpeed','RSmart','RStrat','RSep','GenSteps','Mut','Elite'].forEach(k=>{
+  bindRange('sl'+k, 'lb'+k, (v)=> (k.includes('Speed')||k.includes('Smart')||k.includes('Strat')||k.includes('Sep')) ? (v/100).toFixed(2) : v);
+});
+Q('btnReset').onclick = ()=> setup();
+Q('btnNextGen').onclick = ()=> { forceNextGen = true; };
+Q('chkAuto').addEventListener('change', ()=> readParams());
+
+// Start
+readParams();
+setup();
+loop();
+</script>
+</body>
+</html>
