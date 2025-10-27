@@ -11,9 +11,10 @@
     body{background:radial-gradient(circle at 50% 20%, var(--bg2) 0%, var(--bg1) 80%); color:var(--ink); font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial; display:flex; justify-content:center; align-items:flex-start}
 
     .top-nav{position:fixed; top:20px; right:24px; z-index:99}
-    .info-link{display:inline-flex; align-items:center; gap:6px; padding:8px 14px; border-radius:999px; background:rgba(2,6,23,.85); border:1px solid rgba(148,163,184,.35); color:var(--ink); text-decoration:none; font-size:13px; letter-spacing:.02em; transition:transform .2s ease, box-shadow .2s ease, background .2s ease}
+    .info-link{display:inline-flex; align-items:center; gap:6px; padding:8px 14px; border-radius:999px; background:rgba(2,6,23,.85); border:1px solid rgba(148,163,184,.35); color:var(--ink); text-decoration:none; font-size:13px; letter-spacing:.02em; transition:transform .2s ease, box-shadow .2s ease, background .2s ease; cursor:pointer; font-family:inherit; line-height:1; appearance:none}
     .info-link span{font-size:16px; line-height:1}
     .info-link:hover{transform:translateY(-1px); background:rgba(30,64,175,.85); box-shadow:0 12px 25px rgba(30,64,175,.35)}
+    .info-link:focus-visible{outline:2px solid rgba(96,165,250,.85); outline-offset:3px}
 
     .wrap{display:flex; align-items:flex-start; justify-content:center; gap:40px; padding:24px}
     canvas{border-radius:20px; box-shadow:0 0 40px rgba(0,0,0,.6); background:#020617; cursor:crosshair}
@@ -45,11 +46,19 @@
     .music-meta{margin-top:14px; font-size:12px; line-height:1.6; background:rgba(15,23,42,.55); border:1px solid rgba(148,163,184,.22); padding:10px 12px; border-radius:12px}
     .music-status{display:flex; align-items:center; gap:8px; font-size:12px; text-transform:uppercase; letter-spacing:.08em; opacity:.82}
     .music-attr{opacity:.72}
+    .info-overlay{position:fixed; inset:0; display:none; align-items:center; justify-content:center; padding:24px; background:rgba(2,6,23,.85); backdrop-filter:blur(12px); z-index:120}
+    .info-overlay.show{display:flex}
+    .info-overlay-shell{position:relative; width:min(960px, calc(100% - 48px)); height:min(90vh, 840px); border-radius:26px; border:1px solid rgba(148,163,184,.35); background:rgba(2,6,23,.92); box-shadow:0 40px 140px rgba(2,6,23,.65); overflow:hidden}
+    .info-overlay-frame{width:100%; height:100%; border:0; background:transparent}
+    .info-close{position:absolute; top:14px; right:14px; width:38px; height:38px; border-radius:999px; border:1px solid rgba(148,163,184,.45); background:rgba(15,23,42,.72); color:var(--ink); font-size:20px; line-height:1; display:flex; align-items:center; justify-content:center; cursor:pointer; transition:background .2s ease, transform .2s ease}
+    .info-close:hover{background:rgba(30,64,175,.8); transform:translateY(-1px)}
+    .info-close:focus-visible{outline:2px solid rgba(96,165,250,.85); outline-offset:2px}
+    .sr-only{position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0}
   </style>
 </head>
 <body>
   <div class="top-nav">
-    <a class="info-link" href="learn-neat.html"><span>ℹ️</span> Learn how NEAT & FoodSim work</a>
+    <button type="button" class="info-link" id="btnInfo"><span>ℹ️</span> Learn how NEAT & FoodSim work</button>
   </div>
   <div class="wrap">
     <!-- Left panel: Learning (NEAT) -->
@@ -78,6 +87,9 @@
             <div class="label">Best 🔴</div><div></div><div class="val" id="lbBestR">0</div>
           </div>
           <button id="btnNextGen" class="btn">Advance generation now</button>
+          <button id="btnSaveTraining" class="btn">Save training (.json)</button>
+          <button id="btnLoadTraining" class="btn">Load training…</button>
+          <input type="file" id="inputLoadTraining" accept="application/json" style="display:none">
         </div>
       </div>
     </aside>
@@ -166,12 +178,32 @@
     </aside>
   </div>
 
+  <div class="info-overlay" id="infoOverlay" aria-hidden="true">
+    <div class="info-overlay-shell" role="dialog" aria-modal="true" aria-labelledby="infoOverlayTitle">
+      <h2 id="infoOverlayTitle" class="sr-only">How NEAT &amp; FoodSim work</h2>
+      <button type="button" class="info-close" id="infoOverlayClose" aria-label="Close NEAT guide">×</button>
+      <iframe id="infoOverlayFrame" class="info-overlay-frame" title="Learn how NEAT &amp; FoodSim work"></iframe>
+    </div>
+  </div>
+
   <audio id="bgm" preload="metadata" loop crossorigin="anonymous"></audio>
 
 <script>
 // ===== Utils for UI =====
 const Q = (id)=>document.getElementById(id);
 function bindRange(sl, lb, fmt=(v)=>v){ const s=Q(sl), l=Q(lb); const apply=()=>{ l.textContent = fmt(+s.value); readParams(); }; s.addEventListener('input', apply); apply(); }
+
+function setRangeValue(id, value){
+  const el = Q(id);
+  if(!el) return;
+  const min = el.min !== undefined ? Number(el.min) : Number(value);
+  const max = el.max !== undefined ? Number(el.max) : Number(value);
+  const clamped = Math.min(max, Math.max(min, Number(value)));
+  if(String(el.value) !== String(clamped)){
+    el.value = clamped;
+  }
+  el.dispatchEvent(new Event('input', { bubbles:true }));
+}
 
 // === Make panels collapsible ===
 (function makePanelsCollapsible(){
@@ -559,7 +591,241 @@ function draw(){
 }
 
 let simSteps=0, forceNextGen=false;
-function loop(){ requestAnimationFrame(loop); const now=performance.now(); for(const a of greens) a.update(); for(const a of reds) a.update(); evaporate(); if(now-lastSpawn>=params.spawnMs){ spawnFruit(); lastSpawn=now; } draw(); simSteps++; const end = simSteps>=params.learn.genSteps || forceNextGen; if(end){ for(let i=0;i<greens.length;i++) evo.G[i].fitness += greens[i].fitness; for(let i=0;i<reds.length;i++) evo.R[i].fitness += reds[i].fitness; nextGeneration('G'); nextGeneration('R'); evo.gen++; Q('lbGen').textContent=evo.gen; simSteps=0; forceNextGen=false; setup(); } }
+function loop(){
+  requestAnimationFrame(loop);
+  const now = performance.now();
+  for(const a of greens) a.update();
+  for(const a of reds) a.update();
+  evaporate();
+  if(now - lastSpawn >= params.spawnMs){
+    spawnFruit();
+    lastSpawn = now;
+  }
+  draw();
+  simSteps++;
+  const end = simSteps>=params.learn.genSteps || forceNextGen;
+  if(end){
+    for(let i=0;i<greens.length;i++) evo.G[i].fitness += greens[i].fitness;
+    for(let i=0;i<reds.length;i++) evo.R[i].fitness += reds[i].fitness;
+    nextGeneration('G');
+    nextGeneration('R');
+    evo.gen++;
+    Q('lbGen').textContent=evo.gen;
+    simSteps=0;
+    forceNextGen=false;
+    setup();
+  }
+}
+
+let infoOverlayLoaded = false;
+
+function updateBestLabels(bestG, bestR){
+  if(Number.isFinite(bestG)){
+    Q('lbBestG').textContent = Number(bestG).toFixed(0);
+  }
+  if(Number.isFinite(bestR)){
+    Q('lbBestR').textContent = Number(bestR).toFixed(0);
+  }
+}
+
+function captureTrainingSnapshot(){
+  const paramsClone = JSON.parse(JSON.stringify(params));
+  const bestGreenValue = Number(Q('lbBestG').textContent);
+  const bestRedValue = Number(Q('lbBestR').textContent);
+  const bestGreen = Number.isFinite(bestGreenValue) ? bestGreenValue : 0;
+  const bestRed = Number.isFinite(bestRedValue) ? bestRedValue : 0;
+  return {
+    version:1,
+    savedAt:new Date().toISOString(),
+    params:paramsClone,
+    evo:{
+      gen:evo.gen,
+      greens:evo.G.map((member)=> ({ net:cloneNet(member.net), fitness:member.fitness||0 })),
+      reds:evo.R.map((member)=> ({ net:cloneNet(member.net), fitness:member.fitness||0 }))
+    },
+    best:{ green:bestGreen, red:bestRed }
+  };
+}
+
+function downloadTrainingData(){
+  try{
+    const snapshot = captureTrainingSnapshot();
+    const json = JSON.stringify(snapshot, null, 2);
+    const blob = new Blob([json], { type:'application/json' });
+    const url = URL.createObjectURL(blob);
+    const genStr = String(snapshot.evo?.gen ?? 1).padStart(3, '0');
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `foodsim-training-gen${genStr}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    setTimeout(()=> URL.revokeObjectURL(url), 1000);
+  }catch(err){
+    console.error('Failed to export training data', err);
+    alert('Could not save training data. Please try again.');
+  }
+}
+
+function applyParamsSnapshot(snapshot){
+  if(!snapshot) return;
+  if(snapshot.maxFruits != null) setRangeValue('slFruits', snapshot.maxFruits);
+  if(snapshot.spawnMs != null) setRangeValue('slSpawn', snapshot.spawnMs);
+  if(snapshot.obstacles != null) setRangeValue('slObst', snapshot.obstacles);
+  if(snapshot.tailLen != null) setRangeValue('slTail', snapshot.tailLen);
+
+  if(snapshot.green){
+    if(snapshot.green.count != null) setRangeValue('slGCount', snapshot.green.count);
+    if(snapshot.green.speed != null) setRangeValue('slGSpeed', Math.round(snapshot.green.speed*100));
+    if(snapshot.green.smart != null) setRangeValue('slGSmart', Math.round(snapshot.green.smart*100));
+    if(snapshot.green.strat != null) setRangeValue('slGStrat', Math.round(snapshot.green.strat*100));
+    if(snapshot.green.sep != null) setRangeValue('slGSep', Math.round(snapshot.green.sep*100));
+  }
+
+  if(snapshot.red){
+    if(snapshot.red.count != null) setRangeValue('slRCount', snapshot.red.count);
+    if(snapshot.red.speed != null) setRangeValue('slRSpeed', Math.round(snapshot.red.speed*100));
+    if(snapshot.red.smart != null) setRangeValue('slRSmart', Math.round(snapshot.red.smart*100));
+    if(snapshot.red.strat != null) setRangeValue('slRStrat', Math.round(snapshot.red.strat*100));
+    if(snapshot.red.sep != null) setRangeValue('slRSep', Math.round(snapshot.red.sep*100));
+  }
+
+  if(snapshot.learn){
+    if(snapshot.learn.genSteps != null) setRangeValue('slGenSteps', snapshot.learn.genSteps);
+    if(snapshot.learn.mut != null) setRangeValue('slMut', Math.round(snapshot.learn.mut*100));
+    if(snapshot.learn.elite != null) setRangeValue('slElite', Math.round(snapshot.learn.elite*100));
+    if(snapshot.learn.auto !== undefined){
+      const auto = Q('chkAuto');
+      if(auto){
+        auto.checked = !!snapshot.learn.auto;
+        auto.dispatchEvent(new Event('change', { bubbles:true }));
+      }
+    }
+  }
+}
+
+function loadTrainingSnapshot(data){
+  if(!data || typeof data !== 'object') throw new Error('Invalid training file.');
+  const evoData = data.evo || data;
+  if(!evoData) throw new Error('Training file is missing the evo section.');
+  const greensData = Array.isArray(evoData.greens) ? evoData.greens : (Array.isArray(evoData.G) ? evoData.G : null);
+  const redsData = Array.isArray(evoData.reds) ? evoData.reds : (Array.isArray(evoData.R) ? evoData.R : null);
+  if(!greensData || !redsData) throw new Error('Training file does not contain both team genomes.');
+
+  let computedBestG = 0;
+  for(const item of greensData){
+    const val = Number(item?.fitness);
+    if(Number.isFinite(val) && val > computedBestG) computedBestG = val;
+  }
+  let computedBestR = 0;
+  for(const item of redsData){
+    const val = Number(item?.fitness);
+    if(Number.isFinite(val) && val > computedBestR) computedBestR = val;
+  }
+  const bestGreenStored = Number(data.best?.green);
+  const bestRedStored = Number(data.best?.red);
+  const bestGreen = Number.isFinite(bestGreenStored) ? bestGreenStored : computedBestG;
+  const bestRed = Number.isFinite(bestRedStored) ? bestRedStored : computedBestR;
+
+  if(data.params) applyParamsSnapshot(data.params);
+
+  const toIndividual = (entry)=>{
+    const netData = entry && (entry.net || entry);
+    if(!netData || !netData.W1 || !netData.b1 || !netData.W2 || !netData.b2){
+      throw new Error('Training file contains malformed network data.');
+    }
+    return { net:cloneNet(netData), fitness:0 };
+  };
+
+  evo.G = greensData.map(toIndividual);
+  evo.R = redsData.map(toIndividual);
+  const parsedGen = Number(evoData.gen);
+  evo.gen = Number.isFinite(parsedGen) && parsedGen > 0 ? parsedGen : 1;
+
+  setRangeValue('slGCount', evo.G.length);
+  setRangeValue('slRCount', evo.R.length);
+
+  simSteps = 0;
+  forceNextGen = false;
+  setup();
+  updateBestLabels(bestGreen, bestRed);
+}
+
+function handleTrainingFileSelection(evt){
+  const input = evt.target;
+  const file = input?.files?.[0];
+  if(input) input.value = '';
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = ()=>{
+    try{
+      const parsed = JSON.parse(reader.result);
+      loadTrainingSnapshot(parsed);
+    }catch(err){
+      console.error('Failed to load training file', err);
+      alert('Could not load training data. Please ensure it was exported from this simulator.');
+    }
+  };
+  reader.onerror = ()=>{
+    console.error('Unable to read the selected file', reader.error);
+    alert('Could not read the selected file.');
+  };
+  reader.readAsText(file);
+}
+
+function closeInfoOverlay(){
+  const overlay = Q('infoOverlay');
+  if(!overlay) return;
+  overlay.classList.remove('show');
+  overlay.setAttribute('aria-hidden', 'true');
+  const infoBtn = Q('btnInfo');
+  if(infoBtn) infoBtn.focus();
+}
+
+function openInfoOverlay(){
+  const overlay = Q('infoOverlay');
+  if(!overlay) return;
+  overlay.classList.add('show');
+  overlay.setAttribute('aria-hidden', 'false');
+  const frame = Q('infoOverlayFrame');
+  if(!infoOverlayLoaded && frame){
+    frame.src = 'learn-neat.html';
+    infoOverlayLoaded = true;
+  }
+  const closeBtn = Q('infoOverlayClose');
+  if(closeBtn) closeBtn.focus();
+}
+
+const btnSaveTraining = Q('btnSaveTraining');
+if(btnSaveTraining){
+  btnSaveTraining.addEventListener('click', downloadTrainingData);
+}
+const btnLoadTraining = Q('btnLoadTraining');
+const inputLoadTraining = Q('inputLoadTraining');
+if(btnLoadTraining && inputLoadTraining){
+  btnLoadTraining.addEventListener('click', ()=> inputLoadTraining.click());
+  inputLoadTraining.addEventListener('change', handleTrainingFileSelection);
+}
+
+const infoButton = Q('btnInfo');
+const infoOverlayEl = Q('infoOverlay');
+const infoOverlayClose = Q('infoOverlayClose');
+if(infoButton){
+  infoButton.addEventListener('click', openInfoOverlay);
+}
+if(infoOverlayClose){
+  infoOverlayClose.addEventListener('click', closeInfoOverlay);
+}
+if(infoOverlayEl){
+  infoOverlayEl.addEventListener('click', (e)=>{
+    if(e.target === infoOverlayEl) closeInfoOverlay();
+  });
+}
+document.addEventListener('keydown', (e)=>{
+  if(e.key === 'Escape' && infoOverlayEl && infoOverlayEl.classList.contains('show')){
+    closeInfoOverlay();
+  }
+});
 
 // Bind ranges after DOM ready
 ['Fruits','Spawn','Obst','Tail','GCount','GSpeed','GSmart','GStrat','GSep','RCount','RSpeed','RSmart','RStrat','RSep','GenSteps','Mut','Elite'].forEach(k=>{
