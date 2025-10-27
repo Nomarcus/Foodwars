@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Så funkar NEAT och Foodwars</title>
+  <style>
+    :root { --bg1:#020617; --bg2:#111827; --ink:#e5e7eb; --accent:#60a5fa; }
+    *{box-sizing:border-box}
+    html,body{height:100%;margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial}
+    body{background:radial-gradient(circle at 50% 10%, var(--bg2) 0%, var(--bg1) 75%); color:var(--ink); display:flex; align-items:center; justify-content:center; padding:32px}
+    main{max-width:860px; width:100%; background:rgba(15,23,42,.82); border:1px solid rgba(148,163,184,.25); border-radius:28px; padding:40px 52px; box-shadow:0 40px 120px rgba(2,6,23,.55); backdrop-filter:blur(12px)}
+    h1{margin-top:0; font-size:36px; letter-spacing:-.01em}
+    h2{margin-top:40px; font-size:22px; letter-spacing:.01em}
+    p{line-height:1.7; margin:16px 0}
+    ul{line-height:1.7; padding-left:22px; margin:18px 0}
+    li{margin-bottom:10px}
+    .pill{display:inline-flex; gap:6px; align-items:center; padding:6px 12px; border-radius:999px; background:rgba(37,99,235,.16); border:1px solid rgba(59,130,246,.35); font-size:13px; letter-spacing:.05em; text-transform:uppercase}
+    .note{border-left:3px solid var(--accent); background:rgba(96,165,250,.08); padding:14px 18px; border-radius:12px; margin:22px 0; font-size:14px; line-height:1.6}
+    a{color:var(--accent); text-decoration:none}
+    a:hover{text-decoration:underline}
+    .back-link{display:inline-flex; align-items:center; gap:8px; margin-top:40px; font-weight:600}
+    .back-link span{font-size:18px}
+    @media (max-width:720px){
+      body{padding:20px}
+      main{padding:30px 24px; border-radius:22px}
+      h1{font-size:30px}
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="pill">Snabbguide</div>
+    <h1>Så funkar NEAT och Foodwars</h1>
+    <p>
+      Foodwars låter två lag av små agenter tävla om frukten på spelplanen. Deras hjärnor tränas med en förenklad version av
+      <strong>NEAT</strong> (NeuroEvolution of Augmenting Topologies): ett genetiskt algoritm-system som utvecklar neurala nät genom
+      att korsa och mutera de bästa kandidaterna generation för generation.
+    </p>
+
+    <h2>Vad betyder NEAT i praktiken?</h2>
+    <ul>
+      <li><strong>Genom</strong>: Varje agent har ett litet neuralt nätverk som styr riktning, undvikande och målval.</li>
+      <li><strong>Fitness</strong>: Ju mer frukt en agent plockar och ju bättre den överlever, desto högre fitness-värde får den.</li>
+      <li><strong>Urval</strong>: Efter varje generation sparas de mest framgångsrika hjärnorna och används som bas för nästa generation.</li>
+      <li><strong>Mutation</strong>: Små slumpmässiga förändringar i kopplingar och vikter skapar variation som kan leda till nya strategier.</li>
+    </ul>
+
+    <h2>Hur spelet är uppbyggt</h2>
+    <p>
+      I <em>index.html</em> körs både spelmotorn och NEAT-logiken direkt i webbläsaren. Canvasen i mitten ritar världen, medan
+      panelerna runtom ger realtidskontroll. Några nyckelkomponenter:
+    </p>
+    <ul>
+      <li><strong>Canvas</strong>: Uppdateras ~60 gånger per sekund med agenternas positioner, svansar, frukt och hinder.</li>
+      <li><strong>Simulatorn</strong>: Hanterar kollisionskontroll, poängräkning och håller reda på generationens steg.</li>
+      <li><strong>Genetiken</strong>: När en generation tar slut bedöms alla agenter, den elit som valt ut behålls och resten fylls på via mutation och korsning.</li>
+      <li><strong>UI-bindningar</strong>: Reglarna i vänster- och högerpanelerna är kopplade till variabler i skriptet som direkt justerar simuleringen.</li>
+    </ul>
+
+    <h2>Vad kan jag ändra för att påverka beteendet?</h2>
+    <p>
+      Använd reglarna på huvudsidan för att experimentera. De viktigaste kontrollerna är:
+    </p>
+    <ul>
+      <li><strong>Steg / gen</strong>: Fler steg ger agenterna längre tid att utforska innan nästa generation skapas.</li>
+      <li><strong>Mutation %</strong>: Högre värde ger mer slump, vilket kan hitta nya idéer men också göra beteendet ryckigt.</li>
+      <li><strong>Elit-andel</strong>: Avgör hur många av de bästa hjärnorna som kopieras rakt av till nästa generation.</li>
+      <li><strong>Lagparametrar</strong>: "Fart", "Smarthet", "Strategi" och "Separation" påverkar hur snabbt agenterna rör sig, hur långt de ser och hur mycket de samarbetar eller sprids ut.</li>
+      <li><strong>Globala kontroller</strong>: Antalet frukter, hinder och svanslängd skapar nya miljöer att anpassa sig till.</li>
+    </ul>
+    <div class="note">
+      Tips: Höj mutation och sänk elit-andel om populationen fastnar i ett tråkigt mönster. Sänk mutation och öka elit-andel för att stabilisera ett lovande beteende.
+    </div>
+
+    <h2>Vill du gräva djupare?</h2>
+    <p>
+      Kika i JavaScript-koden längst ned i <em>index.html</em> för att se hur neuronerna och deras kopplingar definieras. Där kan du även lägga till fler sensor-inputs eller justera hur fitness beräknas om du vill bygga vidare på experimentet.
+    </p>
+
+    <a class="back-link" href="index.html"><span>⟵</span> Tillbaka till simuleringen</a>
+  </main>
+</body>
+</html>
