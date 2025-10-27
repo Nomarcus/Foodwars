@@ -34,6 +34,17 @@
     .btn{display:block; width:100%; padding:8px 10px; border-radius:10px; border:1px solid #2f3b58; background:#1f2a42; color:#cfe0ff; cursor:pointer; text-align:center; margin-top:10px}
     .btn:hover{filter:brightness(1.08)}
     .sub{font-weight:800; font-size:14px; opacity:.9; margin:10px 0 8px}
+    .music-lead{font-size:13px; line-height:1.5; opacity:.85; margin:0 0 14px}
+    .music-select{display:flex; flex-direction:column; gap:6px}
+    .music-dropdown{width:100%; padding:10px 12px; border-radius:12px; border:1px solid rgba(148,163,184,.35); background:#0b1223; color:var(--ink); font-size:13px; font-family:inherit; letter-spacing:.01em}
+    .music-controls{display:flex; align-items:center; gap:12px; margin-top:12px; flex-wrap:wrap}
+    .music-controls .btn{flex:0 0 auto; width:auto; padding:10px 18px; margin-top:0}
+    .music-volume{display:flex; flex:1; align-items:center; gap:10px; min-width:200px}
+    .music-volume .label{min-width:60px}
+    .music-volume input[type=range]{flex:1}
+    .music-meta{margin-top:14px; font-size:12px; line-height:1.6; background:rgba(15,23,42,.55); border:1px solid rgba(148,163,184,.22); padding:10px 12px; border-radius:12px}
+    .music-status{display:flex; align-items:center; gap:8px; font-size:12px; text-transform:uppercase; letter-spacing:.08em; opacity:.82}
+    .music-attr{opacity:.72}
   </style>
 </head>
 <body>
@@ -128,8 +139,34 @@
           </div>
         </div>
       </div>
+
+      <div class="panel" id="panel-music">
+        <div class="panel-head"><div class="h">Ambient Sound Lounge</div><span class="chev">▾</span></div>
+        <div class="panel-body">
+          <p class="music-lead">Slip into focus with a hand-picked selection of calm, looping ambient tracks.</p>
+          <div class="music-select">
+            <label class="label" for="selMusic">Curated playlist</label>
+            <select id="selMusic" class="music-dropdown"></select>
+          </div>
+          <div class="music-controls">
+            <button id="btnMusicToggle" class="btn">Play</button>
+            <div class="music-volume">
+              <span class="label">Volume</span>
+              <input id="slMusicVolume" type="range" min="0" max="100" value="55">
+              <span class="val" id="lbMusicVolume">55%</span>
+            </div>
+          </div>
+          <div class="music-meta">
+            <div class="music-status"><span id="lbMusicState">Paused</span></div>
+            <div id="lbMusicNow" class="music-attr">Choose a track to begin.</div>
+            <div id="lbMusicSource" class="music-attr">Ambient libraries: Pixabay & Mixkit.</div>
+          </div>
+        </div>
+      </div>
     </aside>
   </div>
+
+  <audio id="bgm" preload="none" loop></audio>
 
 <script>
 // ===== Utils for UI =====
@@ -179,6 +216,21 @@ const params = {
 };
 let lastObstCount = params.obstacles;
 
+const MUSIC_TRACKS = [
+  { title:'Night Ambience', artist:'ZakharValaha', source:'Pixabay · night-ambience-20469', url:'https://cdn.pixabay.com/download/audio/2022/03/15/audio_7f51dfef52.mp3?filename=night-ambience-20469.mp3' },
+  { title:'Floating Clouds', artist:'Lesfm', source:'Pixabay · floating-clouds-14021', url:'https://cdn.pixabay.com/download/audio/2021/09/27/audio_88a2bb1e06.mp3?filename=floating-clouds-14021.mp3' },
+  { title:'Meditative Ambience', artist:'Mixkit', source:'Mixkit · meditative-ambience-138', url:'https://assets.mixkit.co/music/preview/mixkit-meditative-ambience-138.mp3' },
+  { title:'Deep Inhale', artist:'Amaksi', source:'Pixabay · deep-inhale-137913', url:'https://cdn.pixabay.com/download/audio/2023/02/28/audio_5a4de95abf.mp3?filename=deep-inhale-137913.mp3' },
+  { title:'Northern Lights', artist:'ZakharValaha', source:'Pixabay · northern-lights-125105', url:'https://cdn.pixabay.com/download/audio/2022/11/29/audio_b88e970b12.mp3?filename=northern-lights-125105.mp3' },
+  { title:'Astral Realm', artist:'Mixkit', source:'Mixkit · astral-realm-453', url:'https://assets.mixkit.co/music/preview/mixkit-astral-realm-453.mp3' },
+  { title:'Soft Meditation', artist:'FASSounds', source:'Pixabay · soft-meditation-11234', url:'https://cdn.pixabay.com/download/audio/2021/09/16/audio_854e0582d2.mp3?filename=soft-meditation-11234.mp3' },
+  { title:'Lunar Dreams', artist:'Mixkit', source:'Mixkit · lunar-dreams-1122', url:'https://assets.mixkit.co/music/preview/mixkit-lunar-dreams-1122.mp3' },
+  { title:'Sunset Horizon', artist:'Olexy', source:'Pixabay · sunset-horizon-145050', url:'https://cdn.pixabay.com/download/audio/2023/04/28/audio_a3c8b27c24.mp3?filename=sunset-horizon-145050.mp3' },
+  { title:'Serene Waterway', artist:'RelaxingTime', source:'Pixabay · serene-waterway-14775', url:'https://cdn.pixabay.com/download/audio/2021/10/01/audio_ae2cbf0c6d.mp3?filename=serene-waterway-14775.mp3' }
+];
+const musicAudio = document.getElementById('bgm');
+let currentTrackIndex = 0;
+
 function readParams(){
   params.maxFruits = +Q('slFruits').value; Q('lbFruits').textContent=params.maxFruits;
   params.spawnMs = +Q('slSpawn').value; Q('lbSpawn').textContent=params.spawnMs;
@@ -202,12 +254,81 @@ function readParams(){
   params.learn.elite = (+Q('slElite').value)/100; Q('lbElite').textContent=params.learn.elite.toFixed(2);
   params.learn.auto = Q('chkAuto').checked; Q('lbAuto').textContent = params.learn.auto? 'på':'av';
 }
-['Fruits','Spawn','Obst','Tail','GCount','GSpeed','GSmart','GStrat','GSep','RCount','RSpeed','RSmart','RStrat','RSep','GenSteps','Mut','Elite'].forEach(k=>{
-  bindRange('sl'+k, 'lb'+k, (v)=> (k.includes('Speed')||k.includes('Smart')||k.includes('Strat')||k.includes('Sep')) ? (v/100).toFixed(2) : v);
-});
-Q('btnReset').onclick = ()=> setup();
-Q('btnNextGen').onclick = ()=> { forceNextGen = true; };
-Q('chkAuto').addEventListener('change', ()=> readParams());
+function updateMusicMeta(track, stateOverride=null){
+  if(!track) return;
+  const state = stateOverride || (musicAudio.paused ? 'Paused' : 'Playing');
+  Q('lbMusicState').textContent = state;
+  Q('lbMusicNow').textContent = `${track.title} — ${track.artist}`;
+  Q('lbMusicSource').textContent = track.source;
+}
+
+function setMusicTrack(index, autoplay=false){
+  if(index<0 || index>=MUSIC_TRACKS.length) return;
+  currentTrackIndex = index;
+  const track = MUSIC_TRACKS[index];
+  musicAudio.src = track.url;
+  updateMusicMeta(track, 'Loading…');
+  musicAudio.load();
+  if(autoplay){
+    musicAudio.play().catch(()=>{});
+  }
+}
+
+function initMusicPanel(){
+  const select = Q('selMusic');
+  const toggle = Q('btnMusicToggle');
+  const vol = Q('slMusicVolume');
+  const volLabel = Q('lbMusicVolume');
+
+  MUSIC_TRACKS.forEach((track, idx)=>{
+    const opt = document.createElement('option');
+    opt.value = idx;
+    opt.textContent = `${track.title} — ${track.artist}`;
+    select.appendChild(opt);
+  });
+  select.value = String(currentTrackIndex);
+
+  const applyVolume = ()=>{
+    const value = Math.round(vol.value);
+    musicAudio.volume = value/100;
+    volLabel.textContent = `${value}%`;
+  };
+  vol.addEventListener('input', applyVolume);
+  applyVolume();
+
+  select.addEventListener('change', ()=>{
+    const idx = Number(select.value);
+    const shouldAutoplay = !musicAudio.paused && !!musicAudio.src;
+    setMusicTrack(idx, shouldAutoplay);
+  });
+
+  toggle.addEventListener('click', ()=>{
+    if(!musicAudio.src){
+      setMusicTrack(Number(select.value), true);
+      return;
+    }
+    if(musicAudio.paused){
+      musicAudio.play().catch(()=>{});
+    } else {
+      musicAudio.pause();
+    }
+  });
+
+  musicAudio.addEventListener('play', ()=>{
+    toggle.textContent = 'Pause';
+    updateMusicMeta(MUSIC_TRACKS[currentTrackIndex], 'Playing');
+  });
+  musicAudio.addEventListener('pause', ()=>{
+    toggle.textContent = 'Play';
+    updateMusicMeta(MUSIC_TRACKS[currentTrackIndex], 'Paused');
+  });
+  musicAudio.addEventListener('loadeddata', ()=>{
+    const status = musicAudio.paused ? 'Ready' : 'Playing';
+    updateMusicMeta(MUSIC_TRACKS[currentTrackIndex], status);
+  });
+
+  setMusicTrack(currentTrackIndex, false);
+}
 
 // ===== Datastrukturer =====
 const greens=[], reds=[], fruits=[], obstacles=[];
@@ -399,6 +520,7 @@ Q('btnNextGen').onclick = ()=> { forceNextGen = true; };
 Q('chkAuto').addEventListener('change', ()=> readParams());
 
 // Start
+initMusicPanel();
 readParams();
 setup();
 loop();
