@@ -70,36 +70,6 @@
     <a class="info-link" href="learn-neat.html"><span>ℹ️</span> How NEAT & FoodSim work</a>
   </div>
   <div class="wrap">
-    <!-- Left panel: training (NEAT) -->
-    <aside class="side" id="left-panel">
-      <div class="panel" id="panel-learn">
-        <div class="panel-head"><div class="h">Training (NEAT-lite)</div><span class="chev">▾</span></div>
-        <div class="panel-body">
-          <div class="grid">
-            <div class="label">Steps / gen</div>
-            <input id="slGenSteps" type="range" min="600" max="8000" value="2800"><div class="val" id="lbGenSteps">2800</div>
-
-            <div class="label">Mutation %</div>
-            <input id="slMut" type="range" min="1" max="80" value="16"><div class="val" id="lbMut">16</div>
-
-            <div class="label">Elite ratio</div>
-            <input id="slElite" type="range" min="5" max="50" value="20"><div class="val" id="lbElite">0.20</div>
-          </div>
-          <div class="grid" style="margin-top:8px">
-            <div class="label">Auto next gen</div>
-            <input id="chkAuto" type="checkbox" checked><div class="val" id="lbAuto">on</div>
-          </div>
-          <div class="sub" style="margin-top:10px">Status</div>
-          <div class="grid">
-            <div class="label">Generation</div><div></div><div class="val" id="lbGen">1</div>
-            <div class="label">Best 🟢</div><div></div><div class="val" id="lbBestG">0</div>
-            <div class="label">Best 🔴</div><div></div><div class="val" id="lbBestR">0</div>
-          </div>
-          <button id="btnNextGen" class="btn">Advance generation now</button>
-        </div>
-      </div>
-    </aside>
-
     <!-- Center: playfield -->
     <canvas id="world" width="1100" height="640"></canvas>
 
@@ -179,6 +149,33 @@
             <div id="lbMusicNow" class="music-attr">Choose a track to begin.</div>
             <div id="lbMusicSource" class="music-attr">Ambient libraries: Pixabay & Mixkit.</div>
           </div>
+        </div>
+      </div>
+
+      <div class="panel" id="panel-learn">
+        <div class="panel-head"><div class="h">Training (NEAT-lite)</div><span class="chev">▾</span></div>
+        <div class="panel-body">
+          <div class="grid">
+            <div class="label">Steps / gen</div>
+            <input id="slGenSteps" type="range" min="600" max="8000" value="2800"><div class="val" id="lbGenSteps">2800</div>
+
+            <div class="label">Mutation %</div>
+            <input id="slMut" type="range" min="1" max="80" value="16"><div class="val" id="lbMut">16</div>
+
+            <div class="label">Elite ratio</div>
+            <input id="slElite" type="range" min="5" max="50" value="20"><div class="val" id="lbElite">0.20</div>
+          </div>
+          <div class="grid" style="margin-top:8px">
+            <div class="label">Auto next gen</div>
+            <input id="chkAuto" type="checkbox" checked><div class="val" id="lbAuto">on</div>
+          </div>
+          <div class="sub" style="margin-top:10px">Status</div>
+          <div class="grid">
+            <div class="label">Generation</div><div></div><div class="val" id="lbGen">1</div>
+            <div class="label">Best 🟢</div><div></div><div class="val" id="lbBestG">0</div>
+            <div class="label">Best 🔴</div><div></div><div class="val" id="lbBestR">0</div>
+          </div>
+          <button id="btnNextGen" class="btn">Advance generation now</button>
         </div>
       </div>
     </aside>
