@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="sv">
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Katt & Råtta – Två lag med NEAT-lite</title>
+  <title>FoodSim – Two Teams with NEAT-lite</title>
   <style>
     :root { --bg1:#0d111f; --bg2:#1a1f3b; --ink:#e5e7eb; }
     *{box-sizing:border-box}
@@ -49,90 +49,90 @@
 </head>
 <body>
   <div class="top-nav">
-    <a class="info-link" href="learn-neat.html"><span>ℹ️</span> Så funkar NEAT & spelet</a>
+    <a class="info-link" href="learn-neat.html"><span>ℹ️</span> Learn how NEAT & FoodSim work</a>
   </div>
   <div class="wrap">
-    <!-- Vänster panel: Lärning (NEAT) -->
+    <!-- Left panel: Learning (NEAT) -->
     <aside class="side" id="left-panel">
       <div class="panel" id="panel-learn">
-        <div class="panel-head"><div class="h">Lärning (NEAT‑lite)</div><span class="chev">▾</span></div>
+        <div class="panel-head"><div class="h">Learning (NEAT-lite)</div><span class="chev">▾</span></div>
         <div class="panel-body">
           <div class="grid">
-            <div class="label">Steg / gen</div>
+            <div class="label">Steps / gen</div>
             <input id="slGenSteps" type="range" min="600" max="8000" value="2800"><div class="val" id="lbGenSteps">2800</div>
 
             <div class="label">Mutation %</div>
             <input id="slMut" type="range" min="1" max="80" value="16"><div class="val" id="lbMut">16</div>
 
-            <div class="label">Elit‑andel</div>
+            <div class="label">Elite ratio</div>
             <input id="slElite" type="range" min="5" max="50" value="20"><div class="val" id="lbElite">0.20</div>
           </div>
           <div class="grid" style="margin-top:8px">
-            <div class="label">Auto‑nästa gen</div>
-            <input id="chkAuto" type="checkbox" checked><div class="val" id="lbAuto">på</div>
+            <div class="label">Auto next gen</div>
+            <input id="chkAuto" type="checkbox" checked><div class="val" id="lbAuto">on</div>
           </div>
           <div class="sub" style="margin-top:10px">Status</div>
           <div class="grid">
             <div class="label">Generation</div><div></div><div class="val" id="lbGen">1</div>
-            <div class="label">Bäst 🟢</div><div></div><div class="val" id="lbBestG">0</div>
-            <div class="label">Bäst 🔴</div><div></div><div class="val" id="lbBestR">0</div>
+            <div class="label">Best 🟢</div><div></div><div class="val" id="lbBestG">0</div>
+            <div class="label">Best 🔴</div><div></div><div class="val" id="lbBestR">0</div>
           </div>
-          <button id="btnNextGen" class="btn">Nästa generation nu</button>
+          <button id="btnNextGen" class="btn">Advance generation now</button>
         </div>
       </div>
     </aside>
 
-    <!-- Mitt: spelplan -->
+    <!-- Middle: playfield -->
     <canvas id="world" width="1100" height="640"></canvas>
 
-    <!-- Höger paneler: kontroller och lag -->
+    <!-- Right panels: controls and teams -->
     <aside class="side" id="right-panel">
       <div class="panel" id="panel-global">
-        <div class="panel-head"><div class="h">Globala kontroller</div><span class="chev">▾</span></div>
+        <div class="panel-head"><div class="h">Global controls</div><span class="chev">▾</span></div>
         <div class="panel-body">
           <div class="grid">
-            <div class="label">Frukt (max)</div>
+            <div class="label">Fruit (max)</div>
             <input id="slFruits" type="range" min="2" max="160" value="32"><div class="val" id="lbFruits">32</div>
 
             <div class="label">Spawn (ms)</div>
             <input id="slSpawn" type="range" min="120" max="5000" value="900"><div class="val" id="lbSpawn">900</div>
 
-            <div class="label">Hinder</div>
+            <div class="label">Obstacles</div>
             <input id="slObst" type="range" min="0" max="40" value="8"><div class="val" id="lbObst">8</div>
 
-            <div class="label">Svanslängd</div>
+            <div class="label">Trail length</div>
             <input id="slTail" type="range" min="4" max="200" value="24"><div class="val" id="lbTail">24</div>
           </div>
-          <button id="btnReset" class="btn">Starta om</button>
+          <button id="btnReset" class="btn">Restart</button>
         </div>
       </div>
 
       <div class="panel" id="panel-teams">
-        <div class="panel-head"><div class="h">Laginställningar</div><span class="chev">▾</span></div>
+        <div class="panel-head"><div class="h">Team settings</div><span class="chev">▾</span></div>
         <div class="panel-body">
-          <div class="sub">🟢 Gröna</div>
+          <div class="sub">🟢 Greens</div>
           <div class="grid">
-            <div class="label">Antal</div>
+            <div class="label">Count</div>
             <input id="slGCount" type="range" min="2" max="200" value="28"><div class="val" id="lbGCount">28</div>
-            <div class="label">Fart</div>
+            <div class="label">Speed</div>
             <input id="slGSpeed" type="range" min="10" max="600" value="260"><div class="val" id="lbGSpeed">2.60</div>
-            <div class="label">Smarthet</div>
+            <div class="label">Awareness</div>
             <input id="slGSmart" type="range" min="0" max="300" value="180"><div class="val" id="lbGSmart">1.80</div>
-            <div class="label">Strategi</div>
+            <div class="label">Strategy</div>
             <input id="slGStrat" type="range" min="0" max="300" value="140"><div class="val" id="lbGStrat">1.40</div>
             <div class="label">Separation</div>
             <input id="slGSep" type="range" min="0" max="300" value="110"><div class="val" id="lbGSep">1.10</div>
           </div>
 
-          <div class="sub" style="margin-top:14px">🔴 Röda</div>
+          <div class="sub" style="margin-top:14px">🔴 Reds</div>
           <div class="grid">
-            <div class="label">Antal</div>
+            <div class="label">Count</div>
             <input id="slRCount" type="range" min="2" max="200" value="28"><div class="val" id="lbRCount">28</div>
-            <div class="label">Fart</div>
+            <div class="label">Speed</div>
             <input id="slRSpeed" type="range" min="10" max="600" value="260"><div class="val" id="lbRSpeed">2.60</div>
-            <div class="label">Smarthet</div>
+            <div class="label">Awareness</div>
             <input id="slRSmart" type="range" min="0" max="300" value="180"><div class="val" id="lbRSmart">1.80</div>
-            <div class="label">Strategi</div>
+            <div class="label">Strategy</div>
             <input id="slRStrat" type="range" min="0" max="300" value="140"><div class="val" id="lbRStrat">1.40</div>
             <div class="label">Separation</div>
             <input id="slRSep" type="range" min="0" max="300" value="110"><div class="val" id="lbRSep">1.10</div>
@@ -186,7 +186,7 @@ function bindRange(sl, lb, fmt=(v)=>v){ const s=Q(sl), l=Q(lb); const apply=()=>
   });
 })();
 
-// ===== Färger =====
+// ===== Colors =====
 const COLORS = {
   green: '#00ff91',
   red:   '#ff0055',
@@ -204,7 +204,7 @@ const canvas = document.getElementById('world');
 const ctx = canvas.getContext('2d');
 const W = canvas.width, H = canvas.height;
 
-// ===== Parametrar =====
+// ===== Parameters =====
 const params = {
   maxFruits: 32,
   spawnMs: 900,
@@ -252,7 +252,7 @@ function readParams(){
   params.learn.genSteps = +Q('slGenSteps').value; Q('lbGenSteps').textContent=params.learn.genSteps;
   params.learn.mut = (+Q('slMut').value)/100; Q('lbMut').textContent=Math.round(params.learn.mut*100);
   params.learn.elite = (+Q('slElite').value)/100; Q('lbElite').textContent=params.learn.elite.toFixed(2);
-  params.learn.auto = Q('chkAuto').checked; Q('lbAuto').textContent = params.learn.auto? 'på':'av';
+  params.learn.auto = Q('chkAuto').checked; Q('lbAuto').textContent = params.learn.auto? 'on':'off';
 }
 function updateMusicMeta(track, stateOverride=null){
   if(!track) return;
@@ -383,7 +383,7 @@ function initMusicPanel(){
 // ===== Datastrukturer =====
 const greens=[], reds=[], fruits=[], obstacles=[];
 
-// Pheromon-grid – separata fält per lag
+// Pheromone grid – separate fields per team
 let grid, GW, GH, CS = 22; // cellstorlek
 function makeGrid(){ GW=Math.floor(W/CS); GH=Math.floor(H/CS);
   grid={ foodG:new Float32Array(GW*GH), homeG:new Float32Array(GW*GH), foodR:new Float32Array(GW*GH), homeR:new Float32Array(GW*GH) };
@@ -394,7 +394,7 @@ function deposit(field,x,y,amt){ const cx=clampi((x/CS)|0,0,GW-1), cy=clampi((y/
 function senseGrad(field,x,y){ const cx=clampi((x/CS)|0,0,GW-1), cy=clampi((y/CS)|0,0,GH-1); let best=-1e9,bx=cx,by=cy; for(let dy=-1;dy<=1;dy++) for(let dx=-1;dx<=1;dx++){ const nx=clampi(cx+dx,0,GW-1), ny=clampi(cy+dy,0,GH-1); const v=grid[field][gi(nx,ny)]; if(v>best){best=v; bx=nx; by=ny;} } return {gx:(bx-cx), gy:(by-cy), val:grid[field][gi(bx,by)]}; }
 function evaporate(){ const keep=0.985; const names=['foodG','homeG','foodR','homeR']; const tmps={}; for(const n of names) tmps[n]=new Float32Array(GW*GH); for(const n of names){ const src=grid[n], dst=tmps[n]; for(let y=0;y<GH;y++){ for(let x=0;x<GW;x++){ let v=src[gi(x,y)]*keep; let sum=v*0.4; let cnt=0; for(let dy=-1;dy<=1;dy++) for(let dx=-1;dx<=1;dx++) if(dx||dy){ const nx=clampi(x+dx,0,GW-1), ny=clampi(y+dy,0,GH-1); sum += src[gi(nx,ny)]*0.075; cnt++; } dst[gi(x,y)]= sum/(0.4+0.075*cnt); } } } for(const n of names) grid[n]=tmps[n]; }
 
-// Mål – ett per lag (dragbara)
+// Goals – one per team (draggable)
 const goalG={ x:W*0.86, y:H*0.35, r:34, delivered:0 },
       goalR={ x:W*0.14, y:H*0.65, r:34, delivered:0 };
 let dragTarget=null, dragDX=0, dragDY=0, dragKind=null, dragIndex=-1;
@@ -402,14 +402,14 @@ canvas.addEventListener('mousedown', (e)=>{
   const r=canvas.getBoundingClientRect();
   const x=e.clientX - r.left, y=e.clientY - r.top;
   dragTarget=null; dragKind=null; dragIndex=-1;
-  // Prioritera hinder (översta först)
+  // Prioritize obstacles (topmost first)
   for(let i=obstacles.length-1; i>=0; i--){
     const o=obstacles[i];
     if(Math.hypot(x-o.x, y-o.y) <= o.r + 8){
       dragTarget=o; dragKind='obst'; dragIndex=i; dragDX=o.x - x; dragDY=o.y - y; return;
     }
   }
-  // Målringar
+  // Goal rings
   if(Math.hypot(x-goalG.x,y-goalG.y) <= goalG.r+12){ dragTarget=goalG; dragKind='goalG'; dragDX=goalG.x-x; dragDY=goalG.y-y; return; }
   if(Math.hypot(x-goalR.x,y-goalR.y) <= goalR.r+12){ dragTarget=goalR; dragKind='goalR'; dragDX=goalR.x-x; dragDY=goalR.y-y; return; }
 });
