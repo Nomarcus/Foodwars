@@ -171,7 +171,7 @@
           <div class="music-meta">
             <div class="music-status"><span id="lbMusicState">Paused</span></div>
             <div id="lbMusicNow" class="music-attr">Choose a track to begin.</div>
-            <div id="lbMusicSource" class="music-attr">Ambient libraries: Pixabay & Mixkit.</div>
+            <div id="lbMusicSource" class="music-attr">Royalty-free ambient selections streamed from Pixabay artists.</div>
           </div>
         </div>
       </div>
@@ -249,16 +249,24 @@ const params = {
 let lastObstCount = params.obstacles;
 
 const MUSIC_TRACKS = [
-  { title:'Night Ambience', artist:'ZakharValaha', source:'Pixabay · night-ambience-20469', url:'https://cdn.pixabay.com/download/audio/2022/03/15/audio_7f51dfef52.mp3?filename=night-ambience-20469.mp3' },
-  { title:'Floating Clouds', artist:'Lesfm', source:'Pixabay · floating-clouds-14021', url:'https://cdn.pixabay.com/download/audio/2021/09/27/audio_88a2bb1e06.mp3?filename=floating-clouds-14021.mp3' },
-  { title:'Meditative Ambience', artist:'Mixkit', source:'Mixkit · meditative-ambience-138', url:'https://assets.mixkit.co/music/preview/mixkit-meditative-ambience-138.mp3' },
-  { title:'Deep Inhale', artist:'Amaksi', source:'Pixabay · deep-inhale-137913', url:'https://cdn.pixabay.com/download/audio/2023/02/28/audio_5a4de95abf.mp3?filename=deep-inhale-137913.mp3' },
-  { title:'Northern Lights', artist:'ZakharValaha', source:'Pixabay · northern-lights-125105', url:'https://cdn.pixabay.com/download/audio/2022/11/29/audio_b88e970b12.mp3?filename=northern-lights-125105.mp3' },
-  { title:'Astral Realm', artist:'Mixkit', source:'Mixkit · astral-realm-453', url:'https://assets.mixkit.co/music/preview/mixkit-astral-realm-453.mp3' },
-  { title:'Soft Meditation', artist:'FASSounds', source:'Pixabay · soft-meditation-11234', url:'https://cdn.pixabay.com/download/audio/2021/09/16/audio_854e0582d2.mp3?filename=soft-meditation-11234.mp3' },
-  { title:'Lunar Dreams', artist:'Mixkit', source:'Mixkit · lunar-dreams-1122', url:'https://assets.mixkit.co/music/preview/mixkit-lunar-dreams-1122.mp3' },
-  { title:'Sunset Horizon', artist:'Olexy', source:'Pixabay · sunset-horizon-145050', url:'https://cdn.pixabay.com/download/audio/2023/04/28/audio_a3c8b27c24.mp3?filename=sunset-horizon-145050.mp3' },
-  { title:'Serene Waterway', artist:'RelaxingTime', source:'Pixabay · serene-waterway-14775', url:'https://cdn.pixabay.com/download/audio/2021/10/01/audio_ae2cbf0c6d.mp3?filename=serene-waterway-14775.mp3' }
+  {
+    title: 'Forest Haze',
+    artist: 'Dream-Protocol',
+    source: 'Pixabay — Ambient Meditation by dream-protocol',
+    url: 'https://cdn.pixabay.com/download/audio/2022/10/21/audio_3f225524d86.mp3?filename=deep-in-forest-ambient-12484.mp3'
+  },
+  {
+    title: 'Cloudlight',
+    artist: 'Lesfm',
+    source: 'Pixabay — Meditation by Lesfm',
+    url: 'https://cdn.pixabay.com/download/audio/2022/03/15/audio_c083352499.mp3?filename=ambient-110366.mp3'
+  },
+  {
+    title: 'Luminous Air',
+    artist: 'Ashot-Danielyan-Composer',
+    source: 'Pixabay — Ambient Piano by Ashot-Danielyan-Composer',
+    url: 'https://cdn.pixabay.com/download/audio/2023/02/27/audio_aa79d23c34.mp3?filename=ambient-piano-14352.mp3'
+  }
 ];
 const musicAudio = document.getElementById('bgm');
 let currentTrackIndex = 0;
