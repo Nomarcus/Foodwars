@@ -262,6 +262,42 @@ function updateMusicMeta(track, stateOverride=null){
   Q('lbMusicSource').textContent = track.source;
 }
 
+let awaitingAudioUnlock = false;
+
+function requestAudioUnlock(){
+  if(awaitingAudioUnlock) return;
+  awaitingAudioUnlock = true;
+  const resume = ()=>{
+    document.removeEventListener('pointerdown', resume);
+    document.removeEventListener('keydown', resume);
+    awaitingAudioUnlock = false;
+    playCurrentTrack();
+  };
+  document.addEventListener('pointerdown', resume);
+  document.addEventListener('keydown', resume);
+}
+
+function handlePlayError(err){
+  if(!err) return;
+  if(err.name === 'NotAllowedError' || err.name === 'SecurityError'){
+    updateMusicMeta(MUSIC_TRACKS[currentTrackIndex], 'Tap to enable audio');
+    requestAudioUnlock();
+    console.warn('Music playback is blocked until the page receives a user interaction.', err);
+  } else if(err.name === 'AbortError'){
+    // Interruption during load – ignore to avoid confusing messaging
+  } else {
+    updateMusicMeta(MUSIC_TRACKS[currentTrackIndex], 'Playback failed');
+    console.error('Music playback failed', err);
+  }
+}
+
+function playCurrentTrack(){
+  const promise = musicAudio.play();
+  if(promise){
+    promise.catch(handlePlayError);
+  }
+}
+
 function setMusicTrack(index, autoplay=false){
   if(index<0 || index>=MUSIC_TRACKS.length) return;
   currentTrackIndex = index;
@@ -270,10 +306,7 @@ function setMusicTrack(index, autoplay=false){
   updateMusicMeta(track, autoplay ? 'Loading…' : 'Ready');
   musicAudio.load();
   if(autoplay){
-    musicAudio.play().catch((err)=>{
-      updateMusicMeta(track, 'Play blocked');
-      console.warn('Music play request was blocked', err);
-    });
+    playCurrentTrack();
   }
 }
 
@@ -311,10 +344,7 @@ function initMusicPanel(){
       return;
     }
     if(musicAudio.paused){
-      musicAudio.play().catch((err)=>{
-        updateMusicMeta(MUSIC_TRACKS[currentTrackIndex], 'Play blocked');
-        console.warn('Music play request was blocked', err);
-      });
+      playCurrentTrack();
     } else {
       musicAudio.pause();
     }
@@ -339,7 +369,7 @@ function initMusicPanel(){
     const status = musicAudio.paused ? 'Ready' : 'Playing';
     updateMusicMeta(MUSIC_TRACKS[currentTrackIndex], status);
     if(!musicAudio.paused){
-      musicAudio.play().catch(()=>{});
+      playCurrentTrack();
     }
   });
   musicAudio.addEventListener('error', ()=>{
