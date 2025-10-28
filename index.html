@@ -38,9 +38,13 @@
     .stat-value{font-size:26px; font-weight:700; letter-spacing:.02em; color:var(--ink)}
 
     .brain-viz{padding:20px 24px; border-radius:22px; background:rgba(11,16,44,.82); border:1px solid var(--silver); box-shadow:0 18px 32px rgba(5,9,25,.4); display:flex; flex-direction:column; gap:14px}
+    .brain-viz.brain-viz--hidden{box-shadow:0 12px 24px rgba(5,9,25,.35)}
     .brain-head{display:flex; align-items:flex-start; justify-content:space-between; gap:18px; flex-wrap:wrap}
     .brain-title{font-size:16px; font-weight:600; letter-spacing:.03em}
     .brain-sub{font-size:12px; color:var(--muted); margin-top:4px}
+    .brain-toggle{margin-top:10px; padding:6px 14px; border-radius:999px; border:1px solid rgba(56,189,248,.45); background:rgba(15,23,61,.6); color:var(--ink); font-size:11px; font-weight:600; letter-spacing:.12em; text-transform:uppercase; cursor:pointer; transition:transform .18s ease, box-shadow .2s ease, filter .2s ease}
+    .brain-toggle:hover{filter:brightness(1.05); transform:translateY(-1px); box-shadow:0 12px 24px rgba(56,189,248,.25)}
+    .brain-toggle[aria-pressed="false"]{border-color:rgba(244,114,182,.45); background:rgba(24,16,38,.65); color:var(--muted)}
     .brain-score{display:flex; flex-direction:column; align-items:flex-end; min-width:120px}
     .brain-score-label{font-size:11px; text-transform:uppercase; letter-spacing:.12em; color:var(--muted)}
     .brain-score-value{font-size:30px; font-weight:700; color:var(--ink)}
@@ -48,6 +52,7 @@
     .brain-badge{display:inline-flex; align-items:center; justify-content:center; width:26px; height:26px; border-radius:50%; background:rgba(56,189,248,.3); color:#020617; font-size:15px; font-weight:700; box-shadow:0 0 18px rgba(56,189,248,.28)}
     .brain-gen{margin-left:auto; font-size:11px; color:var(--muted); letter-spacing:.08em; text-transform:uppercase}
     .brain-canvas{width:100%; height:220px; border-radius:18px; background:linear-gradient(135deg, rgba(15,23,61,.65), rgba(12,18,44,.92)); border:1px solid rgba(148,163,209,.28)}
+    .brain-paused{margin-top:10px; padding:12px 14px; border-radius:14px; border:1px dashed rgba(148,163,209,.4); background:rgba(15,23,61,.55); font-size:12px; line-height:1.6; color:var(--muted)}
 
     .side{width:420px; flex:0 1 420px; display:flex; flex-direction:column; gap:20px}
     .panel{background:var(--panel); border:1px solid var(--silver); padding:22px; border-radius:20px; backdrop-filter:blur(16px); box-shadow:0 18px 45px rgba(5,7,24,.55); position:relative}
@@ -185,6 +190,9 @@
           <div>
             <div class="brain-title">Top Neural Network</div>
             <div class="brain-sub" id="brain-subtitle">Waiting for the first champion…</div>
+            <button type="button" id="brainToggleBtn" class="brain-toggle" aria-pressed="true">
+              Hide visualization
+            </button>
           </div>
           <div class="brain-score">
             <span class="brain-score-label">Fitness</span>
@@ -197,6 +205,9 @@
           <span class="brain-gen" id="brain-generation">Gen —</span>
         </div>
         <canvas id="brainVizCanvas" class="brain-canvas" width="560" height="240" role="img" aria-label="Visualization of the current top neural network"></canvas>
+        <div id="brainPausedNotice" class="brain-paused" hidden>
+          Visualization hidden to save performance. Toggle it back on anytime to resume live updates.
+        </div>
       </section>
     </div>
 
@@ -365,8 +376,12 @@ const brainTeamEl = Q('brain-team');
 const brainBadgeEl = Q('brain-badge');
 const brainFitnessEl = Q('brain-fitness');
 const brainGenEl = Q('brain-generation');
+const brainToggleBtn = Q('brainToggleBtn');
+const brainPausedEl = Q('brainPausedNotice');
+const brainVizSection = document.querySelector('.brain-viz');
 let brainCanvasWidth = brainCanvas ? brainCanvas.clientWidth : 0;
 let brainCanvasHeight = brainCanvas ? brainCanvas.clientHeight : 0;
+let brainVizEnabled = true;
 const AGENT_BASE_RADIUS = 5.2;
 const AGENT_BASE_PICKUP_RADIUS = 9;
 const AGENT_BASE_SEPARATION_RADIUS = 22;
@@ -1621,6 +1636,43 @@ function clearActivationStore(store){
   store.output.length = 0;
   store.timestamp = 0;
 }
+function applyBrainVizState(){
+  const enabled = !!brainVizEnabled;
+  if(brainCanvas){
+    if(enabled){
+      brainCanvas.removeAttribute('hidden');
+    } else {
+      brainCanvas.setAttribute('hidden','');
+    }
+  }
+  if(brainPausedEl){
+    brainPausedEl.hidden = enabled;
+  }
+  if(brainVizSection){
+    brainVizSection.classList.toggle('brain-viz--hidden', !enabled);
+  }
+  if(brainToggleBtn){
+    brainToggleBtn.textContent = enabled ? 'Hide visualization' : 'Show visualization';
+    brainToggleBtn.setAttribute('aria-pressed', enabled ? 'true' : 'false');
+    brainToggleBtn.setAttribute('title', enabled
+      ? 'Hide the neural network visualization to save performance'
+      : 'Show the neural network visualization');
+  }
+  markBestBrainDirty();
+  updateBrainMeta();
+  if(enabled){
+    renderBestBrain();
+  } else if(brainCtx && brainCanvas){
+    brainCtx.clearRect(0, 0, brainCanvas.width || 0, brainCanvas.height || 0);
+  }
+}
+if(brainToggleBtn){
+  brainToggleBtn.addEventListener('click', ()=>{
+    brainVizEnabled = !brainVizEnabled;
+    applyBrainVizState();
+  });
+}
+applyBrainVizState();
 function resetBestBrainState(gen){
   bestBrainState.fitness=-Infinity;
   bestBrainState.teamId=null;
@@ -1658,7 +1710,13 @@ function ensureBrainCanvasSizing(){
 }
 function updateBrainMeta(){
   if(brainSubtitleEl){
-    if(bestBrainState.net){
+    if(!brainVizEnabled){
+      if(bestBrainState.net){
+        brainSubtitleEl.textContent = 'Visualization paused — leader stats still update in real time.';
+      } else {
+        brainSubtitleEl.textContent = 'Visualization hidden until a leader emerges…';
+      }
+    } else if(bestBrainState.net){
       if(bestBrainState.agentRef){
         const throttlePercent = typeof bestBrainState.agentRef.getThrottlePercent === 'function'
           ? bestBrainState.agentRef.getThrottlePercent()
@@ -1848,12 +1906,15 @@ function drawBrainNodes(positions, type, activations=null, activityScale=1){
   brainCtx.restore();
 }
 function renderBestBrain(){
-  if(!brainCanvas || !brainCtx) return;
+  updateBrainMeta();
+  if(!brainVizEnabled || !brainCanvas || !brainCtx){
+    bestBrainDirty = false;
+    return;
+  }
   ensureBrainCanvasSizing();
   const width = brainCanvasWidth || brainCanvas.width || 560;
   const height = brainCanvasHeight || brainCanvas.height || 240;
   brainCtx.clearRect(0,0,width,height);
-  updateBrainMeta();
   const net = bestBrainState.net;
   if(!net || !Array.isArray(net.W1) || !Array.isArray(net.W2)){
     drawBrainPlaceholder(width,height);
