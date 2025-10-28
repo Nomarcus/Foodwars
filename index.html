@@ -2945,7 +2945,10 @@ function drawTrail(trail,color){
   for(let i=1;i<trail.length;i++) ctx.lineTo(trail[i].x,trail[i].y);
   ctx.stroke();
 }
-function drawGoal(g, tint){
+function drawGoal(teamState){
+  const g = teamState.goal;
+  const tint = teamState.config.color;
+  const scoreboard = teamState.scoreboard || getTeamScoreData(teamState.config.id);
   ctx.beginPath();
   ctx.arc(g.x,g.y,g.r,0,Math.PI*2);
   ctx.fillStyle=COLORS.goalFill;
@@ -2958,10 +2961,19 @@ function drawGoal(g, tint){
   ctx.stroke();
   ctx.restore();
   ctx.fillStyle='#fff';
-  ctx.font='bold 18px ui-sans-serif';
   ctx.textAlign='center';
   ctx.textBaseline='middle';
-  ctx.fillText(String(g.delivered), g.x, g.y);
+  if(teamState.config.role === 'blocker'){
+    const points = Math.round(scoreboard?.score || 0);
+    const blocks = scoreboard?.blocks || 0;
+    ctx.font='bold 17px ui-sans-serif';
+    ctx.fillText(String(points), g.x, g.y - 6);
+    ctx.font='11px ui-sans-serif';
+    ctx.fillText(`${blocks} blocks`, g.x, g.y + 12);
+  } else {
+    ctx.font='bold 18px ui-sans-serif';
+    ctx.fillText(String(g.delivered), g.x, g.y);
+  }
 }
 
 function drawObstacleShape(o, time, preview=false){
@@ -3039,7 +3051,7 @@ function draw(){
 
   // Goals (static, no blinking)
   for(const team of activeTeamStates){
-    drawGoal(team.goal, team.config.color);
+    drawGoal(team);
   }
 
   // Obstacles (ambient pulse)
