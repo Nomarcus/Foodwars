@@ -186,6 +186,9 @@
 
             <div class="label">Trail length</div>
             <input id="slTail" type="range" min="4" max="1500" value="24"><div class="val" id="lbTail">24</div>
+
+            <div class="label">Snake size</div>
+            <input id="slAgentScale" type="range" min="50" max="150" value="100" step="5"><div class="val" id="lbAgentScale">1.00×</div>
           </div>
           <button id="btnReset" class="btn">Restart</button>
         </div>
@@ -315,6 +318,12 @@ function hexToRgba(hex, alpha){
 const canvas = document.getElementById('world');
 const ctx = canvas.getContext('2d');
 const W = canvas.width, H = canvas.height;
+const AGENT_BASE_RADIUS = 5.2;
+const AGENT_BASE_PICKUP_RADIUS = 9;
+const AGENT_BASE_SEPARATION_RADIUS = 22;
+const AGENT_OBSTACLE_THRESHOLD = 12;
+const AGENT_BOUNDARY_PADDING = 10;
+const AGENT_TRAIL_WIDTH = 2;
 
 const TOOL_SELECT='select';
 const TOOL_CIRCLE='circle';
@@ -333,6 +342,7 @@ const params = {
   spawnMs: 900,
   obstacles: 8,
   tailLen: 24,
+  agentScale: 1.00,
   teams: TEAM_PRESETS.map((preset, index)=>({
     id:preset.id,
     label:preset.label,
@@ -433,6 +443,7 @@ function readParams(){
   params.spawnMs = +Q('slSpawn').value; Q('lbSpawn').textContent=params.spawnMs;
   params.obstacles = +Q('slObst').value; Q('lbObst').textContent=params.obstacles; if(params.obstacles !== lastObstCount){ makeObstacles(params.obstacles); lastObstCount = params.obstacles; }
   params.tailLen = +Q('slTail').value; Q('lbTail').textContent=params.tailLen;
+  params.agentScale = (+Q('slAgentScale').value)/100; Q('lbAgentScale').textContent=`${params.agentScale.toFixed(2)}×`;
 
   const sharedCount = +Q('slTeamCount').value; Q('lbTeamCount').textContent=sharedCount;
   const sharedSpeed = (+Q('slTeamSpeed').value)/100; Q('lbTeamSpeed').textContent=sharedSpeed.toFixed(2);
@@ -1531,13 +1542,24 @@ function evolveTeam(teamState){
 class Agent{
   constructor(x,y,color,maxSpeed,team){ this.x=x; this.y=y; this.vx=rand(-1,1); this.vy=rand(-1,1); this.color=color; this.maxSpeed=maxSpeed; this.trail=[]; this.carry=false; this.team=team; this.side=Math.random()<0.5?-1:1; this.stuckT=0; this.wander={x:rand(-1,1), y:rand(-1,1)}; }
   stepSpeed(v){ this.maxSpeed=v; }
-  steerSeparation(peers, radius=18, gain=0.12){ let sx=0,sy=0; for(const p of peers){ if(p===this) continue; const dx=this.x-p.x, dy=this.y-p.y; const d=Math.hypot(dx,dy); if(d>0 && d<radius){ sx+=dx/(d*d); sy+=dy/(d*d); } } this.vx+=sx*gain; this.vy+=sy*gain; }
+  steerSeparation(peers, radius=18, gain=0.12){
+    let sx=0,sy=0;
+    const limit = radius * params.agentScale;
+    for(const p of peers){
+      if(p===this) continue;
+      const dx=this.x-p.x, dy=this.y-p.y;
+      const d=Math.hypot(dx,dy);
+      if(d>0 && d<limit){ sx+=dx/(d*d); sy+=dy/(d*d); }
+    }
+    this.vx+=sx*gain;
+    this.vy+=sy*gain;
+  }
   applyWander(str=0.055, damp=0.92){ this.wander.x=this.wander.x*damp+(Math.random()*2-1)*(1-damp); this.wander.y=this.wander.y*damp+(Math.random()*2-1)*(1-damp); const wn=Math.hypot(this.wander.x,this.wander.y)||1; this.vx+=(this.wander.x/wn)*str; this.vy+=(this.wander.y/wn)*str; }
   avoidObstacles(){
     for(const o of obstacles){
       const clearance = obstacleClearance(o, this.x, this.y);
       if(!clearance) continue;
-      const threshold = 12;
+      const threshold = AGENT_OBSTACLE_THRESHOLD * params.agentScale;
       if(clearance.distance < threshold){
         const push = (threshold - clearance.distance) * 0.055;
         const nx = Number.isFinite(clearance.nx) ? clearance.nx : 0;
@@ -1547,7 +1569,13 @@ class Agent{
       }
     }
   }
-  keepInBounds(){ if(this.x<10){this.x=10; this.vx=Math.abs(this.vx);} if(this.x>W-10){this.x=W-10; this.vx=-Math.abs(this.vx);} if(this.y<10){this.y=10; this.vy=Math.abs(this.vy);} if(this.y>H-10){this.y=H-10; this.vy=-Math.abs(this.vy);} }
+  keepInBounds(){
+    const pad = AGENT_BOUNDARY_PADDING * params.agentScale;
+    if(this.x<pad){ this.x=pad; this.vx=Math.abs(this.vx); }
+    if(this.x>W-pad){ this.x=W-pad; this.vx=-Math.abs(this.vx); }
+    if(this.y<pad){ this.y=pad; this.vy=Math.abs(this.vy); }
+    if(this.y>H-pad){ this.y=H-pad; this.vy=-Math.abs(this.vy); }
+  }
   integrate(){ const sp=Math.hypot(this.vx,this.vy); if(sp>this.maxSpeed){ this.vx*=this.maxSpeed/sp; this.vy*=this.maxSpeed/sp; } this.trail.push({x:this.x,y:this.y}); if(this.trail.length>params.tailLen) this.trail.shift(); this.x+=this.vx; this.y+=this.vy; this.stuckT=(sp<0.10)?(this.stuckT+1):0; }
 }
 
@@ -1570,17 +1598,19 @@ class Collector extends Agent{
     const g = senseGrad(teamId, this.carry? 'home':'food', this.x, this.y);
     const mates = this.teamState.agents;
     let sx=0, sy=0;
+    const separationRadius = AGENT_BASE_SEPARATION_RADIUS * params.agentScale;
     for(const p of mates){
       if(p===this) continue;
       const dx=this.x-p.x, dy=this.y-p.y;
       const d=Math.hypot(dx,dy);
-      if(d>0 && d<22){ sx+=dx/(d*d); sy+=dy/(d*d); }
+      if(d>0 && d<separationRadius){ sx+=dx/(d*d); sy+=dy/(d*d); }
     }
     const input = [tx,ty, g.gx, g.gy, sx, sy, 1.0];
     const out = forward(this.netRef.net, input);
     this.vx += out[0]*(0.45 + 0.15*cfg.smart) + (tx*0.15*cfg.strat);
     this.vy += out[1]*(0.45 + 0.15*cfg.smart) + (ty*0.15*cfg.strat);
-    if(!this.carry && tgt && Math.hypot(tgt.x-this.x,tgt.y-this.y)<9){
+    const pickupRadius = Math.max(AGENT_BASE_PICKUP_RADIUS * params.agentScale, 6);
+    if(!this.carry && tgt && Math.hypot(tgt.x-this.x,tgt.y-this.y)<pickupRadius){
       const i=fruits.indexOf(tgt);
       if(i>-1) fruits.splice(i,1);
       this.carry=true;
@@ -1659,7 +1689,19 @@ function setup(){
   refreshStats();
 }
 
-function drawTrail(trail,color){ if(trail.length<2) return; ctx.lineWidth=2; const grad=ctx.createLinearGradient(trail[0].x,trail[0].y,trail[trail.length-1].x,trail[trail.length-1].y); grad.addColorStop(0,'rgba(255,255,255,0)'); grad.addColorStop(1,color); ctx.strokeStyle=grad; ctx.beginPath(); ctx.moveTo(trail[0].x,trail[0].y); for(let i=1;i<trail.length;i++) ctx.lineTo(trail[i].x,trail[i].y); ctx.stroke(); }
+function drawTrail(trail,color){
+  if(trail.length<2) return;
+  const width = Math.max(1.2, AGENT_TRAIL_WIDTH * params.agentScale);
+  ctx.lineWidth = width;
+  const grad=ctx.createLinearGradient(trail[0].x,trail[0].y,trail[trail.length-1].x,trail[trail.length-1].y);
+  grad.addColorStop(0,'rgba(255,255,255,0)');
+  grad.addColorStop(1,color);
+  ctx.strokeStyle=grad;
+  ctx.beginPath();
+  ctx.moveTo(trail[0].x,trail[0].y);
+  for(let i=1;i<trail.length;i++) ctx.lineTo(trail[i].x,trail[i].y);
+  ctx.stroke();
+}
 function drawGoal(g, tint){
   ctx.beginPath();
   ctx.arc(g.x,g.y,g.r,0,Math.PI*2);
@@ -1786,13 +1828,20 @@ function draw(){
     const outline = team.config.outline || '#0f172a';
     for(const a of team.agents){
       ctx.beginPath();
-      ctx.arc(a.x,a.y,5.2,0,Math.PI*2);
+      const agentRadius = Math.max(2.5, AGENT_BASE_RADIUS * params.agentScale);
+      ctx.arc(a.x,a.y,agentRadius,0,Math.PI*2);
       ctx.fillStyle=team.config.color;
       ctx.fill();
-      ctx.lineWidth=2;
+      const outlineWidth = Math.max(1.2, 2*params.agentScale);
+      ctx.lineWidth=outlineWidth;
       ctx.strokeStyle=outline;
       ctx.stroke();
-      if(a.carry){ ctx.lineWidth=2; ctx.strokeStyle='#ffff33'; ctx.stroke(); }
+      if(a.carry){
+        const carryOutline = Math.max(1.5, outlineWidth + 0.6*params.agentScale);
+        ctx.lineWidth=carryOutline;
+        ctx.strokeStyle='#ffff33';
+        ctx.stroke();
+      }
       drawTrail(a.trail, team.config.color);
     }
   }
@@ -1912,6 +1961,7 @@ function applyParamsSnapshot(snapshot){
   if(snapshot.spawnMs != null) setRangeValue('slSpawn', snapshot.spawnMs);
   if(snapshot.obstacles != null) setRangeValue('slObst', snapshot.obstacles);
   if(snapshot.tailLen != null) setRangeValue('slTail', snapshot.tailLen);
+  if(snapshot.agentScale != null) setRangeValue('slAgentScale', Math.round(snapshot.agentScale*100));
 
   if(Array.isArray(snapshot.teams) && snapshot.teams.length){
     const first = snapshot.teams.find(Boolean) || {};
@@ -2103,6 +2153,7 @@ if(btnClearManual){
 ['Fruits','Spawn','Obst','Tail','TeamCount','TeamSpeed','TeamSmart','TeamStrat','TeamSep','GenSteps','Mut','Elite'].forEach(k=>{
   bindRange('sl'+k, 'lb'+k, (v)=> (k.includes('Speed')||k.includes('Smart')||k.includes('Strat')||k.includes('Sep')) ? (v/100).toFixed(2) : v);
 });
+bindRange('slAgentScale','lbAgentScale',(v)=> (v/100).toFixed(2)+'×');
 Q('btnReset').onclick = ()=> { awaitingManualAdvance=false; forceNextGen=false; simSteps=0; setup(); };
 Q('btnNextGen').onclick = ()=> { forceNextGen = true; };
 Q('chkAuto').addEventListener('change', ()=> readParams());
