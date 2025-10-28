@@ -305,6 +305,24 @@ let currentTrackToken = 0;
 let currentTrackBuffer = null;
 let isMusicPlaying = false;
 
+let currentObjectUrl = null;
+let currentObjectUrlToken = 0;
+
+function setCurrentObjectUrl(url){
+  clearCurrentObjectUrl();
+  currentObjectUrl = url;
+  currentObjectUrlToken++;
+  return { url, token: currentObjectUrlToken };
+}
+
+function clearCurrentObjectUrl(expectedToken=null){
+  if(expectedToken != null && expectedToken !== currentObjectUrlToken) return;
+  if(currentObjectUrl){
+    try{ URL.revokeObjectURL(currentObjectUrl); }catch(_err){ /* ignore */ }
+    currentObjectUrl = null;
+  }
+}
+
 let audioCtx = null;
 let masterGain = null;
 let currentSource = null;
@@ -953,7 +971,7 @@ function downloadTrainingData(){
     const snapshot = captureTrainingSnapshot();
     const json = JSON.stringify(snapshot, null, 2);
     const blob = new Blob([json], { type:'application/json' });
-    const url = URL.createObjectURL(blob);
+    const { url, token } = setCurrentObjectUrl(URL.createObjectURL(blob));
     const genStr = String(snapshot.evo?.gen ?? 1).padStart(3, '0');
     const link = document.createElement('a');
     link.href = url;
@@ -961,7 +979,7 @@ function downloadTrainingData(){
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    setTimeout(()=> URL.revokeObjectURL(url), 1000);
+    setTimeout(()=> clearCurrentObjectUrl(token), 1000);
   }catch(err){
     console.error('Failed to export training data', err);
     alert('Could not save training data. Please try again.');
