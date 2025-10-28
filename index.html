@@ -29,10 +29,10 @@
     .pill-link:focus-visible{outline:2px solid rgba(56,189,248,.65); outline-offset:3px}
 
     main{flex:1; display:flex; justify-content:center; align-items:flex-start; padding:40px 48px 64px}
-    .wrap{display:flex; align-items:flex-start; justify-content:center; gap:40px; width:100%; max-width:1600px}
+    .wrap{display:flex; align-items:flex-start; justify-content:center; gap:40px; width:100%; max-width:2000px}
     canvas{border-radius:24px; background:#04091f; box-shadow:0 0 45px rgba(15,23,61,.65), inset 0 0 22px rgba(118,133,255,.12); cursor:crosshair; border:1px solid var(--silver);}
 
-    .side{width:380px; display:flex; flex-direction:column; gap:20px}
+    .side{width:420px; flex:0 1 420px; display:flex; flex-direction:column; gap:20px}
     .panel{background:var(--panel); border:1px solid var(--silver); padding:22px; border-radius:20px; backdrop-filter:blur(16px); box-shadow:0 18px 45px rgba(5,7,24,.55); position:relative}
     .panel-head{display:flex; align-items:center; justify-content:space-between; gap:12px; cursor:pointer; user-select:none; padding-bottom:10px; margin-bottom:14px; border-bottom:1px dashed rgba(189,206,255,.28)}
     .panel-head .h{margin:0; font-size:17px; letter-spacing:.03em}
@@ -81,10 +81,10 @@
 <body>
   <header class="main-nav">
     <div class="brand"><span class="brand-dot"></span>FoodSim NEAT Lab</div>
-    <nav class="nav-links" aria-label="Huvudmeny">
-      <a class="pill-link" href="#world">Spelfält</a>
-      <a class="pill-link" href="#panel-global">Kontroller</a>
-      <a class="pill-link secondary" href="learn-neat.html">Så funkar NEAT</a>
+    <nav class="nav-links" aria-label="Primary navigation">
+      <a class="pill-link" href="#world">Playfield</a>
+      <a class="pill-link" href="#panel-global">Controls</a>
+      <a class="pill-link secondary" href="learn-neat.html">How NEAT works</a>
     </nav>
   </header>
   <main>
@@ -246,12 +246,21 @@ const COLORS = {
   fruit: '#ffd43b',
   goal:  '#3b82f6',
   goalFill: 'rgba(59,130,246,0.18)',
-  obstS: 'rgba(226,232,240,0.90)',
-  obstF: 'rgba(226,232,240,0.08)',
   greenOutline:'#003322',
   redOutline:'#5a001a',
   fruitOutline:'#000'
 };
+
+const OBSTACLE_COLORS = ['#38bdf8', '#f472b6', '#2dd4bf'];
+
+function hexToRgba(hex, alpha){
+  const h = hex.replace('#','');
+  const bigint = parseInt(h,16);
+  const r=(bigint>>16)&255;
+  const g=(bigint>>8)&255;
+  const b=bigint&255;
+  return `rgba(${r},${g},${b},${alpha})`;
+}
 
 const canvas = document.getElementById('world');
 const ctx = canvas.getContext('2d');
@@ -519,11 +528,11 @@ function initMusicPanel(){
   setMusicTrack(currentTrackIndex, false);
 }
 
-// ===== Datastrukturer =====
+// ===== Data structures =====
 const greens=[], reds=[], fruits=[], obstacles=[];
 
 // Pheromone grid – separate fields per team
-let grid, GW, GH, CS = 22; // cellstorlek
+let grid, GW, GH, CS = 22; // cell size
 function makeGrid(){ GW=Math.floor(W/CS); GH=Math.floor(H/CS);
   grid={ foodG:new Float32Array(GW*GH), homeG:new Float32Array(GW*GH), foodR:new Float32Array(GW*GH), homeR:new Float32Array(GW*GH) };
 }
@@ -572,7 +581,19 @@ function nearest(arr,x,y){ if(!arr.length) return null; let best=arr[0],bd=1e9; 
 function pointInsideObstacle(x,y){ for(const o of obstacles){ if(Math.hypot(x-o.x,y-o.y) < o.r + 7) return true; } return false; }
 function findFreeFruitSpot(maxTry=80){ for(let i=0;i<maxTry;i++){ const x=rand(40,W-40), y=rand(40,H-40); if(!pointInsideObstacle(x,y)) return {x,y}; } return null; }
 function spawnFruit(x=null,y=null){ if(fruits.length>=params.maxFruits) return; if(x==null||y==null){ const pos=findFreeFruitSpot(); if(!pos) return; x=pos.x; y=pos.y; } if(pointInsideObstacle(x,y)){ const pos=findFreeFruitSpot(); if(!pos) return; x=pos.x; y=pos.y; } fruits.push({x,y,r:6,color:COLORS.fruit}); }
-function makeObstacles(n){ obstacles.length=0; for(let i=0;i<n;i++){ const r=rand(16,40); let tries=0,x,y; do{ x=rand(80,W-80); y=rand(60,H-60); tries++; } while(tries<80 && (Math.hypot(x-goalG.x,y-goalG.y)<goalG.r+50 || Math.hypot(x-goalR.x,y-goalR.y)<goalR.r+50)); obstacles.push({x,y,r}); } }
+function makeObstacles(n){
+  obstacles.length=0;
+  for(let i=0;i<n;i++){
+    const r=rand(16,40);
+    let tries=0,x,y;
+    do{
+      x=rand(80,W-80);
+      y=rand(60,H-60);
+      tries++;
+    } while(tries<80 && (Math.hypot(x-goalG.x,y-goalG.y)<goalG.r+50 || Math.hypot(x-goalR.x,y-goalR.y)<goalR.r+50));
+    obstacles.push({x,y,r,phase:Math.random()*Math.PI*2,paletteIndex:i%OBSTACLE_COLORS.length});
+  }
+}
 
 // ===== NEAT‑lite (7→16→2) =====
 function randn(){ let u=0,v=0; while(u===0) u=Math.random(); while(v===0) v=Math.random(); return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v); }
@@ -589,7 +610,7 @@ const evo = { gen:1, G: makePopulation(28), R: makePopulation(28) };
 function resizePop(){ if(evo.G.length!==params.green.count){ if(evo.G.length<params.green.count){ while(evo.G.length<params.green.count) evo.G.push({ net:makeNet(), fitness:0 }); } else { evo.G.length=params.green.count; } } if(evo.R.length!==params.red.count){ if(evo.R.length<params.red.count){ while(evo.R.length<params.red.count) evo.R.push({ net:makeNet(), fitness:0 }); } else { evo.R.length=params.red.count; } } }
 function nextGeneration(team){ const pop=evo[team]; pop.sort((a,b)=> b.fitness - a.fitness); const eliteN=Math.max(1, Math.floor(pop.length*params.learn.elite)); const elites=pop.slice(0,eliteN).map(e=> cloneNet(e.net)); const best=pop[0]?.fitness||0; if(team==='G') Q('lbBestG').textContent=best.toFixed(0); else Q('lbBestR').textContent=best.toFixed(0); const newPop=[]; for(let i=0;i<eliteN;i++) newPop.push({ net:cloneNet(elites[i]), fitness:0 }); function pick(){ const k=Math.min(pop.length, Math.max(2,eliteN*2)); const a=pop[Math.floor(Math.random()*k)], b=pop[Math.floor(Math.random()*k)]; return (a.fitness>b.fitness?a:b).net; } while(newPop.length<pop.length){ const pa=pick(), pb=pick(); let child=crossover(pa,pb); mutateNet(child, params.learn.mut); newPop.push({ net:child, fitness:0 }); } for(let i=0;i<pop.length;i++){ pop[i].net=newPop[i].net; pop[i].fitness=0; } }
 
-// ===== Agentbas =====
+// ===== Agent core =====
 class Agent{
   constructor(x,y,color,maxSpeed,team){ this.x=x; this.y=y; this.vx=rand(-1,1); this.vy=rand(-1,1); this.color=color; this.maxSpeed=maxSpeed; this.trail=[]; this.carry=false; this.team=team; this.side=Math.random()<0.5?-1:1; this.stuckT=0; this.wander={x:rand(-1,1), y:rand(-1,1)}; }
   stepSpeed(v){ this.maxSpeed=v; }
@@ -650,15 +671,24 @@ function draw(){
   drawGoal(goalG, COLORS.green);
   drawGoal(goalR, COLORS.red);
 
-  // Obstacles (static stroke)
+  // Obstacles (ambient pulse)
+  const t = performance.now()*0.001;
   for(const o of obstacles){
+    const paletteIndex = (typeof o.paletteIndex === 'number') ? o.paletteIndex : 0;
+    const palette = OBSTACLE_COLORS[paletteIndex % OBSTACLE_COLORS.length];
+    const phase = (typeof o.phase === 'number') ? o.phase : 0;
+    const pulse = 0.45 + 0.35*Math.sin(t*0.9 + phase);
+    ctx.save();
     ctx.beginPath();
     ctx.arc(o.x,o.y,o.r,0,Math.PI*2);
-    ctx.fillStyle=COLORS.obstF;
+    ctx.fillStyle=hexToRgba(palette, 0.10 + 0.14*pulse);
+    ctx.shadowColor=hexToRgba(palette, 0.35*pulse);
+    ctx.shadowBlur=18*pulse;
     ctx.fill();
-    ctx.strokeStyle=COLORS.obstS;
-    ctx.lineWidth=2;
+    ctx.lineWidth=2.1 + 0.9*pulse;
+    ctx.strokeStyle=hexToRgba(palette, 0.6 + 0.3*pulse);
     ctx.stroke();
+    ctx.restore();
   }
 
   // Fruits
