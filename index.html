@@ -374,6 +374,9 @@ function readParams(){
   params.learn.mut = (+Q('slMut').value)/100; Q('lbMut').textContent=Math.round(params.learn.mut*100);
   params.learn.elite = (+Q('slElite').value)/100; Q('lbElite').textContent=params.learn.elite.toFixed(2);
   params.learn.auto = Q('chkAuto').checked; Q('lbAuto').textContent = params.learn.auto? 'on':'off';
+  if(params.learn.auto && awaitingManualAdvance){
+    forceNextGen = true;
+  }
 }
 function updateMusicMeta(track, stateOverride=null){
   if(!track) return;
@@ -972,9 +975,29 @@ function draw(){
   }
 }
 
-let simSteps=0, forceNextGen=false;
+let simSteps=0, forceNextGen=false, awaitingManualAdvance=false;
+function advanceGeneration(){
+  for(let i=0;i<greens.length;i++) evo.G[i].fitness += greens[i].fitness;
+  for(let i=0;i<reds.length;i++) evo.R[i].fitness += reds[i].fitness;
+  nextGeneration('G');
+  nextGeneration('R');
+  evo.gen++;
+  Q('lbGen').textContent=evo.gen;
+  simSteps=0;
+  forceNextGen=false;
+  awaitingManualAdvance=false;
+  setup();
+}
 function loop(){
   requestAnimationFrame(loop);
+
+  if(awaitingManualAdvance){
+    if(forceNextGen){
+      advanceGeneration();
+    }
+    return;
+  }
+
   const now = performance.now();
   for(const a of greens) a.update();
   for(const a of reds) a.update();
@@ -985,17 +1008,12 @@ function loop(){
   }
   draw();
   simSteps++;
-  const end = simSteps>=params.learn.genSteps || forceNextGen;
-  if(end){
-    for(let i=0;i<greens.length;i++) evo.G[i].fitness += greens[i].fitness;
-    for(let i=0;i<reds.length;i++) evo.R[i].fitness += reds[i].fitness;
-    nextGeneration('G');
-    nextGeneration('R');
-    evo.gen++;
-    Q('lbGen').textContent=evo.gen;
-    simSteps=0;
-    forceNextGen=false;
-    setup();
+
+  const reachedLimit = simSteps>=params.learn.genSteps;
+  if(forceNextGen || (reachedLimit && params.learn.auto)){
+    advanceGeneration();
+  }else if(reachedLimit){
+    awaitingManualAdvance=true;
   }
 }
 
@@ -1127,6 +1145,7 @@ function loadTrainingSnapshot(data){
 
   simSteps = 0;
   forceNextGen = false;
+  awaitingManualAdvance = false;
   setup();
   updateBestLabels(bestGreen, bestRed);
 }
@@ -1168,7 +1187,7 @@ if(btnLoadTraining && inputLoadTraining){
 ['Fruits','Spawn','Obst','Tail','GCount','GSpeed','GSmart','GStrat','GSep','RCount','RSpeed','RSmart','RStrat','RSep','GenSteps','Mut','Elite'].forEach(k=>{
   bindRange('sl'+k, 'lb'+k, (v)=> (k.includes('Speed')||k.includes('Smart')||k.includes('Strat')||k.includes('Sep')) ? (v/100).toFixed(2) : v);
 });
-Q('btnReset').onclick = ()=> setup();
+Q('btnReset').onclick = ()=> { awaitingManualAdvance=false; forceNextGen=false; simSteps=0; setup(); };
 Q('btnNextGen').onclick = ()=> { forceNextGen = true; };
 Q('chkAuto').addEventListener('change', ()=> readParams());
 
