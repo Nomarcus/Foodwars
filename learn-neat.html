@@ -5,88 +5,114 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>How NEAT and FoodSim work</title>
   <style>
-    :root { --bg1:#020617; --bg2:#111827; --ink:#e5e7eb; --accent:#60a5fa; }
+    :root {
+      --bg1:#050516;
+      --bg2:#161b3f;
+      --panel:rgba(18,24,56,.82);
+      --ink:#f1f5ff;
+      --muted:#a1a9d8;
+      --accent:#f472b6;
+      --accent-cyan:#38bdf8;
+      --silver:rgba(222,231,255,.55);
+    }
     *{box-sizing:border-box}
-    html,body{height:100%;margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial}
-    body{background:radial-gradient(circle at 50% 10%, var(--bg2) 0%, var(--bg1) 75%); color:var(--ink); display:flex; align-items:center; justify-content:center; padding:32px}
-    main{max-width:860px; width:100%; background:rgba(15,23,42,.82); border:1px solid rgba(148,163,184,.25); border-radius:28px; padding:40px 52px; box-shadow:0 40px 120px rgba(2,6,23,.55); backdrop-filter:blur(12px)}
+    body{margin:0; min-height:100vh; display:flex; flex-direction:column; background:radial-gradient(circle at 45% 12%, rgba(87,51,183,.55) 0%, rgba(39,56,121,.85) 45%, var(--bg1) 100%); color:var(--ink); font-family:"Inter",system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;}
+    .main-nav{position:sticky; top:0; z-index:200; padding:22px 48px; display:flex; align-items:center; justify-content:space-between; background:linear-gradient(120deg, rgba(15,20,48,.92) 0%, rgba(10,14,34,.75) 60%, rgba(10,14,34,.35) 100%); backdrop-filter:blur(14px); border-bottom:1px solid var(--silver); box-shadow:0 22px 45px rgba(5,9,25,.55)}
+    .brand{display:flex; align-items:center; gap:12px; font-size:22px; font-weight:700; letter-spacing:.02em}
+    .brand-dot{width:14px; height:14px; border-radius:50%; background:linear-gradient(135deg, var(--accent) 0%, #8b5cf6 100%); box-shadow:0 0 18px rgba(244,114,182,.6)}
+    .nav-links{display:flex; gap:12px; align-items:center}
+    .pill-link{display:inline-flex; align-items:center; justify-content:center; padding:10px 20px; border-radius:999px; border:1px solid rgba(139,92,246,.45); background:linear-gradient(120deg, rgba(139,92,246,.2), rgba(244,114,182,.2)); color:var(--ink); text-decoration:none; font-size:14px; font-weight:600; letter-spacing:.03em; transition:transform .2s ease, box-shadow .2s ease, filter .2s ease}
+    .pill-link:hover{transform:translateY(-1px); filter:brightness(1.05); box-shadow:0 16px 32px rgba(139,92,246,.25)}
+    .pill-link:focus-visible{outline:2px solid rgba(56,189,248,.65); outline-offset:3px}
+
+    main{flex:1; display:flex; justify-content:center; align-items:flex-start; padding:40px 48px 64px}
+    .content{max-width:900px; width:100%; background:var(--panel); border:1px solid var(--silver); border-radius:32px; padding:44px 56px; box-shadow:0 40px 120px rgba(5,9,25,.6); backdrop-filter:blur(18px)}
     h1{margin-top:0; font-size:36px; letter-spacing:-.01em}
     h2{margin-top:40px; font-size:22px; letter-spacing:.01em}
-    p{line-height:1.7; margin:16px 0}
-    ul{line-height:1.7; padding-left:22px; margin:18px 0}
+    p{line-height:1.8; margin:16px 0; color:var(--ink)}
+    ul{line-height:1.8; padding-left:22px; margin:18px 0; color:var(--ink)}
     li{margin-bottom:10px}
-    .pill{display:inline-flex; gap:6px; align-items:center; padding:6px 12px; border-radius:999px; background:rgba(37,99,235,.16); border:1px solid rgba(59,130,246,.35); font-size:13px; letter-spacing:.05em; text-transform:uppercase}
-    .note{border-left:3px solid var(--accent); background:rgba(96,165,250,.08); padding:14px 18px; border-radius:12px; margin:22px 0; font-size:14px; line-height:1.6}
-    a{color:var(--accent); text-decoration:none}
+    .pill{display:inline-flex; gap:6px; align-items:center; padding:6px 12px; border-radius:999px; background:rgba(56,189,248,.16); border:1px solid rgba(56,189,248,.35); font-size:13px; letter-spacing:.05em; text-transform:uppercase; color:var(--accent-cyan)}
+    .note{border-left:3px solid var(--accent-cyan); background:rgba(56,189,248,.08); padding:16px 20px; border-radius:14px; margin:24px 0; font-size:14px; line-height:1.7; color:var(--ink)}
+    a{color:var(--accent-cyan); text-decoration:none}
     a:hover{text-decoration:underline}
     .back-link{display:inline-flex; align-items:center; gap:8px; margin-top:40px; font-weight:600}
     .back-link span{font-size:18px}
-    @media (max-width:720px){
-      body{padding:20px}
-      main{padding:30px 24px; border-radius:22px}
-      h1{font-size:30px}
+
+    @media (max-width:900px){
+      main{padding:32px 28px 56px}
+      .content{padding:36px 32px; border-radius:26px}
     }
-    @media (max-width:520px){
-      body{padding:16px}
-      main{padding:24px 18px}
-      h1{font-size:26px}
+    @media (max-width:620px){
+      .main-nav{flex-direction:column; align-items:flex-start; gap:16px; padding:18px 24px}
+      main{padding:28px 20px 48px}
+      .content{padding:28px 22px}
+      h1{font-size:30px}
       h2{margin-top:30px; font-size:20px}
     }
   </style>
 </head>
 <body>
+  <header class="main-nav">
+    <div class="brand"><span class="brand-dot"></span>FoodSim NEAT Lab</div>
+    <nav class="nav-links" aria-label="Sidlänkar">
+      <a class="pill-link" href="index.html">Tillbaka till simuleringen</a>
+    </nav>
+  </header>
   <main>
-    <div class="pill">Quick guide</div>
-    <h1>How NEAT and FoodSim work</h1>
-    <p>
-      FoodSim lets two teams of tiny agents race for fruit across the playfield. Their brains are trained with a slimmed-down
-      version of <strong>NEAT</strong> (NeuroEvolution of Augmenting Topologies): a genetic algorithm that evolves neural networks
-      by crossing and mutating the strongest candidates generation after generation.
-    </p>
+    <article class="content">
+      <div class="pill">Quick guide</div>
+      <h1>How NEAT and FoodSim work</h1>
+      <p>
+        FoodSim lets two teams of tiny agents race for fruit across the playfield. Their brains are trained with a slimmed-down
+        version of <strong>NEAT</strong> (NeuroEvolution of Augmenting Topologies): a genetic algorithm that evolves neural networks
+        by crossing and mutating the strongest candidates generation after generation.
+      </p>
 
-    <h2>What does NEAT mean in practice?</h2>
-    <ul>
-      <li><strong>Genome</strong>: Every agent carries a small neural network that steers direction, avoidance and target choice.</li>
-      <li><strong>Fitness</strong>: Collecting fruit and surviving longer awards more fitness points to the agent.</li>
-      <li><strong>Selection</strong>: After each generation the most successful brains are kept and used as the base for the next wave.</li>
-      <li><strong>Mutation</strong>: Tiny random tweaks to connections and weights inject variety that can uncover new strategies.</li>
-    </ul>
+      <h2>What does NEAT mean in practice?</h2>
+      <ul>
+        <li><strong>Genome</strong>: Every agent carries a small neural network that steers direction, avoidance and target choices.</li>
+        <li><strong>Fitness</strong>: Collecting fruit and surviving longer awards more fitness points to the agent.</li>
+        <li><strong>Selection</strong>: After each generation the most successful brains are kept and used as the base for the next wave.</li>
+        <li><strong>Mutation</strong>: Tiny random tweaks to connections and weights inject variety that can uncover new strategies.</li>
+      </ul>
 
-    <h2>How the simulation is put together</h2>
-    <p>
-      In <em>index.html</em> both the simulation loop and the NEAT logic run directly in the browser. The centre canvas renders the
-      world, while the surrounding panels provide real-time controls. Key pieces include:
-    </p>
-    <ul>
-      <li><strong>Canvas</strong>: Repaints ~60 times per second with agent positions, trails, fruit and obstacles.</li>
-      <li><strong>Simulator</strong>: Tracks collisions, scoring and the step counter for the current generation.</li>
-      <li><strong>Genetics</strong>: When a generation ends, agents are ranked, elites are copied forward and the rest are rebuilt through mutation and crossover.</li>
-      <li><strong>UI bindings</strong>: The sliders on the side panels feed directly into script variables to tune the run on the fly.</li>
-    </ul>
+      <h2>How the simulation is put together</h2>
+      <p>
+        In <em>index.html</em> both the simulation loop and the NEAT logic run directly in the browser. The centre canvas renders the
+        world, while the surrounding panels provide real-time controls. Key pieces include:
+      </p>
+      <ul>
+        <li><strong>Canvas</strong>: Repaints ~60 times per second with agent positions, trails, fruit and obstacles.</li>
+        <li><strong>Simulator</strong>: Tracks collisions, scoring and the step counter for the current generation.</li>
+        <li><strong>Genetics</strong>: When a generation ends, agents are ranked, elites are copied forward and the rest are rebuilt through mutation and crossover.</li>
+        <li><strong>UI bindings</strong>: The sliders on the side panels feed directly into script variables to tune the run on the fly.</li>
+      </ul>
 
-    <h2>Which controls make the biggest difference?</h2>
-    <p>
-      Experiment with the sliders on the main page. The most impactful settings are:
-    </p>
-    <ul>
-      <li><strong>Steps / gen</strong>: More steps give agents extra time to explore before the next generation starts.</li>
-      <li><strong>Mutation %</strong>: Higher mutation introduces randomness that can discover fresh ideas but may feel erratic.</li>
-      <li><strong>Elite ratio</strong>: Decides how many top brains carry over untouched to the next generation.</li>
-      <li><strong>Team parameters</strong>: Speed, awareness, strategy and separation shape how quickly agents move, how far they sense and how tightly they cluster.</li>
-      <li><strong>Global controls</strong>: Fruit count, obstacle density and trail length all create new environments to adapt to.</li>
-    </ul>
-    <div class="note">
-      Tip: Increase mutation and lower the elite ratio if the population gets stuck in a dull routine. Reduce mutation and raise
-      the elite ratio to stabilise a promising behaviour pattern.
-    </div>
+      <h2>Which controls make the biggest difference?</h2>
+      <p>
+        Experiment with the sliders on the main page. The most impactful settings are:
+      </p>
+      <ul>
+        <li><strong>Steps / gen</strong>: More steps give agents extra time to explore before the next generation starts.</li>
+        <li><strong>Mutation %</strong>: Higher mutation introduces randomness that can discover fresh ideas but may feel erratic.</li>
+        <li><strong>Elite ratio</strong>: Decides how many top brains carry over untouched to the next generation.</li>
+        <li><strong>Team parameters</strong>: Speed, awareness, strategy and separation shape how quickly agents move, how far they sense and how tightly they cluster.</li>
+        <li><strong>Global controls</strong>: Fruit count, obstacle density and trail length all create new environments to adapt to.</li>
+      </ul>
+      <div class="note">
+        Tip: Increase mutation and lower the elite ratio if the population gets stuck in a dull routine. Reduce mutation and raise
+        the elite ratio to stabilise a promising behaviour pattern.
+      </div>
 
-    <h2>Ready to dive deeper?</h2>
-    <p>
-      Check the JavaScript at the end of <em>index.html</em> to see how neurons and their connections are defined. It is also the
-      place to add more sensory inputs or adjust the fitness formula when you want to extend the experiment.
-    </p>
+      <h2>Ready to dive deeper?</h2>
+      <p>
+        Check the JavaScript at the end of <em>index.html</em> to see how neurons and their connections are defined. It is also the
+        place to add more sensory inputs or adjust the fitness formula when you want to extend the experiment.
+      </p>
 
-    <a class="back-link" href="index.html"><span>⟵</span> Back to the simulation</a>
+      <a class="back-link" href="index.html"><span>⟵</span> Back to the simulation</a>
+    </article>
   </main>
 </body>
 </html>
