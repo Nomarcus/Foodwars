@@ -41,8 +41,11 @@
     .brain-viz.brain-viz--hidden{box-shadow:0 12px 24px rgba(5,9,25,.35)}
     .brain-head{display:flex; align-items:flex-start; justify-content:space-between; gap:18px; flex-wrap:wrap}
     .brain-title{font-size:16px; font-weight:600; letter-spacing:.03em}
-    .brain-sub{font-size:12px; color:var(--muted); margin-top:4px}
-    .brain-toggle{margin-top:10px; padding:6px 14px; border-radius:999px; border:1px solid rgba(56,189,248,.45); background:rgba(15,23,61,.6); color:var(--ink); font-size:11px; font-weight:600; letter-spacing:.12em; text-transform:uppercase; cursor:pointer; transition:transform .18s ease, box-shadow .2s ease, filter .2s ease}
+    .brain-sub{font-size:12px; color:var(--muted); margin-top:4px; max-width:420px}
+    .brain-controls{display:flex; align-items:center; flex-wrap:wrap; gap:10px; margin-top:12px}
+    .brain-select{padding:7px 16px; border-radius:999px; border:1px solid rgba(56,189,248,.35); background:rgba(12,20,46,.75); color:var(--ink); font-size:12px; font-weight:600; letter-spacing:.05em; text-transform:uppercase; cursor:pointer; appearance:none; position:relative; min-width:190px; box-shadow:inset 0 0 16px rgba(56,189,248,.12)}
+    .brain-select:focus-visible{outline:2px solid rgba(56,189,248,.65); outline-offset:3px}
+    .brain-toggle{padding:6px 14px; border-radius:999px; border:1px solid rgba(56,189,248,.45); background:rgba(15,23,61,.6); color:var(--ink); font-size:11px; font-weight:600; letter-spacing:.12em; text-transform:uppercase; cursor:pointer; transition:transform .18s ease, box-shadow .2s ease, filter .2s ease}
     .brain-toggle:hover{filter:brightness(1.05); transform:translateY(-1px); box-shadow:0 12px 24px rgba(56,189,248,.25)}
     .brain-toggle[aria-pressed="false"]{border-color:rgba(244,114,182,.45); background:rgba(24,16,38,.65); color:var(--muted)}
     .brain-score{display:flex; flex-direction:column; align-items:flex-end; min-width:120px}
@@ -53,6 +56,17 @@
     .brain-gen{margin-left:auto; font-size:11px; color:var(--muted); letter-spacing:.08em; text-transform:uppercase}
     .brain-canvas{width:100%; height:220px; border-radius:18px; background:linear-gradient(135deg, rgba(15,23,61,.65), rgba(12,18,44,.92)); border:1px solid rgba(148,163,209,.28)}
     .brain-paused{margin-top:10px; padding:12px 14px; border-radius:14px; border:1px dashed rgba(148,163,209,.4); background:rgba(15,23,61,.55); font-size:12px; line-height:1.6; color:var(--muted)}
+    .brain-guide{margin-top:16px; padding:18px 20px; border-radius:18px; border:1px solid var(--silver); background:rgba(11,16,44,.78); box-shadow:0 12px 28px rgba(5,9,25,.35);}
+    .brain-guide summary{cursor:pointer; font-weight:600; letter-spacing:.04em; text-transform:uppercase; font-size:12px; color:var(--muted); display:flex; align-items:center; justify-content:space-between; gap:12px}
+    .brain-guide summary::-webkit-details-marker{display:none}
+    .brain-guide summary::after{content:'▾'; font-size:12px; transition:transform .25s ease}
+    .brain-guide[open] summary::after{transform:rotate(-180deg)}
+    .brain-guide-body{margin-top:14px; display:grid; gap:16px}
+    .brain-guide-body p{margin:0; font-size:13px; color:var(--ink); line-height:1.7}
+    .brain-diagram{border-radius:16px; border:1px solid rgba(148,163,209,.28); background:linear-gradient(135deg, rgba(15,23,61,.55), rgba(12,18,44,.9)); padding:14px}
+    .brain-diagram svg{width:100%; height:auto}
+    .brain-diagram text{fill:rgba(226,232,255,0.82); font-family:"Inter",system-ui,-apple-system,sans-serif; font-size:12px; letter-spacing:.02em}
+    .brain-diagram .label{font-size:13px; font-weight:600}
 
     .side{width:420px; flex:0 1 420px; display:flex; flex-direction:column; gap:20px}
     .panel{background:var(--panel); border:1px solid var(--silver); padding:22px; border-radius:20px; backdrop-filter:blur(16px); box-shadow:0 18px 45px rgba(5,7,24,.55); position:relative}
@@ -186,19 +200,21 @@
           <span class="stat-label">Top fitness</span>
           <span class="stat-value" id="stat-top">0</span>
         </div>
-        <div class="stat-card">
-          <span class="stat-label">Top points</span>
-          <span class="stat-value" id="stat-points">0</span>
-        </div>
       </section>
       <section class="brain-viz" aria-live="polite" aria-label="Best performing neural network">
         <div class="brain-head">
           <div>
-            <div class="brain-title">Top Neural Network</div>
+            <div class="brain-title">Neural Network Monitor</div>
             <div class="brain-sub" id="brain-subtitle">Waiting for the first champion…</div>
-            <button type="button" id="brainToggleBtn" class="brain-toggle" aria-pressed="true">
-              Hide visualization
-            </button>
+            <div class="brain-controls">
+              <label class="sr-only" for="brainTeamSelect">Choose the team to visualize</label>
+              <select id="brainTeamSelect" class="brain-select">
+                <option value="auto">Auto — top performer</option>
+              </select>
+              <button type="button" id="brainToggleBtn" class="brain-toggle" aria-pressed="true">
+                Hide visualization
+              </button>
+            </div>
           </div>
           <div class="brain-score">
             <span class="brain-score-label">Fitness</span>
@@ -215,6 +231,85 @@
           Visualization hidden to save performance. Toggle it back on anytime to resume live updates.
         </div>
       </section>
+      <details class="brain-guide" id="brainGuide">
+        <summary>Neural network visual guide</summary>
+        <div class="brain-guide-body">
+          <p>
+            This simplified diagram breaks down the live neural network. Inputs on the left capture what an agent senses, the hidden
+            layer in the middle mixes those signals, and the outputs on the right steer direction and throttle.
+          </p>
+          <figure class="brain-diagram">
+            <svg viewBox="0 0 520 220" role="img" aria-labelledby="brain-diagram-title brain-diagram-desc">
+              <title id="brain-diagram-title">Neural network layers</title>
+              <desc id="brain-diagram-desc">Inputs flow to hidden neurons and then to four output commands.</desc>
+              <defs>
+                <linearGradient id="nodeInput" x1="0" x2="1" y1="0" y2="1">
+                  <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.6" />
+                  <stop offset="100%" stop-color="#38bdf8" stop-opacity="0.2" />
+                </linearGradient>
+                <linearGradient id="nodeHidden" x1="0" x2="1" y1="0" y2="1">
+                  <stop offset="0%" stop-color="#2dd4bf" stop-opacity="0.6" />
+                  <stop offset="100%" stop-color="#2dd4bf" stop-opacity="0.2" />
+                </linearGradient>
+                <linearGradient id="nodeOutput" x1="0" x2="1" y1="0" y2="1">
+                  <stop offset="0%" stop-color="#f472b6" stop-opacity="0.6" />
+                  <stop offset="100%" stop-color="#f472b6" stop-opacity="0.2" />
+                </linearGradient>
+              </defs>
+              <g stroke="rgba(148,163,209,0.35)" stroke-width="1.2">
+                <line x1="110" y1="40" x2="260" y2="40" />
+                <line x1="110" y1="40" x2="260" y2="100" />
+                <line x1="110" y1="40" x2="260" y2="160" />
+                <line x1="110" y1="100" x2="260" y2="40" />
+                <line x1="110" y1="100" x2="260" y2="100" />
+                <line x1="110" y1="100" x2="260" y2="160" />
+                <line x1="110" y1="160" x2="260" y2="40" />
+                <line x1="110" y1="160" x2="260" y2="100" />
+                <line x1="110" y1="160" x2="260" y2="160" />
+                <line x1="260" y1="40" x2="410" y2="40" />
+                <line x1="260" y1="40" x2="410" y2="90" />
+                <line x1="260" y1="40" x2="410" y2="140" />
+                <line x1="260" y1="40" x2="410" y2="190" />
+                <line x1="260" y1="100" x2="410" y2="40" />
+                <line x1="260" y1="100" x2="410" y2="90" />
+                <line x1="260" y1="100" x2="410" y2="140" />
+                <line x1="260" y1="100" x2="410" y2="190" />
+                <line x1="260" y1="160" x2="410" y2="40" />
+                <line x1="260" y1="160" x2="410" y2="90" />
+                <line x1="260" y1="160" x2="410" y2="140" />
+                <line x1="260" y1="160" x2="410" y2="190" />
+              </g>
+              <g fill="url(#nodeInput)">
+                <circle cx="110" cy="40" r="18"></circle>
+                <circle cx="110" cy="100" r="18"></circle>
+                <circle cx="110" cy="160" r="18"></circle>
+              </g>
+              <g fill="url(#nodeHidden)">
+                <circle cx="260" cy="40" r="16"></circle>
+                <circle cx="260" cy="100" r="16"></circle>
+                <circle cx="260" cy="160" r="16"></circle>
+              </g>
+              <g fill="url(#nodeOutput)">
+                <circle cx="410" cy="40" r="18"></circle>
+                <circle cx="410" cy="90" r="18"></circle>
+                <circle cx="410" cy="140" r="18"></circle>
+                <circle cx="410" cy="190" r="18"></circle>
+              </g>
+              <text class="label" x="110" y="200" text-anchor="middle">Inputs</text>
+              <text class="label" x="260" y="200" text-anchor="middle">Hidden layer</text>
+              <text class="label" x="410" y="200" text-anchor="middle">Outputs</text>
+              <text x="440" y="40" text-anchor="start" dominant-baseline="middle">Drive X</text>
+              <text x="440" y="90" text-anchor="start" dominant-baseline="middle">Drive Y</text>
+              <text x="440" y="140" text-anchor="start" dominant-baseline="middle">Speed +</text>
+              <text x="440" y="190" text-anchor="start" dominant-baseline="middle">Speed −</text>
+            </svg>
+          </figure>
+          <p>
+            When weights glow brighter, that pathway carries a stronger influence. Cyan edges push movement in the same direction as
+            the input signal, while magenta edges push in the opposite direction.
+          </p>
+        </div>
+      </details>
     </div>
 
     <!-- Right panels: controls and teams -->
@@ -388,6 +483,7 @@ const brainGenEl = Q('brain-generation');
 const brainToggleBtn = Q('brainToggleBtn');
 const brainPausedEl = Q('brainPausedNotice');
 const brainVizSection = document.querySelector('.brain-viz');
+const brainTeamSelect = Q('brainTeamSelect');
 let brainCanvasWidth = brainCanvas ? brainCanvas.clientWidth : 0;
 let brainCanvasHeight = brainCanvas ? brainCanvas.clientHeight : 0;
 let brainVizEnabled = true;
@@ -1067,12 +1163,14 @@ function renderTeamRoster(){
       team.active = checkbox.checked;
       meta.textContent = team.active ? 'Active' : 'Inactive';
       card.classList.toggle('active', team.active);
+      refreshBrainTeamOptions();
       setup();
     });
 
     card.append(checkbox, header, meta, score);
     roster.append(card);
   });
+  refreshBrainTeamOptions();
 }
 
 function rebuildTeamStatusRows(){
@@ -1121,21 +1219,14 @@ function refreshStats(){
   if(fruitEl) fruitEl.textContent = fruits.length;
   let deliveries = 0;
   let topFitness = 0;
-  let topPoints = 0;
   for(const team of activeTeamStates){
     deliveries += team.goal?.delivered || 0;
     topFitness = Math.max(topFitness, team.peakFitness||0, team.bestFitnessCurrent||0);
-    const board = team.scoreboard || getTeamScoreData(team.config.id);
-    if(board && Number.isFinite(board.score)){
-      topPoints = Math.max(topPoints, board.score);
-    }
   }
   const deliveryEl = Q('stat-deliveries');
   if(deliveryEl) deliveryEl.textContent = deliveries;
   const topEl = Q('stat-top');
   if(topEl) topEl.textContent = Math.round(topFitness);
-  const pointsEl = Q('stat-points');
-  if(pointsEl) pointsEl.textContent = Math.round(topPoints);
 }
 
 function getCanvasCoords(evt){
@@ -1682,26 +1773,141 @@ function forward(n, x, capture=null){
 function makePopulation(size){ return Array.from({length:size}, ()=> ({ net:makeNet(), fitness:0 })); }
 const evo = { gen:1, populations:{} };
 
-const bestBrainState = {
-  fitness:-Infinity,
-  teamId:null,
-  teamLabel:'',
-  teamIcon:'',
-  teamColor:'#38bdf8',
-  gen:1,
-  net:null,
-  agentRef:null,
-  activations:{ input:[], hidden:[], output:[], timestamp:0 }
-};
+function createEmptyBrainState(gen){
+  return {
+    fitness:-Infinity,
+    teamId:null,
+    teamLabel:'',
+    teamIcon:'',
+    teamColor:'#38bdf8',
+    gen:Number.isFinite(gen) ? gen : (evo?.gen || 1),
+    net:null,
+    agentRef:null,
+    activations:{ input:[], hidden:[], output:[], timestamp:0 }
+  };
+}
+const bestBrainState = createEmptyBrainState(evo.gen);
+const globalBrainChampion = createEmptyBrainState(evo.gen);
+const teamBrainCache = new Map();
+let brainViewMode = 'auto';
+let brainViewTeamId = null;
 let bestBrainDirty = true;
 
-function markBestBrainDirty(){ bestBrainDirty = true; }
+function markBestBrainDirty(){
+  bestBrainDirty = true;
+}
 function clearActivationStore(store){
   if(!store) return;
   store.input.length = 0;
   store.hidden.length = 0;
   store.output.length = 0;
   store.timestamp = 0;
+}
+
+function resetBrainState(state, gen){
+  if(!state) return;
+  state.fitness = -Infinity;
+  state.teamId = null;
+  state.teamLabel = '';
+  state.teamIcon = '';
+  state.teamColor = '#38bdf8';
+  state.gen = Number.isFinite(gen) ? gen : (evo?.gen || 1);
+  state.net = null;
+  state.agentRef = null;
+  if(!state.activations){
+    state.activations = { input:[], hidden:[], output:[], timestamp:0 };
+  } else {
+    clearActivationStore(state.activations);
+  }
+}
+
+function ensureTeamBrainCache(teamId){
+  if(!teamId) return null;
+  let cache = teamBrainCache.get(teamId);
+  if(!cache){
+    cache = createEmptyBrainState(evo.gen);
+    cache.teamId = teamId;
+    const team = params?.teams?.find?.((t)=>t.id===teamId);
+    if(team){
+      cache.teamLabel = team.label || team.id || '';
+      cache.teamIcon = team.icon || '●';
+      cache.teamColor = team.color || '#38bdf8';
+    }
+    teamBrainCache.set(teamId, cache);
+  }
+  return cache;
+}
+
+function applyBrainSelection(value){
+  const mode = value && value !== 'auto' ? 'team' : 'auto';
+  if(mode === 'auto'){
+    brainViewMode = 'auto';
+    brainViewTeamId = null;
+    if(globalBrainChampion.net){
+      const teamConfig = {
+        id: globalBrainChampion.teamId,
+        label: globalBrainChampion.teamLabel,
+        icon: globalBrainChampion.teamIcon,
+        color: globalBrainChampion.teamColor
+      };
+      setBestBrainFromNet(globalBrainChampion.net, teamConfig, globalBrainChampion.fitness, globalBrainChampion.gen, globalBrainChampion.agentRef, bestBrainState, globalBrainChampion.activations);
+    } else {
+      resetBrainState(bestBrainState, evo.gen);
+      markBestBrainDirty();
+    }
+    updateBrainMeta();
+    return;
+  }
+
+  const team = params.teams.find((t)=>t.id===value);
+  if(!team || !team.active){
+    brainViewMode = 'auto';
+    brainViewTeamId = null;
+    if(brainTeamSelect){
+      brainTeamSelect.value = 'auto';
+    }
+    applyBrainSelection('auto');
+    return;
+  }
+
+  brainViewMode = 'team';
+  brainViewTeamId = team.id;
+  const cache = ensureTeamBrainCache(team.id);
+  if(cache && cache.net){
+    setBestBrainFromNet(cache.net, team, cache.fitness, cache.gen, cache.agentRef, bestBrainState, cache.activations);
+  } else {
+    resetBrainState(bestBrainState, evo.gen);
+    bestBrainState.teamId = team.id;
+    bestBrainState.teamLabel = team.label || team.id || '';
+    bestBrainState.teamIcon = team.icon || '●';
+    bestBrainState.teamColor = team.color || '#38bdf8';
+    markBestBrainDirty();
+  }
+  updateBrainMeta();
+}
+
+function refreshBrainTeamOptions(){
+  if(!brainTeamSelect) return;
+  const previous = brainTeamSelect.value;
+  brainTeamSelect.innerHTML = '';
+  const autoOption = document.createElement('option');
+  autoOption.value = 'auto';
+  autoOption.textContent = 'Auto — top performer';
+  brainTeamSelect.append(autoOption);
+  params.teams.forEach((team)=>{
+    const option = document.createElement('option');
+    option.value = team.id;
+    option.textContent = `${team.icon || '●'} ${team.label}`.trim();
+    if(!team.active) option.disabled = true;
+    brainTeamSelect.append(option);
+  });
+  let next = previous;
+  const candidate = next ? brainTeamSelect.querySelector(`option[value="${next}"]`) : null;
+  if(!candidate || candidate.disabled){
+    next = 'auto';
+  }
+  brainTeamSelect.value = next;
+  applyBrainSelection(next);
 }
 function applyBrainVizState(){
   const enabled = !!brainVizEnabled;
@@ -1739,21 +1945,23 @@ if(brainToggleBtn){
     applyBrainVizState();
   });
 }
+if(brainTeamSelect){
+  brainTeamSelect.addEventListener('change', ()=>{
+    applyBrainSelection(brainTeamSelect.value);
+  });
+}
 applyBrainVizState();
 function resetBestBrainState(gen){
-  bestBrainState.fitness=-Infinity;
-  bestBrainState.teamId=null;
-  bestBrainState.teamLabel='';
-  bestBrainState.teamIcon='';
-  bestBrainState.teamColor='#38bdf8';
-  bestBrainState.gen=Number.isFinite(gen)?gen: (evo?.gen||1);
-  bestBrainState.net=null;
-  bestBrainState.agentRef=null;
-  if(!bestBrainState.activations){
-    bestBrainState.activations = { input:[], hidden:[], output:[], timestamp:0 };
+  resetBrainState(bestBrainState, gen);
+  resetBrainState(globalBrainChampion, gen);
+  teamBrainCache.clear();
+  brainViewMode = 'auto';
+  brainViewTeamId = null;
+  if(brainTeamSelect){
+    brainTeamSelect.value = 'auto';
   }
-  clearActivationStore(bestBrainState.activations);
   markBestBrainDirty();
+  updateBrainMeta();
 }
 function ensureBrainCanvasSizing(){
   if(!brainCanvas || !brainCtx) return;
@@ -1777,11 +1985,16 @@ function ensureBrainCanvasSizing(){
 }
 function updateBrainMeta(){
   if(brainSubtitleEl){
+    const watchingTeam = brainViewMode === 'team';
     if(!brainVizEnabled){
       if(bestBrainState.net){
-        brainSubtitleEl.textContent = 'Visualization paused — leader stats still update in real time.';
+        brainSubtitleEl.textContent = watchingTeam
+          ? 'Visualization paused — team stats still refresh in the background.'
+          : 'Visualization paused — leader stats still update in real time.';
       } else {
-        brainSubtitleEl.textContent = 'Visualization hidden until a leader emerges…';
+        brainSubtitleEl.textContent = watchingTeam
+          ? 'Visualization hidden until this team produces an active leader…'
+          : 'Visualization hidden until a leader emerges…';
       }
     } else if(bestBrainState.net){
       if(bestBrainState.agentRef){
@@ -1790,12 +2003,17 @@ function updateBrainMeta(){
           : (Number.isFinite(bestBrainState.agentRef?.speedFactor)
             ? Math.round(bestBrainState.agentRef.speedFactor * 100)
             : 100);
-        brainSubtitleEl.textContent = `Live activations — cyan = positive, pink = negative — throttle ${throttlePercent}% of max`;
+        const prefix = watchingTeam ? 'Team focus' : 'Top contender';
+        brainSubtitleEl.textContent = `${prefix} — live activations: cyan amplifies, pink dampens — throttle ${throttlePercent}% of max`;
       } else {
-        brainSubtitleEl.textContent = 'Highest fitness network (snapshot) — Speed ± outputs control throttle';
+        brainSubtitleEl.textContent = watchingTeam
+          ? 'Best recorded brain for this team (snapshot) — Speed ± outputs control throttle'
+          : 'Highest fitness network (snapshot) — Speed ± outputs control throttle';
       }
     } else {
-      brainSubtitleEl.textContent = 'Waiting for the first champion…';
+      brainSubtitleEl.textContent = watchingTeam
+        ? 'Waiting for the first leader from this team…'
+        : 'Waiting for the first champion…';
     }
   }
   if(brainTeamEl){
@@ -1803,7 +2021,11 @@ function updateBrainMeta(){
       brainTeamEl.textContent = `${bestBrainState.teamIcon || '●'} ${bestBrainState.teamLabel || 'Team'}`.trim();
       brainTeamEl.style.color = bestBrainState.agentRef ? 'var(--ink)' : 'var(--muted)';
     } else {
-      brainTeamEl.textContent = 'No leader yet';
+      if(brainViewMode === 'team' && bestBrainState.teamLabel){
+        brainTeamEl.textContent = `${bestBrainState.teamIcon || '●'} ${bestBrainState.teamLabel}`.trim();
+      } else {
+        brainTeamEl.textContent = 'No leader yet';
+      }
       brainTeamEl.style.color = 'var(--muted)';
     }
   }
@@ -1816,8 +2038,10 @@ function updateBrainMeta(){
       brainBadgeEl.style.boxShadow = `0 0 18px ${hexToRgba(bestBrainState.teamColor || '#38bdf8', glowAlpha)}`;
       brainBadgeEl.style.color = '#020617';
     } else {
-      brainBadgeEl.textContent = '●';
-      brainBadgeEl.style.background = 'rgba(56,189,248,.3)';
+      const fallbackIcon = bestBrainState.teamIcon || '●';
+      brainBadgeEl.textContent = fallbackIcon;
+      const fallbackColor = bestBrainState.teamColor || '#38bdf8';
+      brainBadgeEl.style.background = hexToRgba(fallbackColor, 0.35);
       brainBadgeEl.style.boxShadow = 'none';
       brainBadgeEl.style.color = '#94a3b8';
     }
@@ -2051,33 +2275,66 @@ function renderBestBrain(){
   }
   bestBrainDirty = false;
 }
-function setBestBrainFromNet(net, teamConfig, fitness, generation, agentRef=null){
-  if(!net || !teamConfig) return;
-  bestBrainState.fitness = fitness;
-  bestBrainState.teamId = teamConfig.id;
-  bestBrainState.teamLabel = teamConfig.label || teamConfig.id || '';
-  bestBrainState.teamIcon = teamConfig.icon || '●';
-  bestBrainState.teamColor = teamConfig.color || '#38bdf8';
-  bestBrainState.gen = Number.isFinite(generation) ? generation : evo.gen;
-  bestBrainState.net = cloneNet(net);
-  bestBrainState.agentRef = agentRef || null;
-  const now = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
-  if(agentRef && agentRef.activationScratch){
-    bestBrainState.activations = agentRef.activationScratch;
-    bestBrainState.activations.timestamp = now;
-  } else {
-    bestBrainState.activations = { input:[], hidden:[], output:[], timestamp: now };
+function setBestBrainFromNet(net, teamConfig, fitness, generation, agentRef=null, targetState=bestBrainState, activationsOverride=null){
+  if(!targetState) return;
+  if(!net || !teamConfig){
+    resetBrainState(targetState, generation);
+    return;
   }
-  markBestBrainDirty();
+  targetState.fitness = fitness;
+  targetState.teamId = teamConfig.id;
+  targetState.teamLabel = teamConfig.label || teamConfig.id || '';
+  targetState.teamIcon = teamConfig.icon || '●';
+  targetState.teamColor = teamConfig.color || '#38bdf8';
+  targetState.gen = Number.isFinite(generation) ? generation : evo.gen;
+  targetState.net = cloneNet(net);
+  targetState.agentRef = agentRef || null;
+  const now = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+  if(activationsOverride){
+    targetState.activations = activationsOverride;
+    if(typeof targetState.activations.timestamp !== 'number'){
+      targetState.activations.timestamp = now;
+    }
+  } else if(agentRef && agentRef.activationScratch){
+    targetState.activations = agentRef.activationScratch;
+    targetState.activations.timestamp = now;
+  } else {
+    targetState.activations = targetState.activations || { input:[], hidden:[], output:[], timestamp: now };
+    if(!Array.isArray(targetState.activations.input)) targetState.activations.input = [];
+    if(!Array.isArray(targetState.activations.hidden)) targetState.activations.hidden = [];
+    if(!Array.isArray(targetState.activations.output)) targetState.activations.output = [];
+    targetState.activations.timestamp = now;
+  }
+  if(targetState === bestBrainState){
+    markBestBrainDirty();
+  }
 }
 function trackBestBrain(agent, teamState){
   if(!agent || !teamState) return;
   const fitness = Number(agent.fitness);
   if(!Number.isFinite(fitness)) return;
-  if(fitness <= bestBrainState.fitness) return;
   const net = agent.netRef?.net;
   if(!net) return;
-  setBestBrainFromNet(net, teamState.config, fitness, evo.gen, agent);
+  const teamId = teamState.config.id;
+  const cache = ensureTeamBrainCache(teamId);
+  if(cache){
+    if(fitness > cache.fitness){
+      setBestBrainFromNet(net, teamState.config, fitness, evo.gen, agent, cache);
+      if(brainViewMode === 'team' && brainViewTeamId === teamId){
+        setBestBrainFromNet(net, teamState.config, fitness, evo.gen, agent, bestBrainState, cache.activations);
+      }
+    } else if(cache.agentRef === agent && agent.activationScratch){
+      cache.activations = agent.activationScratch;
+    }
+  }
+  if(fitness > globalBrainChampion.fitness){
+    setBestBrainFromNet(net, teamState.config, fitness, evo.gen, agent, globalBrainChampion);
+    if(brainViewMode === 'auto'){
+      setBestBrainFromNet(net, teamState.config, fitness, evo.gen, agent, bestBrainState, globalBrainChampion.activations);
+    }
+  } else if(globalBrainChampion.teamId === teamId && globalBrainChampion.agentRef === agent && agent.activationScratch){
+    globalBrainChampion.activations = agent.activationScratch;
+  }
 }
 params.teams.forEach((team)=>{
   evo.populations[team.id] = makePopulation(team.count);
@@ -2234,10 +2491,13 @@ class Collector extends Agent{
     const input = [tx,ty, g.gx, g.gy, sx, sy, 1.0];
     const capture = this.activationScratch;
     const out = forward(this.netRef.net, input, capture);
+    const nowTime = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+    capture.timestamp = nowTime;
     if(bestBrainState.agentRef === this){
-      capture.timestamp = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
       bestBrainState.activations = capture;
-      markBestBrainDirty();
+      if(brainVizEnabled){
+        markBestBrainDirty();
+      }
     }
     const driveX = Number.isFinite(out[0]) ? out[0] : 0;
     const driveY = Number.isFinite(out[1]) ? out[1] : 0;
@@ -2809,8 +3069,14 @@ function loadTrainingSnapshot(data){
 
   if(bestBrainCandidate){
     const teamInfo = params.teams.find((t)=>t.id===bestBrainCandidate.teamId) || { id:bestBrainCandidate.teamId, label:bestBrainCandidate.teamId, icon:'●', color:'#38bdf8' };
-    setBestBrainFromNet(bestBrainCandidate.net, teamInfo, bestBrainCandidate.fitness, evo.gen);
+    setBestBrainFromNet(bestBrainCandidate.net, teamInfo, bestBrainCandidate.fitness, evo.gen, null, globalBrainChampion);
+    const cache = ensureTeamBrainCache(teamInfo.id);
+    if(cache){
+      setBestBrainFromNet(bestBrainCandidate.net, teamInfo, bestBrainCandidate.fitness, evo.gen, null, cache);
+    }
   }
+
+  applyBrainSelection(brainTeamSelect ? brainTeamSelect.value : 'auto');
 
   const bestCombined = Object.assign({}, bestFromSnapshot, data.best || {});
   applyBestFitnessSnapshot(bestCombined);
