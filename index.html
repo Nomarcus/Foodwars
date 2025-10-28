@@ -237,6 +237,9 @@
 
             <div class="label">Snake size</div>
             <input id="slAgentScale" type="range" min="50" max="150" value="100" step="5"><div class="val" id="lbAgentScale">1.00×</div>
+
+            <div class="label">Agent collisions</div>
+            <input id="chkAgentCollisions" type="checkbox"><div class="val" id="lbAgentCollisions">off</div>
           </div>
           <button id="btnReset" class="btn">Restart</button>
         </div>
@@ -413,6 +416,7 @@ const params = {
   obstacles: 8,
   tailLen: 24,
   agentScale: 1.00,
+  agentCollisions: false,
   teams: TEAM_PRESETS.map((preset, index)=>({
     id:preset.id,
     label:preset.label,
@@ -514,6 +518,14 @@ function readParams(){
   params.obstacles = +Q('slObst').value; Q('lbObst').textContent=params.obstacles; if(params.obstacles !== lastObstCount){ makeObstacles(params.obstacles); lastObstCount = params.obstacles; }
   params.tailLen = +Q('slTail').value; Q('lbTail').textContent=params.tailLen;
   params.agentScale = (+Q('slAgentScale').value)/100; Q('lbAgentScale').textContent=`${params.agentScale.toFixed(2)}×`;
+  const collisionToggle = Q('chkAgentCollisions');
+  if(collisionToggle){
+    params.agentCollisions = collisionToggle.checked;
+    const label = Q('lbAgentCollisions');
+    if(label){
+      label.textContent = collisionToggle.checked ? 'on' : 'off';
+    }
+  }
 
   const sharedCount = +Q('slTeamCount').value; Q('lbTeamCount').textContent=sharedCount;
   const sharedSpeed = (+Q('slTeamSpeed').value)/100; Q('lbTeamSpeed').textContent=sharedSpeed.toFixed(2);
@@ -2266,6 +2278,60 @@ class Collector extends Agent{
   }
 }
 
+function enforceAgentCollisions(){
+  if(!params.agentCollisions || activeTeamStates.length < 1) return;
+  const allAgents = [];
+  for(const team of activeTeamStates){
+    for(const agent of team.agents){
+      allAgents.push(agent);
+    }
+  }
+  if(allAgents.length < 2) return;
+  const agentRadius = Math.max(2.5, AGENT_BASE_RADIUS * params.agentScale);
+  const minDist = Math.max(3.5, agentRadius * 2);
+  for(let i=0;i<allAgents.length;i++){
+    const a = allAgents[i];
+    for(let j=i+1;j<allAgents.length;j++){
+      const b = allAgents[j];
+      let dx = b.x - a.x;
+      let dy = b.y - a.y;
+      let dist = Math.hypot(dx, dy);
+      if(dist === 0){
+        const angle = Math.random() * Math.PI * 2;
+        dx = Math.cos(angle) * 0.001;
+        dy = Math.sin(angle) * 0.001;
+        dist = Math.hypot(dx, dy);
+      }
+      if(dist < minDist){
+        const nx = dx / dist;
+        const ny = dy / dist;
+        const overlap = (minDist - dist) * 0.5;
+        if(Number.isFinite(overlap)){
+          a.x -= nx * overlap;
+          a.y -= ny * overlap;
+          b.x += nx * overlap;
+          b.y += ny * overlap;
+
+          const relVx = b.vx - a.vx;
+          const relVy = b.vy - a.vy;
+          const vn = relVx * nx + relVy * ny;
+          if(vn < 0){
+            const impulse = vn * 0.5;
+            a.vx += nx * impulse;
+            a.vy += ny * impulse;
+            b.vx -= nx * impulse;
+            b.vy -= ny * impulse;
+          }
+          a.keepInBounds();
+          b.keepInBounds();
+          a.resolveObstaclePenetration(1);
+          b.resolveObstaclePenetration(1);
+        }
+      }
+    }
+  }
+}
+
 // ===== Setup & loop =====
 let lastSpawn=performance.now();
 function setup(){
@@ -2515,6 +2581,7 @@ function loop(){
       trackBestBrain(agent, team);
     }
   }
+  enforceAgentCollisions();
   evaporate();
   if(now - lastSpawn >= params.spawnMs){
     spawnFruit();
@@ -2601,6 +2668,13 @@ function applyParamsSnapshot(snapshot){
   if(snapshot.obstacles != null) setRangeValue('slObst', snapshot.obstacles);
   if(snapshot.tailLen != null) setRangeValue('slTail', snapshot.tailLen);
   if(snapshot.agentScale != null) setRangeValue('slAgentScale', Math.round(snapshot.agentScale*100));
+  if(snapshot.agentCollisions !== undefined){
+    const toggle = Q('chkAgentCollisions');
+    if(toggle){
+      toggle.checked = !!snapshot.agentCollisions;
+      toggle.dispatchEvent(new Event('change', { bubbles:true }));
+    }
+  }
 
   if(Array.isArray(snapshot.teams) && snapshot.teams.length){
     const first = snapshot.teams.find(Boolean) || {};
@@ -2832,6 +2906,10 @@ bindRange('slAgentScale','lbAgentScale',(v)=> (v/100).toFixed(2)+'×');
 Q('btnReset').onclick = ()=> { awaitingManualAdvance=false; forceNextGen=false; simSteps=0; setup(); };
 Q('btnNextGen').onclick = ()=> { forceNextGen = true; };
 Q('chkAuto').addEventListener('change', ()=> readParams());
+const chkAgentCollisions = Q('chkAgentCollisions');
+if(chkAgentCollisions){
+  chkAgentCollisions.addEventListener('change', ()=> readParams());
+}
 
 window.addEventListener('beforeunload', clearCurrentObjectUrl);
 
