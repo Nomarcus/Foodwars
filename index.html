@@ -1520,19 +1520,68 @@ function randn(){ let u=0,v=0; while(u===0) u=Math.random(); while(v===0) v=Math
 function matmulVec(W, x, out){ const rows=W.length, cols=W[0].length; for(let i=0;i<rows;i++){ let s=0; const Wi=W[i]; for(let j=0;j<cols;j++) s+=Wi[j]*x[j]; out[i]=s; } return out; }
 function tanhVec(v){ for(let i=0;i<v.length;i++) v[i]=Math.tanh(v[i]); return v; }
 function addBias(v,b){ for(let i=0;i<v.length;i++) v[i]+=b[i]; return v; }
+function ensureArraySize(arr, length){ return (Array.isArray(arr) && arr.length===length) ? arr : new Array(length); }
 function makeNet(inDim=7,h=16,out=2){ return { W1:Array.from({length:h},()=>Array.from({length:inDim},()=> (Math.random()*2-1)*0.5)), b1:Array.from({length:h},()=> (Math.random()*2-1)*0.2), W2:Array.from({length:out},()=>Array.from({length:h},()=> (Math.random()*2-1)*0.5)), b2:Array.from({length:out},()=> (Math.random()*2-1)*0.2) }; }
 function cloneNet(n){ return { W1:n.W1.map(r=>r.slice()), b1:n.b1.slice(), W2:n.W2.map(r=>r.slice()), b2:n.b2.slice() }; }
 function mutateNet(n, rate){ const sW=0.2, sB=0.2; for(const r of n.W1) for(let i=0;i<r.length;i++) if(Math.random()<rate) r[i]+=randn()*sW; for(let i=0;i<n.b1.length;i++) if(Math.random()<rate) n.b1[i]+=randn()*sB; for(const r of n.W2) for(let i=0;i<r.length;i++) if(Math.random()<rate) r[i]+=randn()*sW; for(let i=0;i<n.b2.length;i++) if(Math.random()<rate) n.b2[i]+=randn()*sB; }
 function crossover(a,b){ const c=cloneNet(a); for(let i=0;i<c.W1.length;i++) for(let j=0;j<c.W1[0].length;j++) c.W1[i][j]=(Math.random()<0.5?a.W1[i][j]:b.W1[i][j]); for(let i=0;i<c.b1.length;i++) c.b1[i]=(Math.random()<0.5?a.b1[i]:b.b1[i]); for(let i=0;i<c.W2.length;i++) for(let j=0;j<c.W2[0].length;j++) c.W2[i][j]=(Math.random()<0.5?a.W2[i][j]:b.W2[i][j]); for(let i=0;i<c.b2.length;i++) c.b2[i]=(Math.random()<0.5?a.b2[i]:b.b2[i]); return c; }
-function forward(n, x){ const h=new Array(n.b1.length).fill(0), o=new Array(n.b2.length).fill(0); matmulVec(n.W1,x,h); addBias(h,n.b1); tanhVec(h); matmulVec(n.W2,h,o); addBias(o,n.b2); tanhVec(o); return o; }
+function forward(n, x, capture=null){
+  const hidden = capture ? ensureArraySize(capture.hidden, n.b1.length) : new Array(n.b1.length);
+  const output = capture ? ensureArraySize(capture.output, n.b2.length) : new Array(n.b2.length);
+  matmulVec(n.W1,x,hidden);
+  addBias(hidden,n.b1);
+  tanhVec(hidden);
+  matmulVec(n.W2,hidden,output);
+  addBias(output,n.b2);
+  tanhVec(output);
+  if(capture){
+    capture.hidden = hidden;
+    capture.output = output;
+    const inputStore = ensureArraySize(capture.input, x.length);
+    for(let i=0;i<x.length;i++) inputStore[i] = x[i];
+    capture.input = inputStore;
+  }
+  return output;
+}
 function makePopulation(size){ return Array.from({length:size}, ()=> ({ net:makeNet(), fitness:0 })); }
 const evo = { gen:1, populations:{} };
 
-const bestBrainState = { fitness:-Infinity, teamId:null, teamLabel:'', teamIcon:'', teamColor:'#38bdf8', gen:1, net:null };
+const bestBrainState = {
+  fitness:-Infinity,
+  teamId:null,
+  teamLabel:'',
+  teamIcon:'',
+  teamColor:'#38bdf8',
+  gen:1,
+  net:null,
+  agentRef:null,
+  activations:{ input:[], hidden:[], output:[], timestamp:0 }
+};
 let bestBrainDirty = true;
 
 function markBestBrainDirty(){ bestBrainDirty = true; }
-function resetBestBrainState(gen){ bestBrainState.fitness=-Infinity; bestBrainState.teamId=null; bestBrainState.teamLabel=''; bestBrainState.teamIcon=''; bestBrainState.teamColor='#38bdf8'; bestBrainState.gen=Number.isFinite(gen)?gen: (evo?.gen||1); bestBrainState.net=null; markBestBrainDirty(); }
+function clearActivationStore(store){
+  if(!store) return;
+  store.input.length = 0;
+  store.hidden.length = 0;
+  store.output.length = 0;
+  store.timestamp = 0;
+}
+function resetBestBrainState(gen){
+  bestBrainState.fitness=-Infinity;
+  bestBrainState.teamId=null;
+  bestBrainState.teamLabel='';
+  bestBrainState.teamIcon='';
+  bestBrainState.teamColor='#38bdf8';
+  bestBrainState.gen=Number.isFinite(gen)?gen: (evo?.gen||1);
+  bestBrainState.net=null;
+  bestBrainState.agentRef=null;
+  if(!bestBrainState.activations){
+    bestBrainState.activations = { input:[], hidden:[], output:[], timestamp:0 };
+  }
+  clearActivationStore(bestBrainState.activations);
+  markBestBrainDirty();
+}
 function ensureBrainCanvasSizing(){
   if(!brainCanvas || !brainCtx) return;
   const rect = brainCanvas.getBoundingClientRect();
@@ -1554,11 +1603,19 @@ function ensureBrainCanvasSizing(){
   }
 }
 function updateBrainMeta(){
-  if(brainSubtitleEl){ brainSubtitleEl.textContent = bestBrainState.net ? 'Highest fitness so far — updates live' : 'Waiting for the first champion…'; }
+  if(brainSubtitleEl){
+    if(bestBrainState.net){
+      brainSubtitleEl.textContent = bestBrainState.agentRef
+        ? 'Live activations — cyan = positive, pink = negative'
+        : 'Highest fitness network (snapshot)';
+    } else {
+      brainSubtitleEl.textContent = 'Waiting for the first champion…';
+    }
+  }
   if(brainTeamEl){
     if(bestBrainState.net){
       brainTeamEl.textContent = `${bestBrainState.teamIcon || '●'} ${bestBrainState.teamLabel || 'Team'}`.trim();
-      brainTeamEl.style.color = 'var(--ink)';
+      brainTeamEl.style.color = bestBrainState.agentRef ? 'var(--ink)' : 'var(--muted)';
     } else {
       brainTeamEl.textContent = 'No leader yet';
       brainTeamEl.style.color = 'var(--muted)';
@@ -1567,8 +1624,10 @@ function updateBrainMeta(){
   if(brainBadgeEl){
     if(bestBrainState.net){
       brainBadgeEl.textContent = bestBrainState.teamIcon || '●';
-      brainBadgeEl.style.background = hexToRgba(bestBrainState.teamColor || '#38bdf8', 0.82);
-      brainBadgeEl.style.boxShadow = `0 0 18px ${hexToRgba(bestBrainState.teamColor || '#38bdf8', 0.45)}`;
+      const badgeAlpha = bestBrainState.agentRef ? 0.82 : 0.5;
+      const glowAlpha = bestBrainState.agentRef ? 0.45 : 0.22;
+      brainBadgeEl.style.background = hexToRgba(bestBrainState.teamColor || '#38bdf8', badgeAlpha);
+      brainBadgeEl.style.boxShadow = `0 0 18px ${hexToRgba(bestBrainState.teamColor || '#38bdf8', glowAlpha)}`;
       brainBadgeEl.style.color = '#020617';
     } else {
       brainBadgeEl.textContent = '●';
@@ -1635,45 +1694,91 @@ function maxAbsWeight(weights){
   }
   return max;
 }
-function drawBrainConnections(fromLayer, toLayer, weights){
+function drawBrainConnections(fromLayer, toLayer, weights, fromActivations=null, toActivations=null, activityScale=1){
   if(!brainCtx || !fromLayer || !toLayer || !weights) return;
   const maxW = maxAbsWeight(weights) || 1;
+  const positiveColor = bestBrainState.teamColor || '#2dd4bf';
   for(let j=0;j<Math.min(toLayer.length, weights.length);j++){
     const row = weights[j];
     const target = toLayer[j];
+    const targetAct = Array.isArray(toActivations) ? toActivations[j] : null;
     if(!target || !Array.isArray(row)) continue;
     for(let i=0;i<Math.min(fromLayer.length, row.length);i++){
       const source = fromLayer[i];
       if(!source) continue;
       const weight = row[i];
       if(!Number.isFinite(weight)) continue;
+      const sourceAct = Array.isArray(fromActivations) ? fromActivations[i] : null;
+      const activity = Math.max(0, Math.min(1, (typeof sourceAct === 'number' ? Math.abs(sourceAct) : 0)));
+      const targetActivity = Math.max(0, Math.min(1, (typeof targetAct === 'number' ? Math.abs(targetAct) : 0)));
+      const combinedActivity = Math.min(1, (activity*0.7 + targetActivity*0.5) * activityScale);
       const strength = Math.min(1, Math.abs(weight)/maxW);
-      const alpha = 0.12 + strength*0.55;
-      const width = 0.65 + strength*2.6;
+      const alpha = 0.10 + strength*0.35 + combinedActivity*0.45;
+      const width = 0.55 + strength*2.0 + combinedActivity*1.4;
+      const colorHex = weight>=0 ? positiveColor : '#f472b6';
       brainCtx.beginPath();
       brainCtx.moveTo(source.x, source.y);
       brainCtx.lineTo(target.x, target.y);
-      brainCtx.strokeStyle = hexToRgba(weight>=0 ? (bestBrainState.teamColor || '#2dd4bf') : '#f472b6', alpha);
+      brainCtx.strokeStyle = hexToRgba(colorHex, alpha);
       brainCtx.lineWidth = width;
+      if(combinedActivity>0.02){
+        brainCtx.shadowColor = hexToRgba(colorHex, 0.35*combinedActivity + 0.15*strength);
+        brainCtx.shadowBlur = 6 + combinedActivity*14;
+      }else{
+        brainCtx.shadowColor = 'transparent';
+        brainCtx.shadowBlur = 0;
+      }
       brainCtx.stroke();
     }
   }
+  brainCtx.shadowBlur = 0;
+  brainCtx.shadowColor = 'transparent';
 }
-function drawBrainNodes(positions, type){
+function drawBrainNodes(positions, type, activations=null, activityScale=1){
   if(!brainCtx || !positions) return;
   brainCtx.save();
-  let fill='rgba(56,189,248,0.35)', stroke='rgba(56,189,248,0.85)', radius=8.5;
-  if(type==='hidden'){ fill=hexToRgba(bestBrainState.teamColor || '#2dd4bf', 0.3); stroke=hexToRgba(bestBrainState.teamColor || '#2dd4bf', 0.95); radius=7; }
-  if(type==='output'){ fill='rgba(244,114,182,0.38)'; stroke='rgba(244,114,182,0.9)'; radius=9.5; }
-  for(const pos of positions){
+  const teamColor = bestBrainState.teamColor || '#2dd4bf';
+  for(let i=0;i<positions.length;i++){
+    const pos = positions[i];
+    const value = Array.isArray(activations) ? activations[i] : null;
+    const magnitude = Math.max(0, Math.min(1, (typeof value === 'number' ? Math.abs(value) : 0) * activityScale));
+    const sign = (typeof value === 'number' && value < 0) ? -1 : 1;
+    let radius = 8.5;
+    let baseColor = '#38bdf8';
+    let accentColor = '#38bdf8';
+    let negativeColor = '#f472b6';
+    if(type==='hidden'){
+      radius = 7;
+      baseColor = teamColor;
+      accentColor = teamColor;
+    }
+    if(type==='output'){
+      radius = 9.5;
+      baseColor = '#f472b6';
+      accentColor = '#f472b6';
+      negativeColor = '#38bdf8';
+    }
+    const color = sign >= 0 ? baseColor : negativeColor;
+    const strokeColor = sign >= 0 ? accentColor : negativeColor;
+    const fillAlpha = 0.18 + magnitude*0.55;
+    const strokeAlpha = 0.50 + magnitude*0.45;
     brainCtx.beginPath();
-    brainCtx.fillStyle = fill;
-    brainCtx.strokeStyle = stroke;
+    brainCtx.fillStyle = hexToRgba(color, fillAlpha);
+    brainCtx.strokeStyle = hexToRgba(strokeColor, strokeAlpha);
     brainCtx.lineWidth = 1.8;
+    if(magnitude>0.02){
+      brainCtx.shadowColor = hexToRgba(strokeColor, 0.45*magnitude + 0.18);
+      brainCtx.shadowBlur = 8 + magnitude*18;
+    } else {
+      brainCtx.shadowColor = 'transparent';
+      brainCtx.shadowBlur = 0;
+    }
     brainCtx.arc(pos.x, pos.y, radius, 0, Math.PI*2);
     brainCtx.fill();
     brainCtx.stroke();
     brainCtx.beginPath();
+    brainCtx.shadowBlur = 0;
+    brainCtx.shadowColor = 'transparent';
     brainCtx.strokeStyle = 'rgba(255,255,255,0.12)';
     brainCtx.lineWidth = 1;
     brainCtx.arc(pos.x, pos.y, Math.max(1, radius-2.6), 0, Math.PI*2);
@@ -1708,18 +1813,43 @@ function renderBestBrain(){
   const inputLayer = buildLayerPositions(inputCount, paddingX, paddingY, height - paddingY);
   const hiddenLayer = buildLayerPositions(hiddenCount, paddingX + columnSpacing, paddingY, height - paddingY);
   const outputLayer = buildLayerPositions(outputCount, paddingX + columnSpacing*2, paddingY, height - paddingY);
+  const activations = bestBrainState.activations || null;
+  const now = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+  let activityScale = 0.25;
+  if(bestBrainState.agentRef && activations && Number.isFinite(activations.timestamp)){
+    const ageMs = Math.max(0, now - activations.timestamp);
+    const freshness = Math.max(0, 1 - Math.min(1, ageMs / 1600));
+    activityScale = 0.25 + freshness*0.75;
+  } else if(activations && Number.isFinite(activations.timestamp)){
+    activityScale = 0.18;
+  }
   brainCtx.save();
   brainCtx.lineCap='round';
   brainCtx.lineJoin='round';
-  drawBrainConnections(inputLayer, hiddenLayer, net.W1);
-  drawBrainConnections(hiddenLayer, outputLayer, net.W2);
+  drawBrainConnections(inputLayer, hiddenLayer, net.W1, activations?.input, activations?.hidden, activityScale);
+  drawBrainConnections(hiddenLayer, outputLayer, net.W2, activations?.hidden, activations?.output, activityScale);
   brainCtx.restore();
-  drawBrainNodes(inputLayer, 'input');
-  drawBrainNodes(hiddenLayer, 'hidden');
-  drawBrainNodes(outputLayer, 'output');
+  drawBrainNodes(inputLayer, 'input', activations?.input, activityScale);
+  drawBrainNodes(hiddenLayer, 'hidden', activations?.hidden, activityScale);
+  drawBrainNodes(outputLayer, 'output', activations?.output, activityScale);
+  if(activations?.output && outputLayer.length === activations.output.length){
+    brainCtx.save();
+    brainCtx.font = '600 11px "Inter", system-ui, -apple-system, sans-serif';
+    brainCtx.textAlign = 'center';
+    brainCtx.textBaseline = 'top';
+    for(let i=0;i<outputLayer.length;i++){
+      const node = outputLayer[i];
+      const value = activations.output[i];
+      if(!Number.isFinite(value)) continue;
+      const label = value.toFixed(2);
+      brainCtx.fillStyle = value >= 0 ? 'rgba(248,250,255,0.78)' : 'rgba(148,163,209,0.78)';
+      brainCtx.fillText(label, node.x, node.y + 12);
+    }
+    brainCtx.restore();
+  }
   bestBrainDirty = false;
 }
-function setBestBrainFromNet(net, teamConfig, fitness, generation){
+function setBestBrainFromNet(net, teamConfig, fitness, generation, agentRef=null){
   if(!net || !teamConfig) return;
   bestBrainState.fitness = fitness;
   bestBrainState.teamId = teamConfig.id;
@@ -1728,6 +1858,14 @@ function setBestBrainFromNet(net, teamConfig, fitness, generation){
   bestBrainState.teamColor = teamConfig.color || '#38bdf8';
   bestBrainState.gen = Number.isFinite(generation) ? generation : evo.gen;
   bestBrainState.net = cloneNet(net);
+  bestBrainState.agentRef = agentRef || null;
+  const now = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+  if(agentRef && agentRef.activationScratch){
+    bestBrainState.activations = agentRef.activationScratch;
+    bestBrainState.activations.timestamp = now;
+  } else {
+    bestBrainState.activations = { input:[], hidden:[], output:[], timestamp: now };
+  }
   markBestBrainDirty();
 }
 function trackBestBrain(agent, teamState){
@@ -1737,7 +1875,7 @@ function trackBestBrain(agent, teamState){
   if(fitness <= bestBrainState.fitness) return;
   const net = agent.netRef?.net;
   if(!net) return;
-  setBestBrainFromNet(net, teamState.config, fitness, evo.gen);
+  setBestBrainFromNet(net, teamState.config, fitness, evo.gen, agent);
 }
 params.teams.forEach((team)=>{
   evo.populations[team.id] = makePopulation(team.count);
@@ -1794,7 +1932,7 @@ function evolveTeam(teamState){
 
 // ===== Agent core =====
 class Agent{
-  constructor(x,y,color,maxSpeed,team){ this.x=x; this.y=y; this.vx=rand(-1,1); this.vy=rand(-1,1); this.color=color; this.maxSpeed=maxSpeed; this.trail=[]; this.carry=false; this.team=team; this.side=Math.random()<0.5?-1:1; this.stuckT=0; this.wander={x:rand(-1,1), y:rand(-1,1)}; }
+  constructor(x,y,color,maxSpeed,team){ this.x=x; this.y=y; this.vx=rand(-1,1); this.vy=rand(-1,1); this.color=color; this.maxSpeed=maxSpeed; this.trail=[]; this.carry=false; this.team=team; this.side=Math.random()<0.5?-1:1; this.stuckT=0; this.wander={x:rand(-1,1), y:rand(-1,1)}; this.activationScratch={ input:[], hidden:[], output:[], timestamp:0 }; }
   stepSpeed(v){ this.maxSpeed=v; }
   steerSeparation(peers, radius=18, gain=0.12){
     let sx=0,sy=0;
@@ -1886,7 +2024,13 @@ class Collector extends Agent{
       if(d>0 && d<separationRadius){ sx+=dx/(d*d); sy+=dy/(d*d); }
     }
     const input = [tx,ty, g.gx, g.gy, sx, sy, 1.0];
-    const out = forward(this.netRef.net, input);
+    const capture = this.activationScratch;
+    const out = forward(this.netRef.net, input, capture);
+    if(bestBrainState.agentRef === this){
+      capture.timestamp = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+      bestBrainState.activations = capture;
+      markBestBrainDirty();
+    }
     this.vx += out[0]*(0.45 + 0.15*cfg.smart) + (tx*0.15*cfg.strat);
     this.vy += out[1]*(0.45 + 0.15*cfg.smart) + (ty*0.15*cfg.strat);
     const pickupRadius = Math.max(AGENT_BASE_PICKUP_RADIUS * params.agentScale, 6);
