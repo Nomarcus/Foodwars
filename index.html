@@ -73,8 +73,8 @@
     .panel-head{display:flex; align-items:center; justify-content:space-between; gap:12px; cursor:pointer; user-select:none; padding-bottom:10px; margin-bottom:14px; border-bottom:1px dashed rgba(189,206,255,.28)}
     .panel-head .h{margin:0; font-size:17px; letter-spacing:.03em}
     .chev{font-weight:900; font-size:16px; opacity:.75; transition:transform .25s ease}
-    .panel-body{max-height:1200px; overflow:hidden; transition:max-height .35s ease, opacity .25s ease; opacity:1}
-    .panel.collapsed .panel-body{max-height:0; opacity:.0}
+    .panel-body{max-height:none; overflow:visible; transition:opacity .25s ease; opacity:1}
+    .panel.collapsed .panel-body{max-height:0; opacity:0; overflow:hidden; pointer-events:none}
     .panel.collapsed .chev{transform:rotate(-90deg)}
 
     .grid{display:grid; grid-template-columns: 1fr 1.3fr auto; gap:12px 12px; align-items:center}
@@ -192,6 +192,45 @@
           <button id="btnSaveTraining" class="btn">Save training (.json)</button>
           <button id="btnLoadTraining" class="btn">Load training…</button>
           <input type="file" id="inputLoadTraining" accept="application/json" style="display:none">
+        </div>
+      </div>
+
+      <div class="panel" id="panel-toolbox">
+        <div class="panel-head"><div class="h">Obstacle toolbox</div><span class="chev">▾</span></div>
+        <div class="panel-body">
+          <p class="tool-hint">Choose a tool to draw glowing obstacles directly on the field.</p>
+          <div class="tool-buttons" role="group" aria-label="Obstacle drawing tools">
+            <button class="tool-btn active" data-tool="select" aria-pressed="true">Move</button>
+            <button class="tool-btn" data-tool="circle" aria-pressed="false">Circle</button>
+            <button class="tool-btn" data-tool="rect" aria-pressed="false">Rectangle</button>
+            <button class="tool-btn" data-tool="line" aria-pressed="false">Line</button>
+            <button class="tool-btn" data-tool="half" aria-pressed="false">Half circle</button>
+          </div>
+          <button id="btnClearManual" class="btn">Clear manual obstacles</button>
+        </div>
+      </div>
+
+      <div class="panel" id="panel-music">
+        <div class="panel-head"><div class="h">Ambient Sound Lounge</div><span class="chev">▾</span></div>
+        <div class="panel-body">
+          <p class="music-lead">Slip into focus with a hand-picked selection of calm, looping ambient tracks.</p>
+          <div class="music-select">
+            <label class="label" for="selMusic">Curated playlist</label>
+            <select id="selMusic" class="music-dropdown"></select>
+          </div>
+          <div class="music-controls">
+            <button id="btnMusicToggle" class="btn">Play</button>
+            <div class="music-volume">
+              <span class="label">Volume</span>
+              <input id="slMusicVolume" type="range" min="0" max="100" value="55">
+              <span class="val" id="lbMusicVolume">55%</span>
+            </div>
+          </div>
+          <div class="music-meta">
+            <div class="music-status"><span id="lbMusicState">Paused</span></div>
+            <div id="lbMusicNow" class="music-attr">Choose a track to begin.</div>
+            <div id="lbMusicSource" class="music-attr">Royalty-free ambient selections streamed from Pixabay artists.</div>
+          </div>
         </div>
       </div>
     </aside>
@@ -360,21 +399,6 @@
         </div>
       </div>
 
-      <div class="panel" id="panel-toolbox">
-        <div class="panel-head"><div class="h">Obstacle toolbox</div><span class="chev">▾</span></div>
-        <div class="panel-body">
-          <p class="tool-hint">Choose a tool to draw glowing obstacles directly on the field.</p>
-          <div class="tool-buttons" role="group" aria-label="Obstacle drawing tools">
-            <button class="tool-btn active" data-tool="select" aria-pressed="true">Move</button>
-            <button class="tool-btn" data-tool="circle" aria-pressed="false">Circle</button>
-            <button class="tool-btn" data-tool="rect" aria-pressed="false">Rectangle</button>
-            <button class="tool-btn" data-tool="line" aria-pressed="false">Line</button>
-            <button class="tool-btn" data-tool="half" aria-pressed="false">Half circle</button>
-          </div>
-          <button id="btnClearManual" class="btn">Clear manual obstacles</button>
-        </div>
-      </div>
-
       <div class="panel" id="panel-teams">
         <div class="panel-head"><div class="h">Team settings</div><span class="chev">▾</span></div>
         <div class="panel-body">
@@ -382,30 +406,6 @@
           <div class="team-roster" id="teamRoster"></div>
           <div class="sub" style="margin-top:14px">Attributes per team</div>
           <div class="team-configs" id="teamConfigs"></div>
-        </div>
-      </div>
-
-      <div class="panel" id="panel-music">
-        <div class="panel-head"><div class="h">Ambient Sound Lounge</div><span class="chev">▾</span></div>
-        <div class="panel-body">
-          <p class="music-lead">Slip into focus with a hand-picked selection of calm, looping ambient tracks.</p>
-          <div class="music-select">
-            <label class="label" for="selMusic">Curated playlist</label>
-            <select id="selMusic" class="music-dropdown"></select>
-          </div>
-          <div class="music-controls">
-            <button id="btnMusicToggle" class="btn">Play</button>
-            <div class="music-volume">
-              <span class="label">Volume</span>
-              <input id="slMusicVolume" type="range" min="0" max="100" value="55">
-              <span class="val" id="lbMusicVolume">55%</span>
-            </div>
-          </div>
-          <div class="music-meta">
-            <div class="music-status"><span id="lbMusicState">Paused</span></div>
-            <div id="lbMusicNow" class="music-attr">Choose a track to begin.</div>
-            <div id="lbMusicSource" class="music-attr">Royalty-free ambient selections streamed from Pixabay artists.</div>
-          </div>
         </div>
       </div>
     </aside>
