@@ -454,6 +454,7 @@ const COLORS = {
 const TEAM_PRESETS = [
   { id:'green', label:'Greens', icon:'🟢', color:'#00ff91', outline:'#003322', badge:'#bbf7d0', goalAnchor:{ x:0.86, y:0.35 }, spawn:{ x:[0.06,0.46], y:[0.12,0.92] } },
   { id:'red', label:'Reds', icon:'🔴', color:'#ff0055', outline:'#5a001a', badge:'#fecdd3', goalAnchor:{ x:0.14, y:0.65 }, spawn:{ x:[0.54,0.94], y:[0.08,0.9] } },
+  { id:'blocker', label:'Blockers', icon:'🛡️', color:'#facc15', outline:'#854d0e', badge:'#fef08a', role:'blocker', goalAnchor:{ x:0.48, y:0.50 }, spawn:{ x:[0.16,0.84], y:[0.18,0.82] } },
   { id:'blue', label:'Blues', icon:'🔵', color:'#60a5fa', outline:'#1e3a8a', badge:'#bfdbfe', goalAnchor:{ x:0.22, y:0.24 }, spawn:{ x:[0.18,0.52], y:[0.06,0.42] } },
   { id:'amber', label:'Ambers', icon:'🟠', color:'#f97316', outline:'#7c2d12', badge:'#fed7aa', goalAnchor:{ x:0.80, y:0.76 }, spawn:{ x:[0.52,0.90], y:[0.58,0.94] } }
 ];
@@ -529,9 +530,10 @@ const params = {
     color:preset.color,
     outline:preset.outline,
     badge:preset.badge,
+    role:preset.role || 'collector',
     goalAnchor:Object.assign({}, preset.goalAnchor),
     spawn:preset.spawn ? { x:preset.spawn.x.slice(), y:preset.spawn.y.slice() } : { x:[0.1,0.9], y:[0.1,0.9] },
-    active:index < 2,
+    active:index < 2 || preset.role === 'blocker',
     count:28,
     speed:2.60,
     smart:1.80,
@@ -992,12 +994,16 @@ const teamScoreDisplays = new Map();
 
 const PICKUP_REWARD = 8;
 const DELIVERY_REWARD = 120;
+const BLOCKER_BLOCK_REWARD = 60;
+const BLOCKER_BLOCK_PENALTY = 40;
+const BLOCKER_EVENT_COOLDOWN = 55;
+const BLOCKER_TRIGGER_RADIUS_BASE = 18;
 
 function getTeamScoreData(teamId){
-  if(!teamId) return { score:0, pickups:0, deliveries:0 };
+  if(!teamId) return { score:0, pickups:0, deliveries:0, blocks:0, fumbles:0 };
   let entry = teamScoreBook.get(teamId);
   if(!entry){
-    entry = { score:0, pickups:0, deliveries:0 };
+    entry = { score:0, pickups:0, deliveries:0, blocks:0, fumbles:0 };
     teamScoreBook.set(teamId, entry);
   }
   return entry;
@@ -1008,7 +1014,12 @@ function updateTeamScoreDisplay(teamId){
   if(!el) return;
   const data = getTeamScoreData(teamId);
   const points = Math.round(data.score || 0);
-  el.textContent = `Points: ${points} (${data.pickups} caught · ${data.deliveries} delivered)`;
+  const metrics = [];
+  metrics.push(`${data.pickups} caught`);
+  metrics.push(`${data.deliveries} delivered`);
+  metrics.push(`${data.blocks} blocked`);
+  metrics.push(`${data.fumbles} fumbles`);
+  el.textContent = `Points: ${points} (${metrics.join(' · ')})`;
 }
 
 function awardTeamPoints(teamState, type, amount){
@@ -1017,8 +1028,20 @@ function awardTeamPoints(teamState, type, amount){
   if(!scoreboard) return;
   if(type === 'pickup') scoreboard.pickups++;
   if(type === 'delivery') scoreboard.deliveries++;
+  if(type === 'block') scoreboard.blocks++;
   const numeric = Number(amount);
   if(Number.isFinite(numeric)) scoreboard.score += numeric;
+  teamState.scoreboard = scoreboard;
+  updateTeamScoreDisplay(teamState.config.id);
+}
+
+function registerTeamFumble(teamState, penalty=0){
+  if(!teamState || !teamState.config) return;
+  const scoreboard = teamState.scoreboard || getTeamScoreData(teamState.config.id);
+  scoreboard.fumbles = (scoreboard.fumbles || 0) + 1;
+  if(Number.isFinite(penalty) && penalty !== 0){
+    scoreboard.score += penalty;
+  }
   teamState.scoreboard = scoreboard;
   updateTeamScoreDisplay(teamState.config.id);
 }
@@ -1151,7 +1174,8 @@ function renderTeamRoster(){
 
     const meta=document.createElement('div');
     meta.className='team-meta';
-    meta.textContent=team.active? 'Active':'Inactive';
+    const roleLabel = team.role === 'blocker' ? 'Blocker' : 'Collector';
+    meta.textContent = `${team.active? 'Active':'Inactive'} · ${roleLabel}`;
 
     const score=document.createElement('div');
     score.className='team-score';
@@ -1161,7 +1185,7 @@ function renderTeamRoster(){
 
     checkbox.addEventListener('change', ()=>{
       team.active = checkbox.checked;
-      meta.textContent = team.active ? 'Active' : 'Inactive';
+      meta.textContent = `${team.active ? 'Active' : 'Inactive'} · ${roleLabel}`;
       card.classList.toggle('active', team.active);
       refreshBrainTeamOptions();
       renderTeamControls();
@@ -2512,7 +2536,7 @@ function evolveTeam(teamState){
 
 // ===== Agent core =====
 class Agent{
-  constructor(x,y,color,maxSpeed,team){ this.x=x; this.y=y; this.vx=rand(-1,1); this.vy=rand(-1,1); this.color=color; this.baseSpeed=maxSpeed; this.speedFactor=1; this.minSpeedFactor=SPEED_FACTOR_MIN; this.maxSpeedFactor=SPEED_FACTOR_MAX; this.maxSpeed=maxSpeed; this.trail=[]; this.carry=false; this.team=team; this.side=Math.random()<0.5?-1:1; this.stuckT=0; this.wander={x:rand(-1,1), y:rand(-1,1)}; this.activationScratch={ input:[], hidden:[], output:[], timestamp:0 }; }
+  constructor(x,y,color,maxSpeed,team){ this.x=x; this.y=y; this.vx=rand(-1,1); this.vy=rand(-1,1); this.color=color; this.baseSpeed=maxSpeed; this.speedFactor=1; this.minSpeedFactor=SPEED_FACTOR_MIN; this.maxSpeedFactor=SPEED_FACTOR_MAX; this.maxSpeed=maxSpeed; this.trail=[]; this.carry=false; this.team=team; this.side=Math.random()<0.5?-1:1; this.stuckT=0; this.wander={x:rand(-1,1), y:rand(-1,1)}; this.activationScratch={ input:[], hidden:[], output:[], timestamp:0 }; this.blockCooldown=0; }
   stepSpeed(v){ this.baseSpeed=v; this.maxSpeed=this.baseSpeed*this.speedFactor; }
   setSpeedFactor(factor){ this.speedFactor=clamp(factor, this.minSpeedFactor, this.maxSpeedFactor); this.maxSpeed=this.baseSpeed*this.speedFactor; }
   adjustSpeedFactor(delta){ if(!Number.isFinite(delta) || delta===0) return; this.setSpeedFactor(this.speedFactor + delta); }
@@ -2577,7 +2601,8 @@ class Agent{
     if(this.y<pad){ this.y=pad; this.vy=Math.abs(this.vy); }
     if(this.y>H-pad){ this.y=H-pad; this.vy=-Math.abs(this.vy); }
   }
-  integrate(){ const sp=Math.hypot(this.vx,this.vy); if(sp>this.maxSpeed){ this.vx*=this.maxSpeed/sp; this.vy*=this.maxSpeed/sp; } this.trail.push({x:this.x,y:this.y}); if(this.trail.length>params.tailLen) this.trail.shift(); this.x+=this.vx; this.y+=this.vy; this.resolveObstaclePenetration(); this.keepInBounds(); this.resolveObstaclePenetration(1); this.stuckT=(sp<0.10)?(this.stuckT+1):0; }
+  tickCooldowns(){ if(this.blockCooldown>0) this.blockCooldown--; }
+  integrate(){ const sp=Math.hypot(this.vx,this.vy); if(sp>this.maxSpeed){ this.vx*=this.maxSpeed/sp; this.vy*=this.maxSpeed/sp; } this.trail.push({x:this.x,y:this.y}); if(this.trail.length>params.tailLen) this.trail.shift(); this.x+=this.vx; this.y+=this.vy; this.resolveObstaclePenetration(); this.keepInBounds(); this.resolveObstaclePenetration(1); this.stuckT=(sp<0.10)?(this.stuckT+1):0; this.tickCooldowns(); }
 }
 
 class Collector extends Agent{
@@ -2590,6 +2615,7 @@ class Collector extends Agent{
       ensureNetOutputSize(this.netRef.net);
     }
     this.fitness=0;
+    this.role='collector';
   }
   update(){
     const cfg=this.teamState.config;
@@ -2659,6 +2685,92 @@ class Collector extends Agent{
   }
 }
 
+class Blocker extends Agent{
+  constructor(x,y,teamState,netRef){
+    const cfg=teamState.config;
+    super(x,y,teamState.config.color,cfg.speed,teamState.config.id);
+    this.teamState = teamState;
+    this.netRef = netRef;
+    if(this.netRef && this.netRef.net){
+      ensureNetOutputSize(this.netRef.net);
+    }
+    this.fitness = 0;
+    this.role = 'blocker';
+  }
+  update(){
+    const cfg = this.teamState.config;
+    this.stepSpeed(cfg.speed);
+    const mates = this.teamState.agents;
+    let closestCarrier=null, carrierDist=Infinity;
+    let closestAny=null, anyDist=Infinity;
+    for(const team of activeTeamStates){
+      if(team===this.teamState) continue;
+      for(const agent of team.agents){
+        const dx = agent.x - this.x;
+        const dy = agent.y - this.y;
+        const dist = Math.hypot(dx,dy);
+        if(dist < anyDist){ anyDist = dist; closestAny = agent; }
+        if(agent.carry && dist < carrierDist){ carrierDist = dist; closestCarrier = agent; }
+      }
+    }
+    const target = closestCarrier || closestAny;
+    const dist = target ? (closestCarrier ? carrierDist : anyDist) : Infinity;
+    let tx=0, ty=0;
+    if(target && dist>0){ tx=(target.x-this.x)/dist; ty=(target.y-this.y)/dist; }
+    let tvx=0, tvy=0;
+    if(target){
+      const speed = Math.hypot(target.vx, target.vy);
+      if(speed>0){
+        tvx = target.vx / speed;
+        tvy = target.vy / speed;
+      } else {
+        tvx = tx;
+        tvy = ty;
+      }
+    }
+    let sx=0, sy=0;
+    const separationRadius = AGENT_BASE_SEPARATION_RADIUS * params.agentScale;
+    for(const p of mates){
+      if(p===this) continue;
+      const dx=this.x-p.x, dy=this.y-p.y;
+      const d=Math.hypot(dx,dy);
+      if(d>0 && d<separationRadius){ sx+=dx/(d*d); sy+=dy/(d*d); }
+    }
+    const input = [tx, ty, tvx, tvy, sx, sy, 1.0];
+    const capture = this.activationScratch;
+    const out = forward(this.netRef.net, input, capture);
+    const nowTime = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+    capture.timestamp = nowTime;
+    if(bestBrainState.agentRef === this){
+      bestBrainState.activations = capture;
+      if(brainVizEnabled){
+        markBestBrainDirty();
+      }
+    }
+    const driveX = Number.isFinite(out[0]) ? out[0] : 0;
+    const driveY = Number.isFinite(out[1]) ? out[1] : 0;
+    const accelerate = Number.isFinite(out[2]) ? out[2] : 0;
+    const brake = Number.isFinite(out[3]) ? out[3] : 0;
+    const throttleSignal = accelerate - brake;
+    if(throttleSignal !== 0){
+      this.adjustSpeedFactor(throttleSignal * SPEED_FACTOR_ADJUST);
+    }
+    this.vx += driveX*(0.50 + 0.18*cfg.smart) + (tx*0.22*cfg.strat) + (tvx*0.12*cfg.smart);
+    this.vy += driveY*(0.50 + 0.18*cfg.smart) + (ty*0.22*cfg.strat) + (tvy*0.12*cfg.smart);
+    if(!target){
+      this.applyWander(0.035 + 0.015*cfg.strat);
+    }
+    if(target){
+      const closeness = Math.max(0, 1 - Math.min(dist, 180)/180);
+      this.fitness += closeness * 0.6;
+    } else {
+      this.fitness -= 0.02;
+    }
+    this.avoidObstacles();
+    this.integrate();
+  }
+}
+
 function enforceAgentCollisions(){
   if(!params.agentCollisions || activeTeamStates.length < 1) return;
   const allAgents = [];
@@ -2713,6 +2825,54 @@ function enforceAgentCollisions(){
   }
 }
 
+function applyBlockerInteractions(){
+  if(activeTeamStates.length < 2) return;
+  const blockers=[];
+  const rivals=[];
+  for(const team of activeTeamStates){
+    for(const agent of team.agents){
+      if(agent.role === 'blocker') blockers.push(agent);
+      else rivals.push(agent);
+    }
+  }
+  if(blockers.length===0 || rivals.length===0) return;
+  const blockRadius = Math.max(BLOCKER_TRIGGER_RADIUS_BASE * params.agentScale, 10);
+  const blockRadiusSq = blockRadius * blockRadius;
+  for(const blocker of blockers){
+    const blockerTeamId = blocker.teamState?.config?.id;
+    for(const opponent of rivals){
+      if(opponent.team === blockerTeamId) continue;
+      const dx = opponent.x - blocker.x;
+      const dy = opponent.y - blocker.y;
+      const distSq = dx*dx + dy*dy;
+      if(distSq > blockRadiusSq) continue;
+      if(opponent.carry && opponent.blockCooldown <= 0){
+        const dist = Math.sqrt(distSq);
+        const proximity = 1 - Math.min(dist / blockRadius, 1);
+        const reward = BLOCKER_BLOCK_REWARD * (0.6 + 0.4*proximity);
+        const penalty = -BLOCKER_BLOCK_PENALTY * (0.5 + 0.5*proximity);
+        spawnFruit(opponent.x, opponent.y);
+        opponent.carry = false;
+        opponent.blockCooldown = BLOCKER_EVENT_COOLDOWN;
+        blocker.blockCooldown = BLOCKER_EVENT_COOLDOWN;
+        blocker.fitness += reward;
+        awardTeamPoints(blocker.teamState, 'block', reward);
+        if(Number.isFinite(penalty)){
+          opponent.fitness += penalty;
+          registerTeamFumble(opponent.teamState, penalty);
+        }
+        continue;
+      }
+      if(blocker.blockCooldown <= 0 && opponent.blockCooldown <= 0 && !opponent.carry){
+        const harassmentReward = BLOCKER_BLOCK_REWARD * 0.12;
+        blocker.fitness += harassmentReward;
+        blocker.blockCooldown = Math.floor(BLOCKER_EVENT_COOLDOWN * 0.5);
+        opponent.blockCooldown = Math.floor(BLOCKER_EVENT_COOLDOWN * 0.35);
+      }
+    }
+  }
+}
+
 // ===== Setup & loop =====
 let lastSpawn=performance.now();
 function setup(){
@@ -2733,6 +2893,8 @@ function setup(){
     board.score = 0;
     board.pickups = 0;
     board.deliveries = 0;
+    board.blocks = 0;
+    board.fumbles = 0;
     updateTeamScoreDisplay(team.id);
   });
   for(let i=0;i<params.maxFruits;i++) spawnFruit();
@@ -2761,7 +2923,8 @@ function setup(){
       const netRef = state.population[i] || { net:makeNet(), fitness:0 };
       if(!state.population[i]) state.population[i] = netRef;
       netRef.fitness = 0;
-      const agent = new Collector(rand(minX, maxX), rand(minY, maxY), state, netRef);
+      const AgentClass = state.config.role === 'blocker' ? Blocker : Collector;
+      const agent = new AgentClass(rand(minX, maxX), rand(minY, maxY), state, netRef);
       state.agents.push(agent);
     }
   });
@@ -2960,6 +3123,7 @@ function loop(){
     }
   }
   enforceAgentCollisions();
+  applyBlockerInteractions();
   evaporate();
   if(now - lastSpawn >= params.spawnMs){
     spawnFruit();
