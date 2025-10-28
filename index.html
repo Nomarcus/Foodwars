@@ -750,8 +750,12 @@ window.addEventListener('mousemove', (e)=>{
   const r=canvas.getBoundingClientRect();
   const x=e.clientX - r.left, y=e.clientY - r.top;
   if(dragKind==='obst'){
-    dragTarget.x = Math.max(dragTarget.r+4, Math.min(W - dragTarget.r - 4, x + dragDX));
-    dragTarget.y = Math.max(dragTarget.r+4, Math.min(H - dragTarget.r - 4, y + dragDY));
+    const nx = Math.max(dragTarget.r+4, Math.min(W - dragTarget.r - 4, x + dragDX));
+    const ny = Math.max(dragTarget.r+4, Math.min(H - dragTarget.r - 4, y + dragDY));
+    if(!obstacleOverlaps(nx, ny, dragTarget.r, dragIndex)){
+      dragTarget.x = nx;
+      dragTarget.y = ny;
+    }
   } else {
     dragTarget.x = Math.max(dragTarget.r+8, Math.min(W - dragTarget.r - 8, x + dragDX));
     dragTarget.y = Math.max(dragTarget.r+8, Math.min(H - dragTarget.r - 8, y + dragDY));
@@ -762,22 +766,79 @@ window.addEventListener('mouseup', ()=>{ dragTarget=null; dragKind=null; dragInd
 // Utils
 function rand(a,b){ return a + Math.random()*(b-a); }
 function nearest(arr,x,y){ if(!arr.length) return null; let best=arr[0],bd=1e9; for(const o of arr){ const d=Math.hypot(o.x-x,o.y-y); if(d<bd){bd=d; best=o;} } return best; }
+const OBSTACLE_PADDING = 12;
+function obstacleOverlaps(x,y,r, ignoreIndex=-1){
+  for(let i=0;i<obstacles.length;i++){
+    if(i===ignoreIndex) continue;
+    const o=obstacles[i];
+    if(Math.hypot(x-o.x,y-o.y) < r + o.r + OBSTACLE_PADDING) return true;
+  }
+  return false;
+}
 function pointInsideObstacle(x,y){ for(const o of obstacles){ if(Math.hypot(x-o.x,y-o.y) < o.r + 7) return true; } return false; }
 function findFreeFruitSpot(maxTry=80){ for(let i=0;i<maxTry;i++){ const x=rand(40,W-40), y=rand(40,H-40); if(!pointInsideObstacle(x,y)) return {x,y}; } return null; }
 function spawnFruit(x=null,y=null){ if(fruits.length>=params.maxFruits) return; if(x==null||y==null){ const pos=findFreeFruitSpot(); if(!pos) return; x=pos.x; y=pos.y; } if(pointInsideObstacle(x,y)){ const pos=findFreeFruitSpot(); if(!pos) return; x=pos.x; y=pos.y; } fruits.push({x,y,r:6,color:COLORS.fruit}); }
 function makeObstacles(n){
   obstacles.length=0;
+  const paletteLen=OBSTACLE_COLORS.length;
   for(let i=0;i<n;i++){
-    const r=rand(16,40);
-    let tries=0,x,y;
-    do{
-      x=rand(80,W-80);
-      y=rand(60,H-60);
-      tries++;
-    } while(tries<80 && (Math.hypot(x-goalG.x,y-goalG.y)<goalG.r+50 || Math.hypot(x-goalR.x,y-goalR.y)<goalR.r+50));
-    obstacles.push({x,y,r,phase:Math.random()*Math.PI*2,paletteIndex:i%OBSTACLE_COLORS.length});
+    let r=rand(16,40);
+    let placed=false;
+    for(let tries=0; tries<420 && !placed; tries++){
+      if(tries===240) r=Math.max(12,r*0.85);
+      if(tries===360) r=Math.max(10,r*0.85);
+      const x=rand(80,W-80);
+      const y=rand(60,H-60);
+      if(Math.hypot(x-goalG.x,y-goalG.y)<goalG.r+r+40) continue;
+      if(Math.hypot(x-goalR.x,y-goalR.y)<goalR.r+r+40) continue;
+      if(obstacleOverlaps(x,y,r)) continue;
+      obstacles.push({x,y,r,phase:Math.random()*Math.PI*2,paletteIndex:i%paletteLen});
+      placed=true;
+    }
+    if(!placed){
+      const step=36;
+      outer: for(let gy=60; gy<=H-60 && !placed; gy+=step){
+        for(let gx=80; gx<=W-80; gx+=step){
+          if(Math.hypot(gx-goalG.x,gy-goalG.y)<goalG.r+r+40) continue;
+          if(Math.hypot(gx-goalR.x,gy-goalR.y)<goalR.r+r+40) continue;
+          if(obstacleOverlaps(gx,gy,r)) continue;
+          obstacles.push({x:gx,y:gy,r,phase:Math.random()*Math.PI*2,paletteIndex:i%paletteLen});
+          placed=true;
+          break outer;
+        }
+      }
+    }
+    if(!placed){
+      const fallback = obstacles[obstacles.length-1] || {x:W*0.5,y:H*0.5,r:20};
+      let angle=Math.random()*TAU;
+      let dist=fallback.r + r + OBSTACLE_PADDING + 4;
+      for(let steps=0; steps<60 && !placed; steps++){
+        const x=Math.max(r+4, Math.min(W-r-4, fallback.x + Math.cos(angle)*dist));
+        const y=Math.max(r+4, Math.min(H-r-4, fallback.y + Math.sin(angle)*dist));
+        if(obstacleOverlaps(x,y,r)){
+          dist += r*0.35 + OBSTACLE_PADDING;
+          angle += 0.4;
+          continue;
+        }
+        obstacles.push({x,y,r,phase:Math.random()*Math.PI*2,paletteIndex:i%paletteLen});
+        placed=true;
+      }
+    }
+    if(!placed){
+      const smallR = Math.max(10, r*0.8);
+      for(let tries=0; tries<240 && !placed; tries++){
+        const x=rand(80,W-80);
+        const y=rand(60,H-60);
+        if(Math.hypot(x-goalG.x,y-goalG.y)<goalG.r+smallR+32) continue;
+        if(Math.hypot(x-goalR.x,y-goalR.y)<goalR.r+smallR+32) continue;
+        if(obstacleOverlaps(x,y,smallR)) continue;
+        obstacles.push({x,y,r:smallR,phase:Math.random()*Math.PI*2,paletteIndex:i%paletteLen});
+        placed=true;
+      }
+    }
   }
 }
+
 
 // ===== NEAT‑lite (7→16→2) =====
 function randn(){ let u=0,v=0; while(u===0) u=Math.random(); while(v===0) v=Math.random(); return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v); }
