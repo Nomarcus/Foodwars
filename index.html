@@ -83,6 +83,8 @@
     .team-card .team-header{display:flex; align-items:center; gap:10px}
     .team-card .team-name{font-weight:600; letter-spacing:.02em}
     .team-card .team-meta{font-size:12px; color:var(--muted)}
+    .team-score{font-size:12px; color:var(--ink); font-weight:600; margin-top:2px}
+    .team-score span{color:var(--muted); font-weight:500}
     .team-badge{display:inline-flex; align-items:center; justify-content:center; width:28px; height:28px; border-radius:50%; font-size:16px; box-shadow:0 0 18px rgba(255,255,255,.2); color:#020617}
     .music-lead{font-size:13px; line-height:1.6; opacity:.85; margin:0 0 14px}
     .music-select{display:flex; flex-direction:column; gap:6px}
@@ -183,6 +185,10 @@
         <div class="stat-card">
           <span class="stat-label">Top fitness</span>
           <span class="stat-value" id="stat-top">0</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-label">Top points</span>
+          <span class="stat-value" id="stat-points">0</span>
         </div>
       </section>
       <section class="brain-viz" aria-live="polite" aria-label="Best performing neural network">
@@ -873,6 +879,41 @@ let activeTeamStates=[];
 const goalStates = {};
 const bestFitnessByTeam = {};
 const teamStatusLabels = new Map();
+const teamScoreBook = new Map();
+const teamScoreDisplays = new Map();
+
+const PICKUP_REWARD = 8;
+const DELIVERY_REWARD = 120;
+
+function getTeamScoreData(teamId){
+  if(!teamId) return { score:0, pickups:0, deliveries:0 };
+  let entry = teamScoreBook.get(teamId);
+  if(!entry){
+    entry = { score:0, pickups:0, deliveries:0 };
+    teamScoreBook.set(teamId, entry);
+  }
+  return entry;
+}
+
+function updateTeamScoreDisplay(teamId){
+  const el = teamScoreDisplays.get(teamId);
+  if(!el) return;
+  const data = getTeamScoreData(teamId);
+  const points = Math.round(data.score || 0);
+  el.textContent = `Points: ${points} (${data.pickups} caught · ${data.deliveries} delivered)`;
+}
+
+function awardTeamPoints(teamState, type, amount){
+  if(!teamState || !teamState.config) return;
+  const scoreboard = teamState.scoreboard || getTeamScoreData(teamState.config.id);
+  if(!scoreboard) return;
+  if(type === 'pickup') scoreboard.pickups++;
+  if(type === 'delivery') scoreboard.deliveries++;
+  const numeric = Number(amount);
+  if(Number.isFinite(numeric)) scoreboard.score += numeric;
+  teamState.scoreboard = scoreboard;
+  updateTeamScoreDisplay(teamState.config.id);
+}
 
 // Pheromone grid – per-team fields
 let grid, GW, GH, CS = 22; // cell size
@@ -971,6 +1012,7 @@ function renderTeamRoster(){
   const roster = Q('teamRoster');
   if(!roster) return;
   roster.innerHTML='';
+  teamScoreDisplays.clear();
   params.teams.forEach((team)=>{
     const card=document.createElement('div');
     card.className='team-card';
@@ -1003,6 +1045,12 @@ function renderTeamRoster(){
     meta.className='team-meta';
     meta.textContent=team.active? 'Active':'Inactive';
 
+    const score=document.createElement('div');
+    score.className='team-score';
+    score.textContent='Points: 0';
+    teamScoreDisplays.set(team.id, score);
+    updateTeamScoreDisplay(team.id);
+
     checkbox.addEventListener('change', ()=>{
       team.active = checkbox.checked;
       meta.textContent = team.active ? 'Active' : 'Inactive';
@@ -1010,7 +1058,7 @@ function renderTeamRoster(){
       setup();
     });
 
-    card.append(checkbox, header, meta);
+    card.append(checkbox, header, meta, score);
     roster.append(card);
   });
 }
@@ -1061,14 +1109,21 @@ function refreshStats(){
   if(fruitEl) fruitEl.textContent = fruits.length;
   let deliveries = 0;
   let topFitness = 0;
+  let topPoints = 0;
   for(const team of activeTeamStates){
     deliveries += team.goal?.delivered || 0;
     topFitness = Math.max(topFitness, team.peakFitness||0, team.bestFitnessCurrent||0);
+    const board = team.scoreboard || getTeamScoreData(team.config.id);
+    if(board && Number.isFinite(board.score)){
+      topPoints = Math.max(topPoints, board.score);
+    }
   }
   const deliveryEl = Q('stat-deliveries');
   if(deliveryEl) deliveryEl.textContent = deliveries;
   const topEl = Q('stat-top');
   if(topEl) topEl.textContent = Math.round(topFitness);
+  const pointsEl = Q('stat-points');
+  if(pointsEl) pointsEl.textContent = Math.round(topPoints);
 }
 
 function getCanvasCoords(evt){
@@ -2187,12 +2242,14 @@ class Collector extends Agent{
       const i=fruits.indexOf(tgt);
       if(i>-1) fruits.splice(i,1);
       this.carry=true;
-      this.fitness += 8;
+      this.fitness += PICKUP_REWARD;
+      awardTeamPoints(this.teamState, 'pickup', PICKUP_REWARD);
     }
     if(this.carry && Math.hypot(myGoal.x-this.x,myGoal.y-this.y)<myGoal.r){
       this.carry=false;
       myGoal.delivered++;
-      this.fitness += 120;
+      this.fitness += DELIVERY_REWARD;
+      awardTeamPoints(this.teamState, 'delivery', DELIVERY_REWARD);
     }
     if(this.carry){
       const dGoal=Math.hypot(myGoal.x-this.x,myGoal.y-this.y);
@@ -2223,9 +2280,14 @@ function setup(){
   makeGrid();
   if(obstacles.length===0){ makeObstacles(params.obstacles); }
   resizePop();
-  for(const team of activeTeams){
+  params.teams.forEach((team)=>{
     resetGoalDelivery(team.id);
-  }
+    const board = getTeamScoreData(team.id);
+    board.score = 0;
+    board.pickups = 0;
+    board.deliveries = 0;
+    updateTeamScoreDisplay(team.id);
+  });
   for(let i=0;i<params.maxFruits;i++) spawnFruit();
   activeTeamStates = activeTeams.map((team)=>{
     const population = getPopulation(team.id);
@@ -2237,7 +2299,8 @@ function setup(){
       agents:[],
       goal,
       bestFitnessCurrent:0,
-      peakFitness:bestFitnessByTeam[team.id]||0
+      peakFitness:bestFitnessByTeam[team.id]||0,
+      scoreboard:getTeamScoreData(team.id)
     };
     return state;
   });
