@@ -37,6 +37,18 @@
     .stat-label{font-size:12px; text-transform:uppercase; letter-spacing:.12em; color:var(--muted)}
     .stat-value{font-size:26px; font-weight:700; letter-spacing:.02em; color:var(--ink)}
 
+    .brain-viz{padding:20px 24px; border-radius:22px; background:rgba(11,16,44,.82); border:1px solid var(--silver); box-shadow:0 18px 32px rgba(5,9,25,.4); display:flex; flex-direction:column; gap:14px}
+    .brain-head{display:flex; align-items:flex-start; justify-content:space-between; gap:18px; flex-wrap:wrap}
+    .brain-title{font-size:16px; font-weight:600; letter-spacing:.03em}
+    .brain-sub{font-size:12px; color:var(--muted); margin-top:4px}
+    .brain-score{display:flex; flex-direction:column; align-items:flex-end; min-width:120px}
+    .brain-score-label{font-size:11px; text-transform:uppercase; letter-spacing:.12em; color:var(--muted)}
+    .brain-score-value{font-size:30px; font-weight:700; color:var(--ink)}
+    .brain-team{display:flex; align-items:center; gap:10px; font-size:13px; color:var(--muted); flex-wrap:wrap}
+    .brain-badge{display:inline-flex; align-items:center; justify-content:center; width:26px; height:26px; border-radius:50%; background:rgba(56,189,248,.3); color:#020617; font-size:15px; font-weight:700; box-shadow:0 0 18px rgba(56,189,248,.28)}
+    .brain-gen{margin-left:auto; font-size:11px; color:var(--muted); letter-spacing:.08em; text-transform:uppercase}
+    .brain-canvas{width:100%; height:220px; border-radius:18px; background:linear-gradient(135deg, rgba(15,23,61,.65), rgba(12,18,44,.92)); border:1px solid rgba(148,163,209,.28)}
+
     .side{width:420px; flex:0 1 420px; display:flex; flex-direction:column; gap:20px}
     .panel{background:var(--panel); border:1px solid var(--silver); padding:22px; border-radius:20px; backdrop-filter:blur(16px); box-shadow:0 18px 45px rgba(5,7,24,.55); position:relative}
     .panel-head{display:flex; align-items:center; justify-content:space-between; gap:12px; cursor:pointer; user-select:none; padding-bottom:10px; margin-bottom:14px; border-bottom:1px dashed rgba(189,206,255,.28)}
@@ -97,6 +109,7 @@
       .stats-bar{grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:12px; padding:16px 18px}
       .stat-value{font-size:22px}
       .side{max-width:100%}
+      .brain-canvas{height:200px}
     }
   </style>
 </head>
@@ -166,6 +179,24 @@
           <span class="stat-label">Top fitness</span>
           <span class="stat-value" id="stat-top">0</span>
         </div>
+      </section>
+      <section class="brain-viz" aria-live="polite" aria-label="Best performing neural network">
+        <div class="brain-head">
+          <div>
+            <div class="brain-title">Top Neural Network</div>
+            <div class="brain-sub" id="brain-subtitle">Waiting for the first champion…</div>
+          </div>
+          <div class="brain-score">
+            <span class="brain-score-label">Fitness</span>
+            <span class="brain-score-value" id="brain-fitness">—</span>
+          </div>
+        </div>
+        <div class="brain-team">
+          <span class="brain-badge" id="brain-badge">●</span>
+          <span id="brain-team">No leader yet</span>
+          <span class="brain-gen" id="brain-generation">Gen —</span>
+        </div>
+        <canvas id="brainVizCanvas" class="brain-canvas" width="560" height="240" role="img" aria-label="Visualization of the current top neural network"></canvas>
       </section>
     </div>
 
@@ -318,6 +349,16 @@ function hexToRgba(hex, alpha){
 const canvas = document.getElementById('world');
 const ctx = canvas.getContext('2d');
 const W = canvas.width, H = canvas.height;
+
+const brainCanvas = document.getElementById('brainVizCanvas');
+const brainCtx = brainCanvas ? brainCanvas.getContext('2d') : null;
+const brainSubtitleEl = Q('brain-subtitle');
+const brainTeamEl = Q('brain-team');
+const brainBadgeEl = Q('brain-badge');
+const brainFitnessEl = Q('brain-fitness');
+const brainGenEl = Q('brain-generation');
+let brainCanvasWidth = brainCanvas ? brainCanvas.clientWidth : 0;
+let brainCanvasHeight = brainCanvas ? brainCanvas.clientHeight : 0;
 const AGENT_BASE_RADIUS = 5.2;
 const AGENT_BASE_PICKUP_RADIUS = 9;
 const AGENT_BASE_SEPARATION_RADIUS = 22;
@@ -1486,9 +1527,222 @@ function crossover(a,b){ const c=cloneNet(a); for(let i=0;i<c.W1.length;i++) for
 function forward(n, x){ const h=new Array(n.b1.length).fill(0), o=new Array(n.b2.length).fill(0); matmulVec(n.W1,x,h); addBias(h,n.b1); tanhVec(h); matmulVec(n.W2,h,o); addBias(o,n.b2); tanhVec(o); return o; }
 function makePopulation(size){ return Array.from({length:size}, ()=> ({ net:makeNet(), fitness:0 })); }
 const evo = { gen:1, populations:{} };
+
+const bestBrainState = { fitness:-Infinity, teamId:null, teamLabel:'', teamIcon:'', teamColor:'#38bdf8', gen:1, net:null };
+let bestBrainDirty = true;
+
+function markBestBrainDirty(){ bestBrainDirty = true; }
+function resetBestBrainState(gen){ bestBrainState.fitness=-Infinity; bestBrainState.teamId=null; bestBrainState.teamLabel=''; bestBrainState.teamIcon=''; bestBrainState.teamColor='#38bdf8'; bestBrainState.gen=Number.isFinite(gen)?gen: (evo?.gen||1); bestBrainState.net=null; markBestBrainDirty(); }
+function ensureBrainCanvasSizing(){
+  if(!brainCanvas || !brainCtx) return;
+  const rect = brainCanvas.getBoundingClientRect();
+  if(rect.width && rect.height){
+    brainCanvasWidth = rect.width;
+    brainCanvasHeight = rect.height;
+    const dpr = window.devicePixelRatio || 1;
+    const deviceWidth = Math.max(1, Math.round(rect.width * dpr));
+    const deviceHeight = Math.max(1, Math.round(rect.height * dpr));
+    if(brainCanvas.width !== deviceWidth || brainCanvas.height !== deviceHeight){
+      brainCanvas.width = deviceWidth;
+      brainCanvas.height = deviceHeight;
+    }
+    brainCtx.setTransform(1,0,0,1,0,0);
+    brainCtx.scale(dpr, dpr);
+  } else {
+    brainCanvasWidth = brainCanvasWidth || brainCanvas.width || 560;
+    brainCanvasHeight = brainCanvasHeight || brainCanvas.height || 240;
+  }
+}
+function updateBrainMeta(){
+  if(brainSubtitleEl){ brainSubtitleEl.textContent = bestBrainState.net ? 'Highest fitness so far — updates live' : 'Waiting for the first champion…'; }
+  if(brainTeamEl){
+    if(bestBrainState.net){
+      brainTeamEl.textContent = `${bestBrainState.teamIcon || '●'} ${bestBrainState.teamLabel || 'Team'}`.trim();
+      brainTeamEl.style.color = 'var(--ink)';
+    } else {
+      brainTeamEl.textContent = 'No leader yet';
+      brainTeamEl.style.color = 'var(--muted)';
+    }
+  }
+  if(brainBadgeEl){
+    if(bestBrainState.net){
+      brainBadgeEl.textContent = bestBrainState.teamIcon || '●';
+      brainBadgeEl.style.background = hexToRgba(bestBrainState.teamColor || '#38bdf8', 0.82);
+      brainBadgeEl.style.boxShadow = `0 0 18px ${hexToRgba(bestBrainState.teamColor || '#38bdf8', 0.45)}`;
+      brainBadgeEl.style.color = '#020617';
+    } else {
+      brainBadgeEl.textContent = '●';
+      brainBadgeEl.style.background = 'rgba(56,189,248,.3)';
+      brainBadgeEl.style.boxShadow = 'none';
+      brainBadgeEl.style.color = '#94a3b8';
+    }
+  }
+  if(brainFitnessEl){ brainFitnessEl.textContent = bestBrainState.net ? Math.round(bestBrainState.fitness).toString() : '—'; }
+  if(brainGenEl){ brainGenEl.textContent = bestBrainState.net ? `Gen ${bestBrainState.gen}` : 'Gen —'; }
+}
+function drawBrainPlaceholder(width,height){
+  if(!brainCtx) return;
+  brainCtx.save();
+  const inset = 22;
+  const gridWidth = Math.max(0, width - inset*2);
+  const gridHeight = Math.max(0, height - inset*2);
+  brainCtx.translate(inset, inset);
+  brainCtx.strokeStyle = 'rgba(148,163,209,0.22)';
+  brainCtx.lineWidth = 1.1;
+  const rows = 4, cols = 5;
+  for(let i=0;i<=rows;i++){
+    const y = (gridHeight/rows)*i;
+    brainCtx.beginPath();
+    brainCtx.moveTo(0, y);
+    brainCtx.lineTo(gridWidth, y);
+    brainCtx.stroke();
+  }
+  for(let j=0;j<=cols;j++){
+    const x = (gridWidth/cols)*j;
+    brainCtx.beginPath();
+    brainCtx.moveTo(x, 0);
+    brainCtx.lineTo(x, gridHeight);
+    brainCtx.stroke();
+  }
+  brainCtx.fillStyle = 'rgba(148,163,209,0.68)';
+  brainCtx.font = '600 16px "Inter", system-ui, -apple-system, sans-serif';
+  brainCtx.textAlign = 'center';
+  brainCtx.textBaseline = 'middle';
+  brainCtx.fillText('Simulation warming up…', gridWidth/2, gridHeight/2);
+  brainCtx.restore();
+}
+function buildLayerPositions(count, x, top, bottom){
+  if(count<=0) return [];
+  const positions=[];
+  const span = Math.max(0, bottom - top);
+  if(count===1){
+    positions.push({ x, y: top + span/2 });
+    return positions;
+  }
+  const step = span/(count-1);
+  for(let i=0;i<count;i++) positions.push({ x, y: top + step*i });
+  return positions;
+}
+function maxAbsWeight(weights){
+  let max=0;
+  if(!Array.isArray(weights)) return max;
+  for(const row of weights){
+    if(!Array.isArray(row)) continue;
+    for(const val of row){
+      const mag = Math.abs(val);
+      if(mag>max) max=mag;
+    }
+  }
+  return max;
+}
+function drawBrainConnections(fromLayer, toLayer, weights){
+  if(!brainCtx || !fromLayer || !toLayer || !weights) return;
+  const maxW = maxAbsWeight(weights) || 1;
+  for(let j=0;j<Math.min(toLayer.length, weights.length);j++){
+    const row = weights[j];
+    const target = toLayer[j];
+    if(!target || !Array.isArray(row)) continue;
+    for(let i=0;i<Math.min(fromLayer.length, row.length);i++){
+      const source = fromLayer[i];
+      if(!source) continue;
+      const weight = row[i];
+      if(!Number.isFinite(weight)) continue;
+      const strength = Math.min(1, Math.abs(weight)/maxW);
+      const alpha = 0.12 + strength*0.55;
+      const width = 0.65 + strength*2.6;
+      brainCtx.beginPath();
+      brainCtx.moveTo(source.x, source.y);
+      brainCtx.lineTo(target.x, target.y);
+      brainCtx.strokeStyle = hexToRgba(weight>=0 ? (bestBrainState.teamColor || '#2dd4bf') : '#f472b6', alpha);
+      brainCtx.lineWidth = width;
+      brainCtx.stroke();
+    }
+  }
+}
+function drawBrainNodes(positions, type){
+  if(!brainCtx || !positions) return;
+  brainCtx.save();
+  let fill='rgba(56,189,248,0.35)', stroke='rgba(56,189,248,0.85)', radius=8.5;
+  if(type==='hidden'){ fill=hexToRgba(bestBrainState.teamColor || '#2dd4bf', 0.3); stroke=hexToRgba(bestBrainState.teamColor || '#2dd4bf', 0.95); radius=7; }
+  if(type==='output'){ fill='rgba(244,114,182,0.38)'; stroke='rgba(244,114,182,0.9)'; radius=9.5; }
+  for(const pos of positions){
+    brainCtx.beginPath();
+    brainCtx.fillStyle = fill;
+    brainCtx.strokeStyle = stroke;
+    brainCtx.lineWidth = 1.8;
+    brainCtx.arc(pos.x, pos.y, radius, 0, Math.PI*2);
+    brainCtx.fill();
+    brainCtx.stroke();
+    brainCtx.beginPath();
+    brainCtx.strokeStyle = 'rgba(255,255,255,0.12)';
+    brainCtx.lineWidth = 1;
+    brainCtx.arc(pos.x, pos.y, Math.max(1, radius-2.6), 0, Math.PI*2);
+    brainCtx.stroke();
+  }
+  brainCtx.restore();
+}
+function renderBestBrain(){
+  if(!brainCanvas || !brainCtx) return;
+  ensureBrainCanvasSizing();
+  const width = brainCanvasWidth || brainCanvas.width || 560;
+  const height = brainCanvasHeight || brainCanvas.height || 240;
+  brainCtx.clearRect(0,0,width,height);
+  updateBrainMeta();
+  const net = bestBrainState.net;
+  if(!net || !Array.isArray(net.W1) || !Array.isArray(net.W2)){
+    drawBrainPlaceholder(width,height);
+    bestBrainDirty = false;
+    return;
+  }
+  const inputCount = Array.isArray(net.W1?.[0]) ? net.W1[0].length : 0;
+  const hiddenCount = net.W1.length;
+  const outputCount = net.W2.length;
+  if(!inputCount || !hiddenCount || !outputCount){
+    drawBrainPlaceholder(width,height);
+    bestBrainDirty = false;
+    return;
+  }
+  const paddingX = Math.min(80, width*0.18);
+  const paddingY = Math.min(40, height*0.22);
+  const columnSpacing = (width - paddingX*2) / 2;
+  const inputLayer = buildLayerPositions(inputCount, paddingX, paddingY, height - paddingY);
+  const hiddenLayer = buildLayerPositions(hiddenCount, paddingX + columnSpacing, paddingY, height - paddingY);
+  const outputLayer = buildLayerPositions(outputCount, paddingX + columnSpacing*2, paddingY, height - paddingY);
+  brainCtx.save();
+  brainCtx.lineCap='round';
+  brainCtx.lineJoin='round';
+  drawBrainConnections(inputLayer, hiddenLayer, net.W1);
+  drawBrainConnections(hiddenLayer, outputLayer, net.W2);
+  brainCtx.restore();
+  drawBrainNodes(inputLayer, 'input');
+  drawBrainNodes(hiddenLayer, 'hidden');
+  drawBrainNodes(outputLayer, 'output');
+  bestBrainDirty = false;
+}
+function setBestBrainFromNet(net, teamConfig, fitness, generation){
+  if(!net || !teamConfig) return;
+  bestBrainState.fitness = fitness;
+  bestBrainState.teamId = teamConfig.id;
+  bestBrainState.teamLabel = teamConfig.label || teamConfig.id || '';
+  bestBrainState.teamIcon = teamConfig.icon || '●';
+  bestBrainState.teamColor = teamConfig.color || '#38bdf8';
+  bestBrainState.gen = Number.isFinite(generation) ? generation : evo.gen;
+  bestBrainState.net = cloneNet(net);
+  markBestBrainDirty();
+}
+function trackBestBrain(agent, teamState){
+  if(!agent || !teamState) return;
+  const fitness = Number(agent.fitness);
+  if(!Number.isFinite(fitness)) return;
+  if(fitness <= bestBrainState.fitness) return;
+  const net = agent.netRef?.net;
+  if(!net) return;
+  setBestBrainFromNet(net, teamState.config, fitness, evo.gen);
+}
 params.teams.forEach((team)=>{
   evo.populations[team.id] = makePopulation(team.count);
 });
+resetBestBrainState(evo.gen);
 function getPopulation(teamId){
   if(!evo.populations[teamId]){
     const team = params.teams.find((t)=>t.id===teamId);
@@ -1902,6 +2156,7 @@ function loop(){
   for(const team of activeTeamStates){
     for(const agent of team.agents){
       agent.update();
+      trackBestBrain(agent, team);
     }
   }
   evaporate();
@@ -1911,6 +2166,9 @@ function loop(){
   }
   draw();
   refreshStats();
+  if(bestBrainDirty){
+    renderBestBrain();
+  }
   simSteps++;
 
   const reachedLimit = simSteps>=params.learn.genSteps;
@@ -2044,6 +2302,8 @@ function loadTrainingSnapshot(data){
   };
 
   let bestFromSnapshot = {};
+  resetBestBrainState(Number(evoData.gen) || 1);
+  let bestBrainCandidate = null;
 
   if(data.params) applyParamsSnapshot(data.params);
 
@@ -2060,6 +2320,14 @@ function loadTrainingSnapshot(data){
       for(const item of members){
         const val = Number(item?.fitness);
         if(Number.isFinite(val) && val > bestFitness) bestFitness = val;
+        if(Number.isFinite(val)){
+          const netData = item && (item.net || item);
+          if(netData && netData.W1 && netData.W2){
+            if(!bestBrainCandidate || val > bestBrainCandidate.fitness){
+              bestBrainCandidate = { teamId:teamEntry.id, fitness:val, net:cloneNet(netData) };
+            }
+          }
+        }
       }
       bestFromSnapshot[teamEntry.id] = bestFitness;
     });
@@ -2080,11 +2348,23 @@ function loadTrainingSnapshot(data){
     for(const item of greensData){
       const val = Number(item?.fitness);
       if(Number.isFinite(val) && val > bestG) bestG = val;
+      if(Number.isFinite(val)){
+        const netData = item && (item.net || item);
+        if(netData && netData.W1 && netData.W2 && (!bestBrainCandidate || val > bestBrainCandidate.fitness)){
+          bestBrainCandidate = { teamId:'green', fitness:val, net:cloneNet(netData) };
+        }
+      }
     }
     let bestR = 0;
     for(const item of redsData){
       const val = Number(item?.fitness);
       if(Number.isFinite(val) && val > bestR) bestR = val;
+      if(Number.isFinite(val)){
+        const netData = item && (item.net || item);
+        if(netData && netData.W1 && netData.W2 && (!bestBrainCandidate || val > bestBrainCandidate.fitness)){
+          bestBrainCandidate = { teamId:'red', fitness:val, net:cloneNet(netData) };
+        }
+      }
     }
     bestFromSnapshot = { green:bestG, red:bestR };
   }
@@ -2096,6 +2376,11 @@ function loadTrainingSnapshot(data){
   forceNextGen = false;
   awaitingManualAdvance = false;
   setup();
+
+  if(bestBrainCandidate){
+    const teamInfo = params.teams.find((t)=>t.id===bestBrainCandidate.teamId) || { id:bestBrainCandidate.teamId, label:bestBrainCandidate.teamId, icon:'●', color:'#38bdf8' };
+    setBestBrainFromNet(bestBrainCandidate.net, teamInfo, bestBrainCandidate.fitness, evo.gen);
+  }
 
   const bestCombined = Object.assign({}, bestFromSnapshot, data.best || {});
   applyBestFitnessSnapshot(bestCombined);
@@ -2174,6 +2459,15 @@ if(btnClearManual){
   });
 }
 
+if(brainCanvas){
+  window.addEventListener('resize', ()=>{
+    brainCanvasWidth = brainCanvas.clientWidth || brainCanvasWidth;
+    brainCanvasHeight = brainCanvas.clientHeight || brainCanvasHeight;
+    markBestBrainDirty();
+    renderBestBrain();
+  });
+}
+
 // Bind ranges after DOM ready
 ['Fruits','Spawn','Obst','Tail','TeamCount','TeamSpeed','TeamSmart','TeamStrat','TeamSep','GenSteps','Mut','Elite'].forEach(k=>{
   bindRange('sl'+k, 'lb'+k, (v)=> (k.includes('Speed')||k.includes('Smart')||k.includes('Strat')||k.includes('Sep')) ? (v/100).toFixed(2) : v);
@@ -2190,6 +2484,7 @@ initMusicPanel();
 renderTeamRoster();
 readParams();
 setup();
+renderBestBrain();
 loop();
 </script>
 </body>
