@@ -1569,6 +1569,32 @@ class Agent{
       }
     }
   }
+  resolveObstaclePenetration(maxIter=4){
+    for(let iter=0; iter<maxIter; iter++){
+      let adjusted=false;
+      for(const o of obstacles){
+        const clearance = obstacleClearance(o, this.x, this.y);
+        if(!clearance) continue;
+        if(clearance.distance < 0){
+          let nx = Number.isFinite(clearance.nx) ? clearance.nx : 0;
+          let ny = Number.isFinite(clearance.ny) ? clearance.ny : 0;
+          const mag = Math.hypot(nx, ny) || 1;
+          nx /= mag;
+          ny /= mag;
+          const push = (-clearance.distance) + 0.5;
+          this.x += nx * push;
+          this.y += ny * push;
+          const vn = this.vx*nx + this.vy*ny;
+          if(vn < 0){
+            this.vx -= vn * nx;
+            this.vy -= vn * ny;
+          }
+          adjusted = true;
+        }
+      }
+      if(!adjusted) break;
+    }
+  }
   keepInBounds(){
     const pad = AGENT_BOUNDARY_PADDING * params.agentScale;
     if(this.x<pad){ this.x=pad; this.vx=Math.abs(this.vx); }
@@ -1576,7 +1602,7 @@ class Agent{
     if(this.y<pad){ this.y=pad; this.vy=Math.abs(this.vy); }
     if(this.y>H-pad){ this.y=H-pad; this.vy=-Math.abs(this.vy); }
   }
-  integrate(){ const sp=Math.hypot(this.vx,this.vy); if(sp>this.maxSpeed){ this.vx*=this.maxSpeed/sp; this.vy*=this.maxSpeed/sp; } this.trail.push({x:this.x,y:this.y}); if(this.trail.length>params.tailLen) this.trail.shift(); this.x+=this.vx; this.y+=this.vy; this.stuckT=(sp<0.10)?(this.stuckT+1):0; }
+  integrate(){ const sp=Math.hypot(this.vx,this.vy); if(sp>this.maxSpeed){ this.vx*=this.maxSpeed/sp; this.vy*=this.maxSpeed/sp; } this.trail.push({x:this.x,y:this.y}); if(this.trail.length>params.tailLen) this.trail.shift(); this.x+=this.vx; this.y+=this.vy; this.resolveObstaclePenetration(); this.keepInBounds(); this.resolveObstaclePenetration(1); this.stuckT=(sp<0.10)?(this.stuckT+1):0; }
 }
 
 class Collector extends Agent{
@@ -1632,7 +1658,6 @@ class Collector extends Agent{
       this.stuckT=0;
     }
     this.avoidObstacles();
-    this.keepInBounds();
     this.integrate();
   }
 }
