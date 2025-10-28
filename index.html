@@ -291,6 +291,9 @@ const MUSIC_TRACKS = [
 ];
 const musicAudio = document.getElementById('bgm');
 let currentTrackIndex = 0;
+let currentObjectUrl = null;
+let currentTrackToken = 0;
+let musicFetchController = null;
 
 function readParams(){
   params.maxFruits = +Q('slFruits').value; Q('lbFruits').textContent=params.maxFruits;
@@ -325,6 +328,22 @@ function updateMusicMeta(track, stateOverride=null){
 
 let awaitingAudioUnlock = false;
 
+function clearCurrentObjectUrl(){
+  if(currentObjectUrl){
+    URL.revokeObjectURL(currentObjectUrl);
+    currentObjectUrl = null;
+  }
+}
+
+function abortMusicFetch(){
+  if(musicFetchController){
+    if(typeof musicFetchController.abort === 'function'){
+      musicFetchController.abort();
+    }
+    musicFetchController = null;
+  }
+}
+
 function requestAudioUnlock(){
   if(awaitingAudioUnlock) return;
   awaitingAudioUnlock = true;
@@ -346,6 +365,10 @@ function handlePlayError(err){
     console.warn('Music playback is blocked until the page receives a user interaction.', err);
   } else if(err.name === 'AbortError'){
     // Interruption during load – ignore to avoid confusing messaging
+  } else if(err.name === 'NotSupportedError'){
+    updateMusicMeta(MUSIC_TRACKS[currentTrackIndex], 'Load failed');
+    Q('lbMusicNow').textContent = 'This browser cannot play the selected track.';
+    console.error('Music playback failed', err);
   } else {
     updateMusicMeta(MUSIC_TRACKS[currentTrackIndex], 'Playback failed');
     console.error('Music playback failed', err);
@@ -359,15 +382,69 @@ function playCurrentTrack(){
   }
 }
 
-function setMusicTrack(index, autoplay=false){
+async function setMusicTrack(index, autoplay=false){
   if(index<0 || index>=MUSIC_TRACKS.length) return;
-  currentTrackIndex = index;
+
   const track = MUSIC_TRACKS[index];
-  musicAudio.src = track.url;
-  updateMusicMeta(track, autoplay ? 'Loading…' : 'Ready');
-  musicAudio.load();
-  if(autoplay){
-    playCurrentTrack();
+  const wasPlaying = !musicAudio.paused && !!musicAudio.src;
+
+  musicAudio.pause();
+  abortMusicFetch();
+  clearCurrentObjectUrl();
+  musicAudio.removeAttribute('src');
+  try{
+    musicAudio.load();
+  }catch(err){
+    console.warn('Unable to reset audio element before loading a new track.', err);
+  }
+
+  currentTrackIndex = index;
+  const shouldAutoplay = autoplay || wasPlaying;
+  const token = ++currentTrackToken;
+
+  updateMusicMeta(track, 'Loading…');
+
+  if(typeof fetch !== 'function'){
+    musicAudio.src = track.url;
+    musicAudio.load();
+    if(shouldAutoplay){
+      playCurrentTrack();
+    } else {
+      updateMusicMeta(track, 'Ready');
+    }
+    return;
+  }
+
+  try{
+    const controller = typeof AbortController === 'function' ? new AbortController() : null;
+    musicFetchController = controller;
+    const fetchOptions = controller ? { signal: controller.signal, mode:'cors' } : { mode:'cors' };
+    const response = await fetch(track.url, fetchOptions);
+    if(!response.ok){
+      throw new Error(`HTTP ${response.status}`);
+    }
+    const blob = await response.blob();
+    if(token !== currentTrackToken) return;
+
+    const objectUrl = URL.createObjectURL(blob);
+    currentObjectUrl = objectUrl;
+    musicAudio.src = objectUrl;
+    musicAudio.load();
+
+    if(shouldAutoplay){
+      playCurrentTrack();
+    } else {
+      updateMusicMeta(track, 'Ready');
+    }
+  }catch(err){
+    if(err.name === 'AbortError') return;
+    console.error('Failed to load music track', err);
+    updateMusicMeta(track, 'Load failed');
+    Q('lbMusicNow').textContent = 'Try another track from the list.';
+  }finally{
+    if(token === currentTrackToken){
+      musicFetchController = null;
+    }
   }
 }
 
@@ -434,6 +511,7 @@ function initMusicPanel(){
     }
   });
   musicAudio.addEventListener('error', ()=>{
+    clearCurrentObjectUrl();
     updateMusicMeta(MUSIC_TRACKS[currentTrackIndex], 'Load failed');
     Q('lbMusicNow').textContent = 'Try another track from the list.';
   });
@@ -818,6 +896,8 @@ if(btnLoadTraining && inputLoadTraining){
 Q('btnReset').onclick = ()=> setup();
 Q('btnNextGen').onclick = ()=> { forceNextGen = true; };
 Q('chkAuto').addEventListener('change', ()=> readParams());
+
+window.addEventListener('beforeunload', clearCurrentObjectUrl);
 
 // Start
 initMusicPanel();
