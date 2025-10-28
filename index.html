@@ -100,6 +100,16 @@
     .team-score{font-size:12px; color:var(--ink); font-weight:600; margin-top:2px}
     .team-score span{color:var(--muted); font-weight:500}
     .team-badge{display:inline-flex; align-items:center; justify-content:center; width:28px; height:28px; border-radius:50%; font-size:16px; box-shadow:0 0 18px rgba(255,255,255,.2); color:#020617}
+    .team-configs{display:grid; gap:16px; margin-top:16px}
+    .team-config-card{border:1px solid var(--silver); border-radius:16px; background:rgba(12,18,44,.72); padding:18px 20px; box-shadow:0 12px 28px rgba(5,9,28,.45); display:grid; gap:14px; transition:filter .2s ease, border-color .2s ease}
+    .team-config-card.inactive{filter:saturate(.65) brightness(.85); border-color:rgba(148,163,209,.28)}
+    .team-config-header{display:flex; align-items:center; justify-content:space-between; gap:12px}
+    .team-config-title{display:flex; align-items:center; gap:10px; font-weight:600; letter-spacing:.02em}
+    .team-config-badge{display:inline-flex; align-items:center; justify-content:center; width:26px; height:26px; border-radius:50%; box-shadow:0 0 12px rgba(148,163,209,.28); font-size:15px}
+    .team-config-status{font-size:12px; color:var(--muted)}
+    .team-config-grid{display:grid; grid-template-columns: minmax(90px,0.9fr) 1fr auto; gap:10px 12px; align-items:center}
+    .team-config-grid .label{font-size:12px; text-transform:uppercase; letter-spacing:.08em}
+    .team-config-grid .val{min-width:56px; text-align:right}
     .music-lead{font-size:13px; line-height:1.6; opacity:.85; margin:0 0 14px}
     .music-select{display:flex; flex-direction:column; gap:6px}
     .music-dropdown{width:100%; padding:10px 12px; border-radius:12px; border:1px solid var(--silver); background:rgba(12,18,44,.82); color:var(--ink); font-size:13px; font-family:inherit; letter-spacing:.01em; box-shadow:inset 0 0 12px rgba(118,133,255,.15)}
@@ -155,18 +165,28 @@
             <input id="slGenSteps" type="range" min="600" max="100000000" value="2800"><div class="val" id="lbGenSteps">2800</div>
 
             <div class="label">Mutation %</div>
-            <input id="slMut" type="range" min="1" max="80" value="16"><div class="val" id="lbMut">16</div>
+            <input id="slMut" type="range" min="1" max="80" value="16"><div class="val" id="lbMut">16%</div>
 
             <div class="label">Elite ratio</div>
-            <input id="slElite" type="range" min="5" max="50" value="20"><div class="val" id="lbElite">0.20</div>
-          </div>
-          <div class="grid" style="margin-top:8px">
+            <input id="slElite" type="range" min="1" max="100" value="20"><div class="val" id="lbElite">20%</div>
+
+            <div class="label">Mutate weights</div>
+            <input id="slMutStrengthW" type="range" min="5" max="100" value="20"><div class="val" id="lbMutStrengthW">0.20</div>
+
+            <div class="label">Mutate biases</div>
+            <input id="slMutStrengthB" type="range" min="5" max="100" value="20"><div class="val" id="lbMutStrengthB">0.20</div>
+
+            <div class="label">Crossover bias</div>
+            <input id="slCrossover" type="range" min="0" max="100" value="50"><div class="val" id="lbCrossover">50% A</div>
+
+            <div class="label">Selection pool</div>
+            <input id="slTournament" type="range" min="10" max="60" value="20" step="1"><div class="val" id="lbTournament">×2.0</div>
+
+            <div class="label">Fresh spawn %</div>
+            <input id="slFresh" type="range" min="0" max="40" value="0"><div class="val" id="lbFresh">0%</div>
+
             <div class="label">Auto next gen</div>
             <input id="chkAuto" type="checkbox" checked><div class="val" id="lbAuto">on</div>
-          </div>
-          <div class="sub" style="margin-top:10px">Status</div>
-          <div class="grid" id="learnStatusGrid">
-            <div class="label">Generation</div><div></div><div class="val" id="lbGen">1</div>
           </div>
           <button id="btnNextGen" class="btn">Advance generation now</button>
           <button id="btnSaveTraining" class="btn">Save training (.json)</button>
@@ -360,19 +380,8 @@
         <div class="panel-body">
           <div class="sub">Teams</div>
           <div class="team-roster" id="teamRoster"></div>
-          <div class="sub" style="margin-top:14px">Shared attributes</div>
-          <div class="grid">
-            <div class="label">Count</div>
-            <input id="slTeamCount" type="range" min="2" max="200" value="28"><div class="val" id="lbTeamCount">28</div>
-            <div class="label">Speed</div>
-            <input id="slTeamSpeed" type="range" min="10" max="600" value="260"><div class="val" id="lbTeamSpeed">2.60</div>
-            <div class="label">Awareness</div>
-            <input id="slTeamSmart" type="range" min="0" max="300" value="180"><div class="val" id="lbTeamSmart">1.80</div>
-            <div class="label">Strategy</div>
-            <input id="slTeamStrat" type="range" min="0" max="300" value="140"><div class="val" id="lbTeamStrat">1.40</div>
-            <div class="label">Separation</div>
-            <input id="slTeamSep" type="range" min="0" max="300" value="110"><div class="val" id="lbTeamSep">1.10</div>
-          </div>
+          <div class="sub" style="margin-top:14px">Attributes per team</div>
+          <div class="team-configs" id="teamConfigs"></div>
         </div>
       </div>
 
@@ -529,7 +538,7 @@ const params = {
     strat:1.40,
     sep:1.10
   })),
-  learn: { genSteps:2800, mut:0.16, elite:0.20, auto:true }
+  learn: { genSteps:2800, mut:0.16, elite:0.20, mutStrengthW:0.20, mutStrengthB:0.20, crossoverBias:0.50, tournamentFactor:2.0, fresh:0, auto:true }
 };
 let lastObstCount = params.obstacles;
 
@@ -623,22 +632,14 @@ function readParams(){
     }
   }
 
-  const sharedCount = +Q('slTeamCount').value; Q('lbTeamCount').textContent=sharedCount;
-  const sharedSpeed = (+Q('slTeamSpeed').value)/100; Q('lbTeamSpeed').textContent=sharedSpeed.toFixed(2);
-  const sharedSmart = (+Q('slTeamSmart').value)/100; Q('lbTeamSmart').textContent=sharedSmart.toFixed(2);
-  const sharedStrat = (+Q('slTeamStrat').value)/100; Q('lbTeamStrat').textContent=sharedStrat.toFixed(2);
-  const sharedSep   = (+Q('slTeamSep').value)/100; Q('lbTeamSep').textContent=sharedSep.toFixed(2);
-  params.teams.forEach((team)=>{
-    team.count = sharedCount;
-    team.speed = sharedSpeed;
-    team.smart = sharedSmart;
-    team.strat = sharedStrat;
-    team.sep = sharedSep;
-  });
-
   params.learn.genSteps = +Q('slGenSteps').value; Q('lbGenSteps').textContent=params.learn.genSteps;
-  params.learn.mut = (+Q('slMut').value)/100; Q('lbMut').textContent=Math.round(params.learn.mut*100);
-  params.learn.elite = (+Q('slElite').value)/100; Q('lbElite').textContent=params.learn.elite.toFixed(2);
+  params.learn.mut = (+Q('slMut').value)/100; Q('lbMut').textContent=`${Math.round(params.learn.mut*100)}%`;
+  params.learn.elite = (+Q('slElite').value)/100; Q('lbElite').textContent=`${Math.round(params.learn.elite*100)}%`;
+  params.learn.mutStrengthW = (+Q('slMutStrengthW').value)/100; Q('lbMutStrengthW').textContent=params.learn.mutStrengthW.toFixed(2);
+  params.learn.mutStrengthB = (+Q('slMutStrengthB').value)/100; Q('lbMutStrengthB').textContent=params.learn.mutStrengthB.toFixed(2);
+  params.learn.crossoverBias = (+Q('slCrossover').value)/100; Q('lbCrossover').textContent = `${Math.round(params.learn.crossoverBias*100)}% A`;
+  params.learn.tournamentFactor = (+Q('slTournament').value)/10; Q('lbTournament').textContent = `×${params.learn.tournamentFactor.toFixed(1)}`;
+  params.learn.fresh = (+Q('slFresh').value)/100; Q('lbFresh').textContent = `${Math.round(params.learn.fresh*100)}%`;
   params.learn.auto = Q('chkAuto').checked; Q('lbAuto').textContent = params.learn.auto? 'on':'off';
   if(params.learn.auto && awaitingManualAdvance){
     forceNextGen = true;
@@ -986,7 +987,6 @@ const fruits=[], obstacles=[];
 let activeTeamStates=[];
 const goalStates = {};
 const bestFitnessByTeam = {};
-const teamStatusLabels = new Map();
 const teamScoreBook = new Map();
 const teamScoreDisplays = new Map();
 
@@ -1164,6 +1164,7 @@ function renderTeamRoster(){
       meta.textContent = team.active ? 'Active' : 'Inactive';
       card.classList.toggle('active', team.active);
       refreshBrainTeamOptions();
+      renderTeamControls();
       setup();
     });
 
@@ -1171,43 +1172,118 @@ function renderTeamRoster(){
     roster.append(card);
   });
   refreshBrainTeamOptions();
+  renderTeamControls();
 }
 
-function rebuildTeamStatusRows(){
-  const grid = Q('learnStatusGrid');
-  if(!grid) return;
-  grid.innerHTML='';
-  teamStatusLabels.clear();
-  const createRow=(labelText,valueId,value)=>{
-    const label=document.createElement('div');
-    label.className='label';
-    label.textContent=labelText;
-    const spacer=document.createElement('div');
-    const valueEl=document.createElement('div');
-    valueEl.className='val';
-    if(valueId) valueEl.id=valueId;
-    valueEl.textContent=value;
-    grid.append(label, spacer, valueEl);
-    return valueEl;
-  };
-  createRow('Generation','lbGen', evo.gen);
-  activeTeamStates.forEach((team)=>{
-    const label=`Best ${team.config.icon || ''} ${team.config.label}`.replace(/\s+/g,' ').trim();
-    const baseline = Number.isFinite(team.peakFitness) ? team.peakFitness : (team.bestFitnessCurrent||0);
-    const valueEl=createRow(label, `lbBest-${team.config.id}`, Math.round(baseline||0));
-    teamStatusLabels.set(team.config.id, valueEl);
+function renderTeamControls(){
+  const container = Q('teamConfigs');
+  if(!container) return;
+  container.innerHTML='';
+  params.teams.forEach((team)=>{
+    const card = document.createElement('div');
+    card.className='team-config-card';
+    if(!team.active) card.classList.add('inactive');
+
+    const header = document.createElement('div');
+    header.className='team-config-header';
+
+    const title = document.createElement('div');
+    title.className='team-config-title';
+    const badge = document.createElement('span');
+    badge.className='team-config-badge';
+    badge.textContent = team.icon || '●';
+    if(team.badge){
+      badge.style.background = team.badge;
+      badge.style.color = '#020617';
+    }else{
+      badge.style.background = team.color;
+      badge.style.color = '#fff';
+    }
+    const name = document.createElement('span');
+    name.textContent = team.label;
+    title.append(badge, name);
+
+    const status = document.createElement('div');
+    status.className='team-config-status';
+    status.textContent = team.active ? 'Active' : 'Inactive';
+
+    header.append(title, status);
+    card.append(header);
+
+    const grid = document.createElement('div');
+    grid.className='team-config-grid';
+
+    const makeSlider = (labelText, key, options)=>{
+      const label = document.createElement('div');
+      label.className='label';
+      label.textContent = labelText;
+
+      const input = document.createElement('input');
+      input.type='range';
+      input.min = options.min;
+      input.max = options.max;
+      if(options.step != null) input.step = options.step;
+      const sliderValue = options.toSlider ? options.toSlider(team[key]) : team[key];
+      const clampedValue = Math.min(options.max, Math.max(options.min, sliderValue));
+      input.value = String(clampedValue);
+      if(clampedValue !== sliderValue){
+        const coerced = options.fromSlider ? options.fromSlider(clampedValue) : clampedValue;
+        team[key] = coerced;
+      }
+
+      const valueEl = document.createElement('div');
+      valueEl.className='val';
+      valueEl.textContent = options.format(team[key]);
+
+      input.addEventListener('input', ()=>{
+        const numeric = options.fromSlider ? options.fromSlider(+input.value) : +input.value;
+        team[key] = numeric;
+        valueEl.textContent = options.format(numeric);
+        if(typeof options.onChange === 'function') options.onChange(numeric);
+      });
+
+      grid.append(label, input, valueEl);
+    };
+
+    makeSlider('Count', 'count', {
+      min:2,
+      max:200,
+      format:(v)=> Math.round(v),
+      onChange:()=> resizePop()
+    });
+    makeSlider('Speed', 'speed', {
+      min:10,
+      max:600,
+      step:5,
+      toSlider:(v)=> Math.round(v*100),
+      fromSlider:(v)=> (v/100),
+      format:(v)=> v.toFixed(2)
+    });
+    makeSlider('Awareness', 'smart', {
+      min:0,
+      max:300,
+      toSlider:(v)=> Math.round(v*100),
+      fromSlider:(v)=> (v/100),
+      format:(v)=> v.toFixed(2)
+    });
+    makeSlider('Strategy', 'strat', {
+      min:0,
+      max:300,
+      toSlider:(v)=> Math.round(v*100),
+      fromSlider:(v)=> (v/100),
+      format:(v)=> v.toFixed(2)
+    });
+    makeSlider('Separation', 'sep', {
+      min:0,
+      max:300,
+      toSlider:(v)=> Math.round(v*100),
+      fromSlider:(v)=> (v/100),
+      format:(v)=> v.toFixed(2)
+    });
+
+    card.append(grid);
+    container.append(card);
   });
-}
-
-function refreshTeamStatus(){
-  rebuildTeamStatusRows();
-}
-
-function updateTeamBestLabel(teamId, best){
-  const el = teamStatusLabels.get(teamId);
-  if(el){
-    el.textContent = Number(best||0).toFixed(0);
-  }
 }
 
 function refreshStats(){
@@ -1749,8 +1825,48 @@ function cloneNet(n){
   };
   return ensureNetOutputSize(cloned);
 }
-function mutateNet(n, rate){ const sW=0.2, sB=0.2; for(const r of n.W1) for(let i=0;i<r.length;i++) if(Math.random()<rate) r[i]+=randn()*sW; for(let i=0;i<n.b1.length;i++) if(Math.random()<rate) n.b1[i]+=randn()*sB; for(const r of n.W2) for(let i=0;i<r.length;i++) if(Math.random()<rate) r[i]+=randn()*sW; for(let i=0;i<n.b2.length;i++) if(Math.random()<rate) n.b2[i]+=randn()*sB; }
-function crossover(a,b){ const c=cloneNet(a); for(let i=0;i<c.W1.length;i++) for(let j=0;j<c.W1[0].length;j++) c.W1[i][j]=(Math.random()<0.5?a.W1[i][j]:b.W1[i][j]); for(let i=0;i<c.b1.length;i++) c.b1[i]=(Math.random()<0.5?a.b1[i]:b.b1[i]); for(let i=0;i<c.W2.length;i++) for(let j=0;j<c.W2[0].length;j++) c.W2[i][j]=(Math.random()<0.5?a.W2[i][j]:b.W2[i][j]); for(let i=0;i<c.b2.length;i++) c.b2[i]=(Math.random()<0.5?a.b2[i]:b.b2[i]); return c; }
+function mutateNet(n, rate){
+  const sW = params.learn?.mutStrengthW ?? 0.2;
+  const sB = params.learn?.mutStrengthB ?? 0.2;
+  for(const r of n.W1){
+    for(let i=0;i<r.length;i++){
+      if(Math.random()<rate) r[i]+=randn()*sW;
+    }
+  }
+  for(let i=0;i<n.b1.length;i++){
+    if(Math.random()<rate) n.b1[i]+=randn()*sB;
+  }
+  for(const r of n.W2){
+    for(let i=0;i<r.length;i++){
+      if(Math.random()<rate) r[i]+=randn()*sW;
+    }
+  }
+  for(let i=0;i<n.b2.length;i++){
+    if(Math.random()<rate) n.b2[i]+=randn()*sB;
+  }
+}
+function crossover(a,b){
+  const bias = params.learn?.crossoverBias ?? 0.5;
+  const c = cloneNet(a);
+  const pick = ()=> (Math.random()<bias);
+  for(let i=0;i<c.W1.length;i++){
+    for(let j=0;j<c.W1[0].length;j++){
+      c.W1[i][j] = pick() ? a.W1[i][j] : b.W1[i][j];
+    }
+  }
+  for(let i=0;i<c.b1.length;i++){
+    c.b1[i] = pick() ? a.b1[i] : b.b1[i];
+  }
+  for(let i=0;i<c.W2.length;i++){
+    for(let j=0;j<c.W2[0].length;j++){
+      c.W2[i][j] = pick() ? a.W2[i][j] : b.W2[i][j];
+    }
+  }
+  for(let i=0;i<c.b2.length;i++){
+    c.b2[i] = pick() ? a.b2[i] : b.b2[i];
+  }
+  return c;
+}
 function forward(n, x, capture=null){
   ensureNetOutputSize(n);
   const hidden = capture ? ensureArraySize(capture.hidden, n.b1.length) : new Array(n.b1.length);
@@ -2368,11 +2484,12 @@ function evolveTeam(teamState){
   teamState.bestFitnessCurrent = best;
   teamState.peakFitness = Math.max(teamState.peakFitness||0, best);
   bestFitnessByTeam[teamState.config.id] = teamState.peakFitness;
-  updateTeamBestLabel(teamState.config.id, best);
+  const tournamentFactor = Math.max(1, params.learn.tournamentFactor || 1);
+  const freshRatio = clamp(params.learn.fresh || 0, 0, 1);
   const newPop=[];
   for(let i=0;i<eliteN;i++) newPop.push({ net:cloneNet(elites[i]), fitness:0 });
   function pick(){
-    const k=Math.min(pop.length, Math.max(2,eliteN*2));
+    const k=Math.min(pop.length, Math.max(2, Math.round(eliteN * tournamentFactor)));
     const a=pop[Math.floor(Math.random()*k)];
     const b=pop[Math.floor(Math.random()*k)];
     return (a.fitness>b.fitness?a:b).net;
@@ -2382,6 +2499,10 @@ function evolveTeam(teamState){
     let child=crossover(pa,pb);
     mutateNet(child, params.learn.mut);
     newPop.push({ net:child, fitness:0 });
+  }
+  const freshCount = Math.min(pop.length - eliteN, Math.max(0, Math.round(pop.length * freshRatio)));
+  for(let i=0;i<freshCount;i++){
+    newPop[newPop.length-1-i] = { net:makeNet(), fitness:0 };
   }
   for(let i=0;i<pop.length;i++){
     pop[i].net=newPop[i].net;
@@ -2645,8 +2766,6 @@ function setup(){
     }
   });
   lastSpawn=performance.now();
-  Q('lbGen').textContent=evo.gen;
-  refreshTeamStatus();
   refreshStats();
 }
 
@@ -2818,7 +2937,6 @@ function advanceGeneration(){
     evolveTeam(teamState);
   }
   evo.gen++;
-  Q('lbGen').textContent=evo.gen;
   simSteps=0;
   forceNextGen=false;
   awaitingManualAdvance=false;
@@ -2873,7 +2991,6 @@ function applyBestFitnessSnapshot(bestMap){
     const stored = bestFitnessByTeam[team.config.id];
     if(Number.isFinite(stored)){
       team.peakFitness = Math.max(team.peakFitness||0, stored);
-      updateTeamBestLabel(team.config.id, stored);
     }
   }
   refreshStats();
@@ -2937,37 +3054,59 @@ function applyParamsSnapshot(snapshot){
   }
 
   if(Array.isArray(snapshot.teams) && snapshot.teams.length){
-    const first = snapshot.teams.find(Boolean) || {};
-    if(first.count != null) setRangeValue('slTeamCount', first.count);
-    if(first.speed != null) setRangeValue('slTeamSpeed', Math.round(first.speed*100));
-    if(first.smart != null) setRangeValue('slTeamSmart', Math.round(first.smart*100));
-    if(first.strat != null) setRangeValue('slTeamStrat', Math.round(first.strat*100));
-    if(first.sep != null) setRangeValue('slTeamSep', Math.round(first.sep*100));
+    const toNumber = (value)=>{
+      const numeric = Number(value);
+      return Number.isFinite(numeric) ? numeric : null;
+    };
     snapshot.teams.forEach((teamSnapshot)=>{
       const target = params.teams.find((t)=>t.id===teamSnapshot.id);
       if(!target) return;
+      const count = toNumber(teamSnapshot.count);
+      if(count != null) target.count = count;
+      const speed = toNumber(teamSnapshot.speed);
+      if(speed != null) target.speed = speed;
+      const smart = toNumber(teamSnapshot.smart);
+      if(smart != null) target.smart = smart;
+      const strat = toNumber(teamSnapshot.strat);
+      if(strat != null) target.strat = strat;
+      const sep = toNumber(teamSnapshot.sep);
+      if(sep != null) target.sep = sep;
       if(teamSnapshot.active !== undefined) target.active = !!teamSnapshot.active;
     });
     renderTeamRoster();
+    resizePop();
   } else {
     const refTeam = snapshot.green || snapshot.red || null;
     if(refTeam){
-      if(refTeam.count != null) setRangeValue('slTeamCount', refTeam.count);
-      if(refTeam.speed != null) setRangeValue('slTeamSpeed', Math.round(refTeam.speed*100));
-      if(refTeam.smart != null) setRangeValue('slTeamSmart', Math.round(refTeam.smart*100));
-      if(refTeam.strat != null) setRangeValue('slTeamStrat', Math.round(refTeam.strat*100));
-      if(refTeam.sep != null) setRangeValue('slTeamSep', Math.round(refTeam.sep*100));
+      const count = Number(refTeam.count);
+      const speed = Number(refTeam.speed);
+      const smart = Number(refTeam.smart);
+      const strat = Number(refTeam.strat);
+      const sep = Number(refTeam.sep);
+      params.teams.forEach((team)=>{
+        if(Number.isFinite(count)) team.count = count;
+        if(Number.isFinite(speed)) team.speed = speed;
+        if(Number.isFinite(smart)) team.smart = smart;
+        if(Number.isFinite(strat)) team.strat = strat;
+        if(Number.isFinite(sep)) team.sep = sep;
+      });
     }
     params.teams.forEach((team, index)=>{
       team.active = index < 2;
     });
     renderTeamRoster();
+    resizePop();
   }
 
   if(snapshot.learn){
     if(snapshot.learn.genSteps != null) setRangeValue('slGenSteps', snapshot.learn.genSteps);
     if(snapshot.learn.mut != null) setRangeValue('slMut', Math.round(snapshot.learn.mut*100));
     if(snapshot.learn.elite != null) setRangeValue('slElite', Math.round(snapshot.learn.elite*100));
+    if(snapshot.learn.mutStrengthW != null) setRangeValue('slMutStrengthW', Math.round(snapshot.learn.mutStrengthW*100));
+    if(snapshot.learn.mutStrengthB != null) setRangeValue('slMutStrengthB', Math.round(snapshot.learn.mutStrengthB*100));
+    if(snapshot.learn.crossoverBias != null) setRangeValue('slCrossover', Math.round(snapshot.learn.crossoverBias*100));
+    if(snapshot.learn.tournamentFactor != null) setRangeValue('slTournament', Math.round(snapshot.learn.tournamentFactor*10));
+    if(snapshot.learn.fresh != null) setRangeValue('slFresh', Math.round(snapshot.learn.fresh*100));
     if(snapshot.learn.auto !== undefined){
       const auto = Q('chkAuto');
       if(auto){
@@ -3165,9 +3304,16 @@ if(brainCanvas){
 }
 
 // Bind ranges after DOM ready
-['Fruits','Spawn','Obst','Tail','TeamCount','TeamSpeed','TeamSmart','TeamStrat','TeamSep','GenSteps','Mut','Elite'].forEach(k=>{
-  bindRange('sl'+k, 'lb'+k, (v)=> (k.includes('Speed')||k.includes('Smart')||k.includes('Strat')||k.includes('Sep')) ? (v/100).toFixed(2) : v);
+['Fruits','Spawn','Obst','Tail','GenSteps'].forEach(k=>{
+  bindRange('sl'+k, 'lb'+k, (v)=> v);
 });
+bindRange('slMut','lbMut',(v)=> `${v}%`);
+bindRange('slElite','lbElite',(v)=> `${v}%`);
+bindRange('slMutStrengthW','lbMutStrengthW',(v)=> (v/100).toFixed(2));
+bindRange('slMutStrengthB','lbMutStrengthB',(v)=> (v/100).toFixed(2));
+bindRange('slCrossover','lbCrossover',(v)=> `${v}% A`);
+bindRange('slTournament','lbTournament',(v)=> `×${(v/10).toFixed(1)}`);
+bindRange('slFresh','lbFresh',(v)=> `${v}%`);
 bindRange('slAgentScale','lbAgentScale',(v)=> (v/100).toFixed(2)+'×');
 Q('btnReset').onclick = ()=> { awaitingManualAdvance=false; forceNextGen=false; simSteps=0; setup(); };
 Q('btnNextGen').onclick = ()=> { forceNextGen = true; };
