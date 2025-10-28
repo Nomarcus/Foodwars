@@ -337,6 +337,14 @@ const TEAM_PRESET_MAP = new Map(TEAM_PRESETS.map((preset)=> [preset.id, preset])
 
 const OBSTACLE_COLORS = ['#38bdf8', '#f472b6', '#2dd4bf'];
 
+function clamp(value, min, max){
+  return Math.max(min, Math.min(max, value));
+}
+
+const SPEED_FACTOR_MIN = 0.35;
+const SPEED_FACTOR_MAX = 1.0;
+const SPEED_FACTOR_ADJUST = 0.03;
+
 function hexToRgba(hex, alpha){
   const h = hex.replace('#','');
   const bigint = parseInt(h,16);
@@ -1515,17 +1523,63 @@ function makeObstacles(n){
 
 
 
-// ===== NEAT‑lite (7→16→2) =====
+const NET_INPUTS = 7;
+const NET_HIDDEN = 16;
+const NET_OUTPUTS = 4;
+const OUTPUT_NODE_LABELS = ['Drive X', 'Drive Y', 'Speed +', 'Speed −'];
+
+// ===== NEAT‑lite (7→16→4) =====
 function randn(){ let u=0,v=0; while(u===0) u=Math.random(); while(v===0) v=Math.random(); return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v); }
 function matmulVec(W, x, out){ const rows=W.length, cols=W[0].length; for(let i=0;i<rows;i++){ let s=0; const Wi=W[i]; for(let j=0;j<cols;j++) s+=Wi[j]*x[j]; out[i]=s; } return out; }
 function tanhVec(v){ for(let i=0;i<v.length;i++) v[i]=Math.tanh(v[i]); return v; }
 function addBias(v,b){ for(let i=0;i<v.length;i++) v[i]+=b[i]; return v; }
 function ensureArraySize(arr, length){ return (Array.isArray(arr) && arr.length===length) ? arr : new Array(length); }
-function makeNet(inDim=7,h=16,out=2){ return { W1:Array.from({length:h},()=>Array.from({length:inDim},()=> (Math.random()*2-1)*0.5)), b1:Array.from({length:h},()=> (Math.random()*2-1)*0.2), W2:Array.from({length:out},()=>Array.from({length:h},()=> (Math.random()*2-1)*0.5)), b2:Array.from({length:out},()=> (Math.random()*2-1)*0.2) }; }
-function cloneNet(n){ return { W1:n.W1.map(r=>r.slice()), b1:n.b1.slice(), W2:n.W2.map(r=>r.slice()), b2:n.b2.slice() }; }
+function ensureNetOutputSize(net, desired=NET_OUTPUTS){
+  if(!net) return net;
+  const hiddenDim = Array.isArray(net.W1) ? net.W1.length : (Array.isArray(net.W2?.[0]) ? net.W2[0].length : NET_HIDDEN);
+  if(!Array.isArray(net.W2)) net.W2 = [];
+  if(!Array.isArray(net.b2)) net.b2 = [];
+  for(let i=0;i<net.W2.length;i++){
+    const row = Array.isArray(net.W2[i]) ? net.W2[i].slice() : [];
+    if(row.length !== hiddenDim){
+      net.W2[i] = Array.from({length:hiddenDim}, (_v, idx)=> (idx<row.length && Number.isFinite(row[idx])) ? row[idx] : (Math.random()*2-1)*0.5);
+    } else {
+      net.W2[i] = row;
+    }
+  }
+  while(net.W2.length < desired){
+    net.W2.push(Array.from({length:hiddenDim}, ()=> (Math.random()*2-1)*0.5));
+  }
+  while(net.b2.length < desired){
+    net.b2.push((Math.random()*2-1)*0.2);
+  }
+  if(net.W2.length > desired) net.W2.length = desired;
+  if(net.b2.length > desired) net.b2.length = desired;
+  return net;
+}
+
+function makeNet(inDim=NET_INPUTS,h=NET_HIDDEN,out=NET_OUTPUTS){
+  const net = {
+    W1:Array.from({length:h},()=>Array.from({length:inDim},()=> (Math.random()*2-1)*0.5)),
+    b1:Array.from({length:h},()=> (Math.random()*2-1)*0.2),
+    W2:Array.from({length:out},()=>Array.from({length:h},()=> (Math.random()*2-1)*0.5)),
+    b2:Array.from({length:out},()=> (Math.random()*2-1)*0.2)
+  };
+  return ensureNetOutputSize(net, out);
+}
+function cloneNet(n){
+  const cloned = {
+    W1:n.W1.map(r=>r.slice()),
+    b1:n.b1.slice(),
+    W2:n.W2.map(r=>r.slice()),
+    b2:n.b2.slice()
+  };
+  return ensureNetOutputSize(cloned);
+}
 function mutateNet(n, rate){ const sW=0.2, sB=0.2; for(const r of n.W1) for(let i=0;i<r.length;i++) if(Math.random()<rate) r[i]+=randn()*sW; for(let i=0;i<n.b1.length;i++) if(Math.random()<rate) n.b1[i]+=randn()*sB; for(const r of n.W2) for(let i=0;i<r.length;i++) if(Math.random()<rate) r[i]+=randn()*sW; for(let i=0;i<n.b2.length;i++) if(Math.random()<rate) n.b2[i]+=randn()*sB; }
 function crossover(a,b){ const c=cloneNet(a); for(let i=0;i<c.W1.length;i++) for(let j=0;j<c.W1[0].length;j++) c.W1[i][j]=(Math.random()<0.5?a.W1[i][j]:b.W1[i][j]); for(let i=0;i<c.b1.length;i++) c.b1[i]=(Math.random()<0.5?a.b1[i]:b.b1[i]); for(let i=0;i<c.W2.length;i++) for(let j=0;j<c.W2[0].length;j++) c.W2[i][j]=(Math.random()<0.5?a.W2[i][j]:b.W2[i][j]); for(let i=0;i<c.b2.length;i++) c.b2[i]=(Math.random()<0.5?a.b2[i]:b.b2[i]); return c; }
 function forward(n, x, capture=null){
+  ensureNetOutputSize(n);
   const hidden = capture ? ensureArraySize(capture.hidden, n.b1.length) : new Array(n.b1.length);
   const output = capture ? ensureArraySize(capture.output, n.b2.length) : new Array(n.b2.length);
   matmulVec(n.W1,x,hidden);
@@ -1605,9 +1659,16 @@ function ensureBrainCanvasSizing(){
 function updateBrainMeta(){
   if(brainSubtitleEl){
     if(bestBrainState.net){
-      brainSubtitleEl.textContent = bestBrainState.agentRef
-        ? 'Live activations — cyan = positive, pink = negative'
-        : 'Highest fitness network (snapshot)';
+      if(bestBrainState.agentRef){
+        const throttlePercent = typeof bestBrainState.agentRef.getThrottlePercent === 'function'
+          ? bestBrainState.agentRef.getThrottlePercent()
+          : (Number.isFinite(bestBrainState.agentRef?.speedFactor)
+            ? Math.round(bestBrainState.agentRef.speedFactor * 100)
+            : 100);
+        brainSubtitleEl.textContent = `Live activations — cyan = positive, pink = negative — throttle ${throttlePercent}% of max`;
+      } else {
+        brainSubtitleEl.textContent = 'Highest fitness network (snapshot) — Speed ± outputs control throttle';
+      }
     } else {
       brainSubtitleEl.textContent = 'Waiting for the first champion…';
     }
@@ -1832,6 +1893,19 @@ function renderBestBrain(){
   drawBrainNodes(inputLayer, 'input', activations?.input, activityScale);
   drawBrainNodes(hiddenLayer, 'hidden', activations?.hidden, activityScale);
   drawBrainNodes(outputLayer, 'output', activations?.output, activityScale);
+  if(outputLayer.length){
+    brainCtx.save();
+    brainCtx.font = '600 10px "Inter", system-ui, -apple-system, sans-serif';
+    brainCtx.textAlign = 'center';
+    brainCtx.textBaseline = 'bottom';
+    for(let i=0;i<outputLayer.length;i++){
+      const node = outputLayer[i];
+      const label = OUTPUT_NODE_LABELS[i] || `Out ${i+1}`;
+      brainCtx.fillStyle = 'rgba(148,163,209,0.72)';
+      brainCtx.fillText(label, node.x, node.y - 16);
+    }
+    brainCtx.restore();
+  }
   if(activations?.output && outputLayer.length === activations.output.length){
     brainCtx.save();
     brainCtx.font = '600 11px "Inter", system-ui, -apple-system, sans-serif';
@@ -1932,8 +2006,11 @@ function evolveTeam(teamState){
 
 // ===== Agent core =====
 class Agent{
-  constructor(x,y,color,maxSpeed,team){ this.x=x; this.y=y; this.vx=rand(-1,1); this.vy=rand(-1,1); this.color=color; this.maxSpeed=maxSpeed; this.trail=[]; this.carry=false; this.team=team; this.side=Math.random()<0.5?-1:1; this.stuckT=0; this.wander={x:rand(-1,1), y:rand(-1,1)}; this.activationScratch={ input:[], hidden:[], output:[], timestamp:0 }; }
-  stepSpeed(v){ this.maxSpeed=v; }
+  constructor(x,y,color,maxSpeed,team){ this.x=x; this.y=y; this.vx=rand(-1,1); this.vy=rand(-1,1); this.color=color; this.baseSpeed=maxSpeed; this.speedFactor=1; this.minSpeedFactor=SPEED_FACTOR_MIN; this.maxSpeedFactor=SPEED_FACTOR_MAX; this.maxSpeed=maxSpeed; this.trail=[]; this.carry=false; this.team=team; this.side=Math.random()<0.5?-1:1; this.stuckT=0; this.wander={x:rand(-1,1), y:rand(-1,1)}; this.activationScratch={ input:[], hidden:[], output:[], timestamp:0 }; }
+  stepSpeed(v){ this.baseSpeed=v; this.maxSpeed=this.baseSpeed*this.speedFactor; }
+  setSpeedFactor(factor){ this.speedFactor=clamp(factor, this.minSpeedFactor, this.maxSpeedFactor); this.maxSpeed=this.baseSpeed*this.speedFactor; }
+  adjustSpeedFactor(delta){ if(!Number.isFinite(delta) || delta===0) return; this.setSpeedFactor(this.speedFactor + delta); }
+  getThrottlePercent(){ return Math.round(this.speedFactor * 100); }
   steerSeparation(peers, radius=18, gain=0.12){
     let sx=0,sy=0;
     const limit = radius * params.agentScale;
@@ -2003,6 +2080,9 @@ class Collector extends Agent{
     super(x,y,teamState.config.color,cfg.speed,teamState.config.id);
     this.teamState=teamState;
     this.netRef=netRef;
+    if(this.netRef && this.netRef.net){
+      ensureNetOutputSize(this.netRef.net);
+    }
     this.fitness=0;
   }
   update(){
@@ -2031,8 +2111,16 @@ class Collector extends Agent{
       bestBrainState.activations = capture;
       markBestBrainDirty();
     }
-    this.vx += out[0]*(0.45 + 0.15*cfg.smart) + (tx*0.15*cfg.strat);
-    this.vy += out[1]*(0.45 + 0.15*cfg.smart) + (ty*0.15*cfg.strat);
+    const driveX = Number.isFinite(out[0]) ? out[0] : 0;
+    const driveY = Number.isFinite(out[1]) ? out[1] : 0;
+    const accelerate = Number.isFinite(out[2]) ? out[2] : 0;
+    const brake = Number.isFinite(out[3]) ? out[3] : 0;
+    const throttleSignal = accelerate - brake;
+    if(throttleSignal !== 0){
+      this.adjustSpeedFactor(throttleSignal * SPEED_FACTOR_ADJUST);
+    }
+    this.vx += driveX*(0.45 + 0.15*cfg.smart) + (tx*0.15*cfg.strat);
+    this.vy += driveY*(0.45 + 0.15*cfg.smart) + (ty*0.15*cfg.strat);
     const pickupRadius = Math.max(AGENT_BASE_PICKUP_RADIUS * params.agentScale, 6);
     if(!this.carry && tgt && Math.hypot(tgt.x-this.x,tgt.y-this.y)<pickupRadius){
       const i=fruits.indexOf(tgt);
