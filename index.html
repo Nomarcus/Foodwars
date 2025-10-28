@@ -30,7 +30,12 @@
 
     main{flex:1; display:flex; justify-content:center; align-items:flex-start; padding:40px 48px 64px}
     .wrap{display:flex; align-items:flex-start; justify-content:center; gap:40px; width:100%; max-width:2000px}
+    .field-area{flex:1 1 auto; display:flex; flex-direction:column; align-items:stretch; gap:18px; min-width:0}
     canvas{border-radius:24px; background:#04091f; box-shadow:0 0 45px rgba(15,23,61,.65), inset 0 0 22px rgba(118,133,255,.12); cursor:crosshair; border:1px solid var(--silver);}
+    .stats-bar{display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:16px; padding:18px 22px; border-radius:18px; background:rgba(11,16,44,.78); border:1px solid var(--silver); box-shadow:0 18px 32px rgba(5,9,25,.45)}
+    .stat-card{display:flex; flex-direction:column; gap:6px; padding:6px 0}
+    .stat-label{font-size:12px; text-transform:uppercase; letter-spacing:.12em; color:var(--muted)}
+    .stat-value{font-size:26px; font-weight:700; letter-spacing:.02em; color:var(--ink)}
 
     .side{width:420px; flex:0 1 420px; display:flex; flex-direction:column; gap:20px}
     .panel{background:var(--panel); border:1px solid var(--silver); padding:22px; border-radius:20px; backdrop-filter:blur(16px); box-shadow:0 18px 45px rgba(5,7,24,.55); position:relative}
@@ -53,6 +58,15 @@
     .tool-btn:hover{filter:brightness(1.05); transform:translateY(-1px); box-shadow:0 12px 26px rgba(59,130,246,.22)}
     .tool-btn.active{border-color:rgba(45,212,191,.65); background:linear-gradient(120deg, rgba(45,212,191,.24), rgba(59,130,246,.24)); box-shadow:0 14px 28px rgba(45,212,191,.24)}
     .sub{font-weight:800; font-size:14px; opacity:.9; margin:10px 0 8px; letter-spacing:.05em; color:var(--ink)}
+    .team-roster{display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:12px}
+    .team-card{position:relative; display:flex; flex-direction:column; gap:6px; padding:14px 16px; border-radius:14px; border:1px solid var(--silver); background:rgba(12,18,44,.72); box-shadow:0 10px 24px rgba(5,9,28,.4); transition:transform .2s ease, box-shadow .2s ease, border-color .2s ease}
+    .team-card:hover{transform:translateY(-2px); box-shadow:0 16px 32px rgba(5,9,28,.5)}
+    .team-card.active{border-color:rgba(45,212,191,.6); box-shadow:0 18px 36px rgba(45,212,191,.22)}
+    .team-card input[type=checkbox]{position:absolute; inset:0; opacity:0; cursor:pointer; border-radius:14px}
+    .team-card .team-header{display:flex; align-items:center; gap:10px}
+    .team-card .team-name{font-weight:600; letter-spacing:.02em}
+    .team-card .team-meta{font-size:12px; color:var(--muted)}
+    .team-badge{display:inline-flex; align-items:center; justify-content:center; width:28px; height:28px; border-radius:50%; font-size:16px; box-shadow:0 0 18px rgba(255,255,255,.2); color:#020617}
     .music-lead{font-size:13px; line-height:1.6; opacity:.85; margin:0 0 14px}
     .music-select{display:flex; flex-direction:column; gap:6px}
     .music-dropdown{width:100%; padding:10px 12px; border-radius:12px; border:1px solid var(--silver); background:rgba(12,18,44,.82); color:var(--ink); font-size:13px; font-family:inherit; letter-spacing:.01em; box-shadow:inset 0 0 12px rgba(118,133,255,.15)}
@@ -68,6 +82,7 @@
 
     @media (max-width:1200px){
       .wrap{flex-direction:column; align-items:center}
+      .field-area{width:100%}
       .side{width:100%; max-width:720px}
     }
     @media (max-width:900px){
@@ -79,6 +94,8 @@
       main{padding:28px 20px 56px}
       .wrap{gap:28px}
       canvas{width:100%; height:auto}
+      .stats-bar{grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:12px; padding:16px 18px}
+      .stat-value{font-size:22px}
       .side{max-width:100%}
     }
   </style>
@@ -114,10 +131,8 @@
             <input id="chkAuto" type="checkbox" checked><div class="val" id="lbAuto">on</div>
           </div>
           <div class="sub" style="margin-top:10px">Status</div>
-          <div class="grid">
+          <div class="grid" id="learnStatusGrid">
             <div class="label">Generation</div><div></div><div class="val" id="lbGen">1</div>
-            <div class="label">Best 🟢</div><div></div><div class="val" id="lbBestG">0</div>
-            <div class="label">Best 🔴</div><div></div><div class="val" id="lbBestR">0</div>
           </div>
           <button id="btnNextGen" class="btn">Advance generation now</button>
           <button id="btnSaveTraining" class="btn">Save training (.json)</button>
@@ -128,7 +143,31 @@
     </aside>
 
     <!-- Middle: playfield -->
-    <canvas id="world" width="1100" height="640"></canvas>
+    <div class="field-area">
+      <canvas id="world" width="1100" height="640"></canvas>
+      <section class="stats-bar" aria-label="Simulation progress" aria-live="polite">
+        <div class="stat-card">
+          <span class="stat-label">Generation</span>
+          <span class="stat-value" id="stat-gen">1</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-label">Teams active</span>
+          <span class="stat-value" id="stat-teams">2</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-label">Fruits on field</span>
+          <span class="stat-value" id="stat-fruits">0</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-label">Deliveries</span>
+          <span class="stat-value" id="stat-deliveries">0</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-label">Top fitness</span>
+          <span class="stat-value" id="stat-top">0</span>
+        </div>
+      </section>
+    </div>
 
     <!-- Right panels: controls and teams -->
     <aside class="side" id="right-panel">
@@ -170,32 +209,20 @@
       <div class="panel" id="panel-teams">
         <div class="panel-head"><div class="h">Team settings</div><span class="chev">▾</span></div>
         <div class="panel-body">
-          <div class="sub">🟢 Greens</div>
+          <div class="sub">Teams</div>
+          <div class="team-roster" id="teamRoster"></div>
+          <div class="sub" style="margin-top:14px">Shared attributes</div>
           <div class="grid">
             <div class="label">Count</div>
-            <input id="slGCount" type="range" min="2" max="200" value="28"><div class="val" id="lbGCount">28</div>
+            <input id="slTeamCount" type="range" min="2" max="200" value="28"><div class="val" id="lbTeamCount">28</div>
             <div class="label">Speed</div>
-            <input id="slGSpeed" type="range" min="10" max="600" value="260"><div class="val" id="lbGSpeed">2.60</div>
+            <input id="slTeamSpeed" type="range" min="10" max="600" value="260"><div class="val" id="lbTeamSpeed">2.60</div>
             <div class="label">Awareness</div>
-            <input id="slGSmart" type="range" min="0" max="300" value="180"><div class="val" id="lbGSmart">1.80</div>
+            <input id="slTeamSmart" type="range" min="0" max="300" value="180"><div class="val" id="lbTeamSmart">1.80</div>
             <div class="label">Strategy</div>
-            <input id="slGStrat" type="range" min="0" max="300" value="140"><div class="val" id="lbGStrat">1.40</div>
+            <input id="slTeamStrat" type="range" min="0" max="300" value="140"><div class="val" id="lbTeamStrat">1.40</div>
             <div class="label">Separation</div>
-            <input id="slGSep" type="range" min="0" max="300" value="110"><div class="val" id="lbGSep">1.10</div>
-          </div>
-
-          <div class="sub" style="margin-top:14px">🔴 Reds</div>
-          <div class="grid">
-            <div class="label">Count</div>
-            <input id="slRCount" type="range" min="2" max="200" value="28"><div class="val" id="lbRCount">28</div>
-            <div class="label">Speed</div>
-            <input id="slRSpeed" type="range" min="10" max="600" value="260"><div class="val" id="lbRSpeed">2.60</div>
-            <div class="label">Awareness</div>
-            <input id="slRSmart" type="range" min="0" max="300" value="180"><div class="val" id="lbRSmart">1.80</div>
-            <div class="label">Strategy</div>
-            <input id="slRStrat" type="range" min="0" max="300" value="140"><div class="val" id="lbRStrat">1.40</div>
-            <div class="label">Separation</div>
-            <input id="slRSep" type="range" min="0" max="300" value="110"><div class="val" id="lbRSep">1.10</div>
+            <input id="slTeamSep" type="range" min="0" max="300" value="110"><div class="val" id="lbTeamSep">1.10</div>
           </div>
         </div>
       </div>
@@ -260,15 +287,19 @@ function setRangeValue(id, value){
 
 // ===== Colors =====
 const COLORS = {
-  green: '#00ff91',
-  red:   '#ff0055',
   fruit: '#ffd43b',
   goal:  '#3b82f6',
   goalFill: 'rgba(59,130,246,0.18)',
-  greenOutline:'#003322',
-  redOutline:'#5a001a',
   fruitOutline:'#000'
 };
+
+const TEAM_PRESETS = [
+  { id:'green', label:'Greens', icon:'🟢', color:'#00ff91', outline:'#003322', badge:'#bbf7d0', goalAnchor:{ x:0.86, y:0.35 }, spawn:{ x:[0.06,0.46], y:[0.12,0.92] } },
+  { id:'red', label:'Reds', icon:'🔴', color:'#ff0055', outline:'#5a001a', badge:'#fecdd3', goalAnchor:{ x:0.14, y:0.65 }, spawn:{ x:[0.54,0.94], y:[0.08,0.9] } },
+  { id:'blue', label:'Blues', icon:'🔵', color:'#60a5fa', outline:'#1e3a8a', badge:'#bfdbfe', goalAnchor:{ x:0.22, y:0.24 }, spawn:{ x:[0.18,0.52], y:[0.06,0.42] } },
+  { id:'amber', label:'Ambers', icon:'🟠', color:'#f97316', outline:'#7c2d12', badge:'#fed7aa', goalAnchor:{ x:0.80, y:0.76 }, spawn:{ x:[0.52,0.90], y:[0.58,0.94] } }
+];
+const TEAM_PRESET_MAP = new Map(TEAM_PRESETS.map((preset)=> [preset.id, preset]));
 
 const OBSTACLE_COLORS = ['#38bdf8', '#f472b6', '#2dd4bf'];
 
@@ -302,8 +333,22 @@ const params = {
   spawnMs: 900,
   obstacles: 8,
   tailLen: 24,
-  green: { count:28, speed:2.60, smart:1.80, strat:1.40, sep:1.10 },
-  red:   { count:28, speed:2.60, smart:1.80, strat:1.40, sep:1.10 },
+  teams: TEAM_PRESETS.map((preset, index)=>({
+    id:preset.id,
+    label:preset.label,
+    icon:preset.icon,
+    color:preset.color,
+    outline:preset.outline,
+    badge:preset.badge,
+    goalAnchor:Object.assign({}, preset.goalAnchor),
+    spawn:preset.spawn ? { x:preset.spawn.x.slice(), y:preset.spawn.y.slice() } : { x:[0.1,0.9], y:[0.1,0.9] },
+    active:index < 2,
+    count:28,
+    speed:2.60,
+    smart:1.80,
+    strat:1.40,
+    sep:1.10
+  })),
   learn: { genSteps:2800, mut:0.16, elite:0.20, auto:true }
 };
 let lastObstCount = params.obstacles;
@@ -389,17 +434,18 @@ function readParams(){
   params.obstacles = +Q('slObst').value; Q('lbObst').textContent=params.obstacles; if(params.obstacles !== lastObstCount){ makeObstacles(params.obstacles); lastObstCount = params.obstacles; }
   params.tailLen = +Q('slTail').value; Q('lbTail').textContent=params.tailLen;
 
-  params.green.count = +Q('slGCount').value; Q('lbGCount').textContent=params.green.count;
-  params.green.speed = (+Q('slGSpeed').value)/100; Q('lbGSpeed').textContent=params.green.speed.toFixed(2);
-  params.green.smart = (+Q('slGSmart').value)/100; Q('lbGSmart').textContent=params.green.smart.toFixed(2);
-  params.green.strat = (+Q('slGStrat').value)/100; Q('lbGStrat').textContent=params.green.strat.toFixed(2);
-  params.green.sep   = (+Q('slGSep').value)/100; Q('lbGSep').textContent=params.green.sep.toFixed(2);
-
-  params.red.count = +Q('slRCount').value; Q('lbRCount').textContent=params.red.count;
-  params.red.speed = (+Q('slRSpeed').value)/100; Q('lbRSpeed').textContent=params.red.speed.toFixed(2);
-  params.red.smart = (+Q('slRSmart').value)/100; Q('lbRSmart').textContent=params.red.smart.toFixed(2);
-  params.red.strat = (+Q('slRStrat').value)/100; Q('lbRStrat').textContent=params.red.strat.toFixed(2);
-  params.red.sep   = (+Q('slRSep').value)/100; Q('lbRSep').textContent=params.red.sep.toFixed(2);
+  const sharedCount = +Q('slTeamCount').value; Q('lbTeamCount').textContent=sharedCount;
+  const sharedSpeed = (+Q('slTeamSpeed').value)/100; Q('lbTeamSpeed').textContent=sharedSpeed.toFixed(2);
+  const sharedSmart = (+Q('slTeamSmart').value)/100; Q('lbTeamSmart').textContent=sharedSmart.toFixed(2);
+  const sharedStrat = (+Q('slTeamStrat').value)/100; Q('lbTeamStrat').textContent=sharedStrat.toFixed(2);
+  const sharedSep   = (+Q('slTeamSep').value)/100; Q('lbTeamSep').textContent=sharedSep.toFixed(2);
+  params.teams.forEach((team)=>{
+    team.count = sharedCount;
+    team.speed = sharedSpeed;
+    team.smart = sharedSmart;
+    team.strat = sharedStrat;
+    team.sep = sharedSep;
+  });
 
   params.learn.genSteps = +Q('slGenSteps').value; Q('lbGenSteps').textContent=params.learn.genSteps;
   params.learn.mut = (+Q('slMut').value)/100; Q('lbMut').textContent=Math.round(params.learn.mut*100);
@@ -747,23 +793,208 @@ function renderLuminousAir(left, right, sampleRate, duration){
 }
 
 // ===== Data structures =====
-const greens=[], reds=[], fruits=[], obstacles=[];
+const fruits=[], obstacles=[];
+let activeTeamStates=[];
+const goalStates = {};
+const bestFitnessByTeam = {};
+const teamStatusLabels = new Map();
 
-// Pheromone grid – separate fields per team
+// Pheromone grid – per-team fields
 let grid, GW, GH, CS = 22; // cell size
-function makeGrid(){ GW=Math.floor(W/CS); GH=Math.floor(H/CS);
-  grid={ foodG:new Float32Array(GW*GH), homeG:new Float32Array(GW*GH), foodR:new Float32Array(GW*GH), homeR:new Float32Array(GW*GH) };
+function makeGrid(){
+  GW=Math.floor(W/CS);
+  GH=Math.floor(H/CS);
+  grid={};
+  params.teams.forEach((team)=>{
+    grid[team.id] = {
+      food:new Float32Array(GW*GH),
+      home:new Float32Array(GW*GH)
+    };
+  });
 }
 const gi=(x,y)=> y*GW + x;
 const clampi=(v,a,b)=> v<a?a:(v>b?b:v);
-function deposit(field,x,y,amt){ const cx=clampi((x/CS)|0,0,GW-1), cy=clampi((y/CS)|0,0,GH-1); grid[field][gi(cx,cy)] += amt; }
-function senseGrad(field,x,y){ const cx=clampi((x/CS)|0,0,GW-1), cy=clampi((y/CS)|0,0,GH-1); let best=-1e9,bx=cx,by=cy; for(let dy=-1;dy<=1;dy++) for(let dx=-1;dx<=1;dx++){ const nx=clampi(cx+dx,0,GW-1), ny=clampi(cy+dy,0,GH-1); const v=grid[field][gi(nx,ny)]; if(v>best){best=v; bx=nx; by=ny;} } return {gx:(bx-cx), gy:(by-cy), val:grid[field][gi(bx,by)]}; }
-function evaporate(){ const keep=0.985; const names=['foodG','homeG','foodR','homeR']; const tmps={}; for(const n of names) tmps[n]=new Float32Array(GW*GH); for(const n of names){ const src=grid[n], dst=tmps[n]; for(let y=0;y<GH;y++){ for(let x=0;x<GW;x++){ let v=src[gi(x,y)]*keep; let sum=v*0.4; let cnt=0; for(let dy=-1;dy<=1;dy++) for(let dx=-1;dx<=1;dx++) if(dx||dy){ const nx=clampi(x+dx,0,GW-1), ny=clampi(y+dy,0,GH-1); sum += src[gi(nx,ny)]*0.075; cnt++; } dst[gi(x,y)]= sum/(0.4+0.075*cnt); } } } for(const n of names) grid[n]=tmps[n]; }
+function deposit(teamId,type,x,y,amt){
+  const fields = grid?.[teamId];
+  if(!fields) return;
+  const field = fields[type];
+  if(!field) return;
+  const cx=clampi((x/CS)|0,0,GW-1), cy=clampi((y/CS)|0,0,GH-1);
+  field[gi(cx,cy)] += amt;
+}
+function senseGrad(teamId,type,x,y){
+  const fields = grid?.[teamId];
+  if(!fields) return { gx:0, gy:0, val:0 };
+  const field = fields[type];
+  if(!field) return { gx:0, gy:0, val:0 };
+  const cx=clampi((x/CS)|0,0,GW-1), cy=clampi((y/CS)|0,0,GH-1);
+  let best=-1e9,bx=cx,by=cy;
+  for(let dy=-1;dy<=1;dy++){
+    for(let dx=-1;dx<=1;dx++){
+      const nx=clampi(cx+dx,0,GW-1), ny=clampi(cy+dy,0,GH-1);
+      const v=field[gi(nx,ny)];
+      if(v>best){best=v; bx=nx; by=ny;}
+    }
+  }
+  return {gx:(bx-cx), gy:(by-cy), val:field[gi(bx,by)]};
+}
+function evaporate(){
+  if(!grid) return;
+  const keep=0.985;
+  const next={};
+  for(const [teamId, fields] of Object.entries(grid)){
+    const dest={ food:new Float32Array(GW*GH), home:new Float32Array(GW*GH) };
+    for(const key of ['food','home']){
+      const src=fields[key];
+      const dst=dest[key];
+      for(let y=0;y<GH;y++){
+        for(let x=0;x<GW;x++){
+          let v=src[gi(x,y)]*keep;
+          let sum=v*0.4;
+          let cnt=0;
+          for(let dy=-1;dy<=1;dy++){
+            for(let dx=-1;dx<=1;dx++){
+              if(dx||dy){
+                const nx=clampi(x+dx,0,GW-1), ny=clampi(y+dy,0,GH-1);
+                sum += src[gi(nx,ny)]*0.075;
+                cnt++;
+              }
+            }
+          }
+          dst[gi(x,y)]= sum/(0.4+0.075*cnt);
+        }
+      }
+    }
+    next[teamId]=dest;
+  }
+  grid=next;
+}
 
-// Goals – one per team (draggable)
-const goalG={ x:W*0.86, y:H*0.35, r:34, delivered:0 },
-      goalR={ x:W*0.14, y:H*0.65, r:34, delivered:0 };
+// Goals – draggable, one per potential team
+const GOAL_RADIUS = 34;
+function ensureGoalState(teamId){
+  let goal = goalStates[teamId];
+  if(!goal){
+    const preset = TEAM_PRESET_MAP.get(teamId);
+    const anchor = preset?.goalAnchor || { x:0.5, y:0.5 };
+    goal = { id:teamId, x: anchor.x * W, y: anchor.y * H, r:GOAL_RADIUS, delivered:0 };
+    goalStates[teamId] = goal;
+  }
+  return goal;
+}
+function resetGoalDelivery(teamId){
+  const goal = ensureGoalState(teamId);
+  goal.delivered = 0;
+  return goal;
+}
+function getAllGoalStates(){
+  return params.teams.map((team)=> ensureGoalState(team.id));
+}
 let dragTarget=null, dragDX=0, dragDY=0, dragKind=null, dragIndex=-1;
+
+function renderTeamRoster(){
+  const roster = Q('teamRoster');
+  if(!roster) return;
+  roster.innerHTML='';
+  params.teams.forEach((team)=>{
+    const card=document.createElement('div');
+    card.className='team-card';
+    if(team.active) card.classList.add('active');
+    card.dataset.teamId=team.id;
+
+    const checkbox=document.createElement('input');
+    checkbox.type='checkbox';
+    checkbox.checked=!!team.active;
+    checkbox.setAttribute('aria-label', `${team.label} team active`);
+
+    const header=document.createElement('div');
+    header.className='team-header';
+    const badge=document.createElement('span');
+    badge.className='team-badge';
+    badge.textContent=team.icon || '●';
+    if(team.badge){
+      badge.style.background=team.badge;
+      badge.style.color='#020617';
+    }else{
+      badge.style.background=team.color;
+      badge.style.color='#fff';
+    }
+    const name=document.createElement('span');
+    name.className='team-name';
+    name.textContent=team.label;
+    header.append(badge,name);
+
+    const meta=document.createElement('div');
+    meta.className='team-meta';
+    meta.textContent=team.active? 'Active':'Inactive';
+
+    checkbox.addEventListener('change', ()=>{
+      team.active = checkbox.checked;
+      meta.textContent = team.active ? 'Active' : 'Inactive';
+      card.classList.toggle('active', team.active);
+      setup();
+    });
+
+    card.append(checkbox, header, meta);
+    roster.append(card);
+  });
+}
+
+function rebuildTeamStatusRows(){
+  const grid = Q('learnStatusGrid');
+  if(!grid) return;
+  grid.innerHTML='';
+  teamStatusLabels.clear();
+  const createRow=(labelText,valueId,value)=>{
+    const label=document.createElement('div');
+    label.className='label';
+    label.textContent=labelText;
+    const spacer=document.createElement('div');
+    const valueEl=document.createElement('div');
+    valueEl.className='val';
+    if(valueId) valueEl.id=valueId;
+    valueEl.textContent=value;
+    grid.append(label, spacer, valueEl);
+    return valueEl;
+  };
+  createRow('Generation','lbGen', evo.gen);
+  activeTeamStates.forEach((team)=>{
+    const label=`Best ${team.config.icon || ''} ${team.config.label}`.replace(/\s+/g,' ').trim();
+    const baseline = Number.isFinite(team.peakFitness) ? team.peakFitness : (team.bestFitnessCurrent||0);
+    const valueEl=createRow(label, `lbBest-${team.config.id}`, Math.round(baseline||0));
+    teamStatusLabels.set(team.config.id, valueEl);
+  });
+}
+
+function refreshTeamStatus(){
+  rebuildTeamStatusRows();
+}
+
+function updateTeamBestLabel(teamId, best){
+  const el = teamStatusLabels.get(teamId);
+  if(el){
+    el.textContent = Number(best||0).toFixed(0);
+  }
+}
+
+function refreshStats(){
+  const genEl = Q('stat-gen');
+  if(genEl) genEl.textContent = evo.gen;
+  const teamEl = Q('stat-teams');
+  if(teamEl) teamEl.textContent = activeTeamStates.length;
+  const fruitEl = Q('stat-fruits');
+  if(fruitEl) fruitEl.textContent = fruits.length;
+  let deliveries = 0;
+  let topFitness = 0;
+  for(const team of activeTeamStates){
+    deliveries += team.goal?.delivered || 0;
+    topFitness = Math.max(topFitness, team.peakFitness||0, team.bestFitnessCurrent||0);
+  }
+  const deliveryEl = Q('stat-deliveries');
+  if(deliveryEl) deliveryEl.textContent = deliveries;
+  const topEl = Q('stat-top');
+  if(topEl) topEl.textContent = Math.round(topFitness);
+}
 
 function getCanvasCoords(evt){
   const rect = canvas.getBoundingClientRect();
@@ -959,8 +1190,15 @@ canvas.addEventListener('mousedown', (e)=>{
       dragTarget=o; dragKind='obst'; dragIndex=i; dragDX=o.x - x; dragDY=o.y - y; dragRadius=getObstacleRadius(o); return;
     }
   }
-  if(Math.hypot(x-goalG.x,y-goalG.y) <= goalG.r+12){ dragTarget=goalG; dragKind='goalG'; dragDX=goalG.x-x; dragDY=goalG.y-y; return; }
-  if(Math.hypot(x-goalR.x,y-goalR.y) <= goalR.r+12){ dragTarget=goalR; dragKind='goalR'; dragDX=goalR.x-x; dragDY=goalR.y-y; return; }
+  for(const goal of getAllGoalStates()){
+    if(Math.hypot(x-goal.x,y-goal.y) <= goal.r+12){
+      dragTarget=goal;
+      dragKind=`goal:${goal.id}`;
+      dragDX=goal.x-x;
+      dragDY=goal.y-y;
+      return;
+    }
+  }
 });
 
 window.addEventListener('mousemove', (e)=>{
@@ -1153,8 +1391,14 @@ function obstacleClearance(o, px, py){
     }
   }
 }
-function findFreeFruitSpot(maxTry=80){ for(let i=0;i<maxTry;i++){ const x=rand(40,W-40), y=rand(40,H-40); if(!pointInsideObstacle(x,y)) return {x,y}; } return null; }
+function findFreeFruitSpot(maxTry=80){ for(let i=0;i<maxTry;i++){ const x=rand(40,W-40), y=rand(40,H-40); if(goalTooClose(x,y,6,16)) continue; if(!pointInsideObstacle(x,y)) return {x,y}; } return null; }
 function spawnFruit(x=null,y=null){ if(fruits.length>=params.maxFruits) return; if(x==null||y==null){ const pos=findFreeFruitSpot(); if(!pos) return; x=pos.x; y=pos.y; } if(pointInsideObstacle(x,y)){ const pos=findFreeFruitSpot(); if(!pos) return; x=pos.x; y=pos.y; } fruits.push({x,y,r:6,color:COLORS.fruit}); }
+function goalTooClose(x,y,r,padding=40){
+  for(const goal of getAllGoalStates()){
+    if(Math.hypot(x-goal.x,y-goal.y) < goal.r + r + padding) return true;
+  }
+  return false;
+}
 function makeObstacles(n){
   const manual = obstacles.filter(o=>o.manual);
   obstacles.length = 0;
@@ -1170,8 +1414,7 @@ function makeObstacles(n){
       if(tries===360) r=Math.max(10,r*0.85);
       const x=rand(80,W-80);
       const y=rand(60,H-60);
-      if(Math.hypot(x-goalG.x,y-goalG.y)<goalG.r+r+40) continue;
-      if(Math.hypot(x-goalR.x,y-goalR.y)<goalR.r+r+40) continue;
+      if(goalTooClose(x,y,r,40)) continue;
       if(obstacleOverlaps(x,y,r)) continue;
       obstacles.push(createCircleObstacle(x,y,r,i%paletteLen,false));
       placed=true;
@@ -1180,8 +1423,7 @@ function makeObstacles(n){
       const step=36;
       outer: for(let gy=60; gy<=H-60 && !placed; gy+=step){
         for(let gx=80; gx<=W-80; gx+=step){
-          if(Math.hypot(gx-goalG.x,gy-goalG.y)<goalG.r+r+40) continue;
-          if(Math.hypot(gx-goalR.x,gy-goalR.y)<goalR.r+r+40) continue;
+          if(goalTooClose(gx,gy,r,40)) continue;
           if(obstacleOverlaps(gx,gy,r)) continue;
           obstacles.push(createCircleObstacle(gx,gy,r,i%paletteLen,false));
           placed=true;
@@ -1210,8 +1452,7 @@ function makeObstacles(n){
       for(let tries=0; tries<240 && !placed; tries++){
         const x=rand(80,W-80);
         const y=rand(60,H-60);
-        if(Math.hypot(x-goalG.x,y-goalG.y)<goalG.r+smallR+32) continue;
-        if(Math.hypot(x-goalR.x,y-goalR.y)<goalR.r+smallR+32) continue;
+        if(goalTooClose(x,y,smallR,32)) continue;
         if(obstacleOverlaps(x,y,smallR)) continue;
         obstacles.push(createCircleObstacle(x,y,smallR,i%paletteLen,false));
         placed=true;
@@ -1233,9 +1474,58 @@ function mutateNet(n, rate){ const sW=0.2, sB=0.2; for(const r of n.W1) for(let 
 function crossover(a,b){ const c=cloneNet(a); for(let i=0;i<c.W1.length;i++) for(let j=0;j<c.W1[0].length;j++) c.W1[i][j]=(Math.random()<0.5?a.W1[i][j]:b.W1[i][j]); for(let i=0;i<c.b1.length;i++) c.b1[i]=(Math.random()<0.5?a.b1[i]:b.b1[i]); for(let i=0;i<c.W2.length;i++) for(let j=0;j<c.W2[0].length;j++) c.W2[i][j]=(Math.random()<0.5?a.W2[i][j]:b.W2[i][j]); for(let i=0;i<c.b2.length;i++) c.b2[i]=(Math.random()<0.5?a.b2[i]:b.b2[i]); return c; }
 function forward(n, x){ const h=new Array(n.b1.length).fill(0), o=new Array(n.b2.length).fill(0); matmulVec(n.W1,x,h); addBias(h,n.b1); tanhVec(h); matmulVec(n.W2,h,o); addBias(o,n.b2); tanhVec(o); return o; }
 function makePopulation(size){ return Array.from({length:size}, ()=> ({ net:makeNet(), fitness:0 })); }
-const evo = { gen:1, G: makePopulation(28), R: makePopulation(28) };
-function resizePop(){ if(evo.G.length!==params.green.count){ if(evo.G.length<params.green.count){ while(evo.G.length<params.green.count) evo.G.push({ net:makeNet(), fitness:0 }); } else { evo.G.length=params.green.count; } } if(evo.R.length!==params.red.count){ if(evo.R.length<params.red.count){ while(evo.R.length<params.red.count) evo.R.push({ net:makeNet(), fitness:0 }); } else { evo.R.length=params.red.count; } } }
-function nextGeneration(team){ const pop=evo[team]; pop.sort((a,b)=> b.fitness - a.fitness); const eliteN=Math.max(1, Math.floor(pop.length*params.learn.elite)); const elites=pop.slice(0,eliteN).map(e=> cloneNet(e.net)); const best=pop[0]?.fitness||0; if(team==='G') Q('lbBestG').textContent=best.toFixed(0); else Q('lbBestR').textContent=best.toFixed(0); const newPop=[]; for(let i=0;i<eliteN;i++) newPop.push({ net:cloneNet(elites[i]), fitness:0 }); function pick(){ const k=Math.min(pop.length, Math.max(2,eliteN*2)); const a=pop[Math.floor(Math.random()*k)], b=pop[Math.floor(Math.random()*k)]; return (a.fitness>b.fitness?a:b).net; } while(newPop.length<pop.length){ const pa=pick(), pb=pick(); let child=crossover(pa,pb); mutateNet(child, params.learn.mut); newPop.push({ net:child, fitness:0 }); } for(let i=0;i<pop.length;i++){ pop[i].net=newPop[i].net; pop[i].fitness=0; } }
+const evo = { gen:1, populations:{} };
+params.teams.forEach((team)=>{
+  evo.populations[team.id] = makePopulation(team.count);
+});
+function getPopulation(teamId){
+  if(!evo.populations[teamId]){
+    const team = params.teams.find((t)=>t.id===teamId);
+    const size = team ? Math.max(0, team.count) : 0;
+    evo.populations[teamId] = makePopulation(size);
+  }
+  return evo.populations[teamId];
+}
+function resizePop(){
+  params.teams.forEach((team)=>{
+    const pop = getPopulation(team.id);
+    if(pop.length < team.count){
+      while(pop.length < team.count) pop.push({ net:makeNet(), fitness:0 });
+    } else if(pop.length > team.count){
+      pop.length = team.count;
+    }
+  });
+}
+function evolveTeam(teamState){
+  const pop = getPopulation(teamState.config.id);
+  if(!pop.length) return;
+  pop.sort((a,b)=> b.fitness - a.fitness);
+  const eliteN=Math.max(1, Math.floor(pop.length*params.learn.elite));
+  const elites=pop.slice(0,eliteN).map((e)=> cloneNet(e.net));
+  const best=pop[0]?.fitness||0;
+  teamState.bestFitnessCurrent = best;
+  teamState.peakFitness = Math.max(teamState.peakFitness||0, best);
+  bestFitnessByTeam[teamState.config.id] = teamState.peakFitness;
+  updateTeamBestLabel(teamState.config.id, best);
+  const newPop=[];
+  for(let i=0;i<eliteN;i++) newPop.push({ net:cloneNet(elites[i]), fitness:0 });
+  function pick(){
+    const k=Math.min(pop.length, Math.max(2,eliteN*2));
+    const a=pop[Math.floor(Math.random()*k)];
+    const b=pop[Math.floor(Math.random()*k)];
+    return (a.fitness>b.fitness?a:b).net;
+  }
+  while(newPop.length<pop.length){
+    const pa=pick(), pb=pick();
+    let child=crossover(pa,pb);
+    mutateNet(child, params.learn.mut);
+    newPop.push({ net:child, fitness:0 });
+  }
+  for(let i=0;i<pop.length;i++){
+    pop[i].net=newPop[i].net;
+    pop[i].fitness=0;
+  }
+}
 
 // ===== Agent core =====
 class Agent{
@@ -1262,28 +1552,112 @@ class Agent{
 }
 
 class Collector extends Agent{
-  constructor(x,y,team,netRef){ const cfg=(team==='G')? params.green: params.red; const color=(team==='G')? COLORS.green: COLORS.red; super(x,y,color,cfg.speed,team); this.netRef=netRef; this.fitness=0; }
-  update(){ const cfg=(this.team==='G')? params.green: params.red; const myFood=(this.team==='G')? 'foodG':'foodR'; const myHome=(this.team==='G')? 'homeG':'homeR'; const myGoal=(this.team==='G')? goalG:goalR; this.stepSpeed(cfg.speed);
+  constructor(x,y,teamState,netRef){
+    const cfg=teamState.config;
+    super(x,y,teamState.config.color,cfg.speed,teamState.config.id);
+    this.teamState=teamState;
+    this.netRef=netRef;
+    this.fitness=0;
+  }
+  update(){
+    const cfg=this.teamState.config;
+    const teamId=cfg.id;
+    this.stepSpeed(cfg.speed);
+    const myGoal=this.teamState.goal;
     const tgt = this.carry? myGoal : nearest(fruits, this.x, this.y);
-    let tx=0,ty=0, dn=1; if(tgt){ tx=tgt.x-this.x; ty=tgt.y-this.y; dn=Math.hypot(tx,ty)||1; tx/=dn; ty/=dn; }
-    const g = senseGrad(this.carry? myHome: myFood, this.x, this.y);
-    const mates = (this.team==='G')? greens: reds; let sx=0, sy=0; for(const p of mates){ if(p===this) continue; const dx=this.x-p.x, dy=this.y-p.y; const d=Math.hypot(dx,dy); if(d>0 && d<22){ sx+=dx/(d*d); sy+=dy/(d*d); } }
+    let tx=0,ty=0, dn=1;
+    if(tgt){ tx=tgt.x-this.x; ty=tgt.y-this.y; dn=Math.hypot(tx,ty)||1; tx/=dn; ty/=dn; }
+    const g = senseGrad(teamId, this.carry? 'home':'food', this.x, this.y);
+    const mates = this.teamState.agents;
+    let sx=0, sy=0;
+    for(const p of mates){
+      if(p===this) continue;
+      const dx=this.x-p.x, dy=this.y-p.y;
+      const d=Math.hypot(dx,dy);
+      if(d>0 && d<22){ sx+=dx/(d*d); sy+=dy/(d*d); }
+    }
     const input = [tx,ty, g.gx, g.gy, sx, sy, 1.0];
     const out = forward(this.netRef.net, input);
     this.vx += out[0]*(0.45 + 0.15*cfg.smart) + (tx*0.15*cfg.strat);
     this.vy += out[1]*(0.45 + 0.15*cfg.smart) + (ty*0.15*cfg.strat);
-    if(!this.carry && tgt && Math.hypot(tgt.x-this.x,tgt.y-this.y)<9){ const i=fruits.indexOf(tgt); if(i>-1) fruits.splice(i,1); this.carry=true; this.fitness += 8; }
-    if(this.carry && Math.hypot(myGoal.x-this.x,myGoal.y-this.y)<myGoal.r){ this.carry=false; myGoal.delivered++; this.fitness += 120; }
-    if(this.carry){ const dGoal=Math.hypot(myGoal.x-this.x,myGoal.y-this.y); this.fitness += (1/(1+dGoal))*0.2; }
-    deposit(this.carry? myFood: myHome, this.x, this.y, 0.30);
-    if(this.stuckT>35){ this.vx += tx*(0.9+0.2*cfg.strat); this.vy += ty*(0.9+0.2*cfg.strat); this.stuckT=0; }
-    this.avoidObstacles(); this.keepInBounds(); this.integrate();
+    if(!this.carry && tgt && Math.hypot(tgt.x-this.x,tgt.y-this.y)<9){
+      const i=fruits.indexOf(tgt);
+      if(i>-1) fruits.splice(i,1);
+      this.carry=true;
+      this.fitness += 8;
+    }
+    if(this.carry && Math.hypot(myGoal.x-this.x,myGoal.y-this.y)<myGoal.r){
+      this.carry=false;
+      myGoal.delivered++;
+      this.fitness += 120;
+    }
+    if(this.carry){
+      const dGoal=Math.hypot(myGoal.x-this.x,myGoal.y-this.y);
+      this.fitness += (1/(1+dGoal))*0.2;
+    }
+    deposit(teamId, this.carry? 'food':'home', this.x, this.y, 0.30);
+    if(this.stuckT>35){
+      this.vx += tx*(0.9+0.2*cfg.strat);
+      this.vy += ty*(0.9+0.2*cfg.strat);
+      this.stuckT=0;
+    }
+    this.avoidObstacles();
+    this.keepInBounds();
+    this.integrate();
   }
 }
 
 // ===== Setup & loop =====
 let lastSpawn=performance.now();
-function setup(){ greens.length=0; reds.length=0; fruits.length=0; goalG.delivered=0; goalR.delivered=0; makeGrid(); if(obstacles.length===0){ makeObstacles(params.obstacles); } resizePop(); for(let i=0;i<params.maxFruits;i++) spawnFruit(); for(let i=0;i<params.green.count;i++) greens.push(new Collector(rand(40,W*0.45), rand(40,H-40), 'G', evo.G[i])); for(let i=0;i<params.red.count;i++) reds.push(new Collector(rand(W*0.55,W-40), rand(40,H-40), 'R', evo.R[i])); lastSpawn=performance.now(); Q('lbGen').textContent=evo.gen; }
+function setup(){
+  fruits.length=0;
+  activeTeamStates=[];
+  const activeTeams = params.teams.filter((team)=> team.active);
+  if(activeTeams.length===0){
+    params.teams[0].active = true;
+    activeTeams.push(params.teams[0]);
+    renderTeamRoster();
+  }
+  makeGrid();
+  if(obstacles.length===0){ makeObstacles(params.obstacles); }
+  resizePop();
+  for(const team of activeTeams){
+    resetGoalDelivery(team.id);
+  }
+  for(let i=0;i<params.maxFruits;i++) spawnFruit();
+  activeTeamStates = activeTeams.map((team)=>{
+    const population = getPopulation(team.id);
+    const goal = ensureGoalState(team.id);
+    goal.delivered = 0;
+    const state = {
+      config:team,
+      population,
+      agents:[],
+      goal,
+      bestFitnessCurrent:0,
+      peakFitness:bestFitnessByTeam[team.id]||0
+    };
+    return state;
+  });
+  activeTeamStates.forEach((state)=>{
+    const spawn = state.config.spawn || { x:[0.1,0.9], y:[0.1,0.9] };
+    const minX = (spawn.x?.[0] ?? 0.1) * W;
+    const maxX = (spawn.x?.[1] ?? 0.9) * W;
+    const minY = (spawn.y?.[0] ?? 0.1) * H;
+    const maxY = (spawn.y?.[1] ?? 0.9) * H;
+    for(let i=0;i<state.config.count;i++){
+      const netRef = state.population[i] || { net:makeNet(), fitness:0 };
+      if(!state.population[i]) state.population[i] = netRef;
+      netRef.fitness = 0;
+      const agent = new Collector(rand(minX, maxX), rand(minY, maxY), state, netRef);
+      state.agents.push(agent);
+    }
+  });
+  lastSpawn=performance.now();
+  Q('lbGen').textContent=evo.gen;
+  refreshTeamStatus();
+  refreshStats();
+}
 
 function drawTrail(trail,color){ if(trail.length<2) return; ctx.lineWidth=2; const grad=ctx.createLinearGradient(trail[0].x,trail[0].y,trail[trail.length-1].x,trail[trail.length-1].y); grad.addColorStop(0,'rgba(255,255,255,0)'); grad.addColorStop(1,color); ctx.strokeStyle=grad; ctx.beginPath(); ctx.moveTo(trail[0].x,trail[0].y); for(let i=1;i<trail.length;i++) ctx.lineTo(trail[i].x,trail[i].y); ctx.stroke(); }
 function drawGoal(g, tint){
@@ -1379,8 +1753,9 @@ function draw(){
   ctx.clearRect(0,0,W,H);
 
   // Goals (static, no blinking)
-  drawGoal(goalG, COLORS.green);
-  drawGoal(goalR, COLORS.red);
+  for(const team of activeTeamStates){
+    drawGoal(team.goal, team.config.color);
+  }
 
   // Obstacles (ambient pulse)
   const t = performance.now()*0.001;
@@ -1407,36 +1782,31 @@ function draw(){
   }
 
   // Agents (no shadow flash)
-  for(const a of greens){
-    ctx.beginPath();
-    ctx.arc(a.x,a.y,5,0,Math.PI*2);
-    ctx.fillStyle=COLORS.green;
-    ctx.fill();
-    ctx.lineWidth=2;
-    ctx.strokeStyle=COLORS.greenOutline;
-    ctx.stroke();
-    if(a.carry){ ctx.lineWidth=2; ctx.strokeStyle='#ffff33'; ctx.stroke(); }
-    drawTrail(a.trail, COLORS.green);
-  }
-  for(const a of reds){
-    ctx.beginPath();
-    ctx.arc(a.x,a.y,5.5,0,Math.PI*2);
-    ctx.fillStyle=COLORS.red;
-    ctx.fill();
-    ctx.lineWidth=2;
-    ctx.strokeStyle=COLORS.redOutline;
-    ctx.stroke();
-    if(a.carry){ ctx.lineWidth=2; ctx.strokeStyle='#ffff33'; ctx.stroke(); }
-    drawTrail(a.trail, COLORS.red);
+  for(const team of activeTeamStates){
+    const outline = team.config.outline || '#0f172a';
+    for(const a of team.agents){
+      ctx.beginPath();
+      ctx.arc(a.x,a.y,5.2,0,Math.PI*2);
+      ctx.fillStyle=team.config.color;
+      ctx.fill();
+      ctx.lineWidth=2;
+      ctx.strokeStyle=outline;
+      ctx.stroke();
+      if(a.carry){ ctx.lineWidth=2; ctx.strokeStyle='#ffff33'; ctx.stroke(); }
+      drawTrail(a.trail, team.config.color);
+    }
   }
 }
 
 let simSteps=0, forceNextGen=false, awaitingManualAdvance=false;
 function advanceGeneration(){
-  for(let i=0;i<greens.length;i++) evo.G[i].fitness += greens[i].fitness;
-  for(let i=0;i<reds.length;i++) evo.R[i].fitness += reds[i].fitness;
-  nextGeneration('G');
-  nextGeneration('R');
+  for(const teamState of activeTeamStates){
+    const pop = getPopulation(teamState.config.id);
+    for(let i=0;i<teamState.agents.length && i<pop.length;i++){
+      pop[i].fitness += teamState.agents[i].fitness;
+    }
+    evolveTeam(teamState);
+  }
   evo.gen++;
   Q('lbGen').textContent=evo.gen;
   simSteps=0;
@@ -1455,14 +1825,18 @@ function loop(){
   }
 
   const now = performance.now();
-  for(const a of greens) a.update();
-  for(const a of reds) a.update();
+  for(const team of activeTeamStates){
+    for(const agent of team.agents){
+      agent.update();
+    }
+  }
   evaporate();
   if(now - lastSpawn >= params.spawnMs){
     spawnFruit();
     lastSpawn = now;
   }
   draw();
+  refreshStats();
   simSteps++;
 
   const reachedLimit = simSteps>=params.learn.genSteps;
@@ -1473,31 +1847,42 @@ function loop(){
   }
 }
 
-function updateBestLabels(bestG, bestR){
-  if(Number.isFinite(bestG)){
-    Q('lbBestG').textContent = Number(bestG).toFixed(0);
+function applyBestFitnessSnapshot(bestMap){
+  if(!bestMap) return;
+  for(const [teamId, value] of Object.entries(bestMap)){
+    const numeric = Number(value);
+    if(!Number.isFinite(numeric)) continue;
+    bestFitnessByTeam[teamId] = numeric;
   }
-  if(Number.isFinite(bestR)){
-    Q('lbBestR').textContent = Number(bestR).toFixed(0);
+  for(const team of activeTeamStates){
+    const stored = bestFitnessByTeam[team.config.id];
+    if(Number.isFinite(stored)){
+      team.peakFitness = Math.max(team.peakFitness||0, stored);
+      updateTeamBestLabel(team.config.id, stored);
+    }
   }
+  refreshStats();
 }
 
 function captureTrainingSnapshot(){
   const paramsClone = JSON.parse(JSON.stringify(params));
-  const bestGreenValue = Number(Q('lbBestG').textContent);
-  const bestRedValue = Number(Q('lbBestR').textContent);
-  const bestGreen = Number.isFinite(bestGreenValue) ? bestGreenValue : 0;
-  const bestRed = Number.isFinite(bestRedValue) ? bestRedValue : 0;
+  const evoTeams = params.teams.map((team)=>{
+    const population = getPopulation(team.id);
+    return {
+      id:team.id,
+      active:!!team.active,
+      members:population.map((member)=> ({ net:cloneNet(member.net), fitness:member.fitness||0 }))
+    };
+  });
   return {
-    version:1,
+    version:2,
     savedAt:new Date().toISOString(),
     params:paramsClone,
     evo:{
       gen:evo.gen,
-      greens:evo.G.map((member)=> ({ net:cloneNet(member.net), fitness:member.fitness||0 })),
-      reds:evo.R.map((member)=> ({ net:cloneNet(member.net), fitness:member.fitness||0 }))
+      teams:evoTeams
     },
-    best:{ green:bestGreen, red:bestRed }
+    best:Object.fromEntries(Object.entries(bestFitnessByTeam))
   };
 }
 
@@ -1528,20 +1913,32 @@ function applyParamsSnapshot(snapshot){
   if(snapshot.obstacles != null) setRangeValue('slObst', snapshot.obstacles);
   if(snapshot.tailLen != null) setRangeValue('slTail', snapshot.tailLen);
 
-  if(snapshot.green){
-    if(snapshot.green.count != null) setRangeValue('slGCount', snapshot.green.count);
-    if(snapshot.green.speed != null) setRangeValue('slGSpeed', Math.round(snapshot.green.speed*100));
-    if(snapshot.green.smart != null) setRangeValue('slGSmart', Math.round(snapshot.green.smart*100));
-    if(snapshot.green.strat != null) setRangeValue('slGStrat', Math.round(snapshot.green.strat*100));
-    if(snapshot.green.sep != null) setRangeValue('slGSep', Math.round(snapshot.green.sep*100));
-  }
-
-  if(snapshot.red){
-    if(snapshot.red.count != null) setRangeValue('slRCount', snapshot.red.count);
-    if(snapshot.red.speed != null) setRangeValue('slRSpeed', Math.round(snapshot.red.speed*100));
-    if(snapshot.red.smart != null) setRangeValue('slRSmart', Math.round(snapshot.red.smart*100));
-    if(snapshot.red.strat != null) setRangeValue('slRStrat', Math.round(snapshot.red.strat*100));
-    if(snapshot.red.sep != null) setRangeValue('slRSep', Math.round(snapshot.red.sep*100));
+  if(Array.isArray(snapshot.teams) && snapshot.teams.length){
+    const first = snapshot.teams.find(Boolean) || {};
+    if(first.count != null) setRangeValue('slTeamCount', first.count);
+    if(first.speed != null) setRangeValue('slTeamSpeed', Math.round(first.speed*100));
+    if(first.smart != null) setRangeValue('slTeamSmart', Math.round(first.smart*100));
+    if(first.strat != null) setRangeValue('slTeamStrat', Math.round(first.strat*100));
+    if(first.sep != null) setRangeValue('slTeamSep', Math.round(first.sep*100));
+    snapshot.teams.forEach((teamSnapshot)=>{
+      const target = params.teams.find((t)=>t.id===teamSnapshot.id);
+      if(!target) return;
+      if(teamSnapshot.active !== undefined) target.active = !!teamSnapshot.active;
+    });
+    renderTeamRoster();
+  } else {
+    const refTeam = snapshot.green || snapshot.red || null;
+    if(refTeam){
+      if(refTeam.count != null) setRangeValue('slTeamCount', refTeam.count);
+      if(refTeam.speed != null) setRangeValue('slTeamSpeed', Math.round(refTeam.speed*100));
+      if(refTeam.smart != null) setRangeValue('slTeamSmart', Math.round(refTeam.smart*100));
+      if(refTeam.strat != null) setRangeValue('slTeamStrat', Math.round(refTeam.strat*100));
+      if(refTeam.sep != null) setRangeValue('slTeamSep', Math.round(refTeam.sep*100));
+    }
+    params.teams.forEach((team, index)=>{
+      team.active = index < 2;
+    });
+    renderTeamRoster();
   }
 
   if(snapshot.learn){
@@ -1562,26 +1959,6 @@ function loadTrainingSnapshot(data){
   if(!data || typeof data !== 'object') throw new Error('Invalid training file.');
   const evoData = data.evo || data;
   if(!evoData) throw new Error('Training file is missing the evo section.');
-  const greensData = Array.isArray(evoData.greens) ? evoData.greens : (Array.isArray(evoData.G) ? evoData.G : null);
-  const redsData = Array.isArray(evoData.reds) ? evoData.reds : (Array.isArray(evoData.R) ? evoData.R : null);
-  if(!greensData || !redsData) throw new Error('Training file does not contain both team genomes.');
-
-  let computedBestG = 0;
-  for(const item of greensData){
-    const val = Number(item?.fitness);
-    if(Number.isFinite(val) && val > computedBestG) computedBestG = val;
-  }
-  let computedBestR = 0;
-  for(const item of redsData){
-    const val = Number(item?.fitness);
-    if(Number.isFinite(val) && val > computedBestR) computedBestR = val;
-  }
-  const bestGreenStored = Number(data.best?.green);
-  const bestRedStored = Number(data.best?.red);
-  const bestGreen = Number.isFinite(bestGreenStored) ? bestGreenStored : computedBestG;
-  const bestRed = Number.isFinite(bestRedStored) ? bestRedStored : computedBestR;
-
-  if(data.params) applyParamsSnapshot(data.params);
 
   const toIndividual = (entry)=>{
     const netData = entry && (entry.net || entry);
@@ -1591,19 +1968,62 @@ function loadTrainingSnapshot(data){
     return { net:cloneNet(netData), fitness:0 };
   };
 
-  evo.G = greensData.map(toIndividual);
-  evo.R = redsData.map(toIndividual);
+  let bestFromSnapshot = {};
+
+  if(data.params) applyParamsSnapshot(data.params);
+
+  if(Array.isArray(evoData.teams)){
+    bestFromSnapshot = {};
+    evoData.teams.forEach((teamEntry)=>{
+      const members = Array.isArray(teamEntry.members) ? teamEntry.members : [];
+      evo.populations[teamEntry.id] = members.map(toIndividual);
+      const targetTeam = params.teams.find((t)=>t.id===teamEntry.id);
+      if(targetTeam && teamEntry.active !== undefined){
+        targetTeam.active = !!teamEntry.active;
+      }
+      let bestFitness = 0;
+      for(const item of members){
+        const val = Number(item?.fitness);
+        if(Number.isFinite(val) && val > bestFitness) bestFitness = val;
+      }
+      bestFromSnapshot[teamEntry.id] = bestFitness;
+    });
+    renderTeamRoster();
+  } else {
+    const greensData = Array.isArray(evoData.greens) ? evoData.greens : (Array.isArray(evoData.G) ? evoData.G : null);
+    const redsData = Array.isArray(evoData.reds) ? evoData.reds : (Array.isArray(evoData.R) ? evoData.R : null);
+    if(!greensData || !redsData) throw new Error('Training file does not contain both team genomes.');
+
+    evo.populations.green = greensData.map(toIndividual);
+    evo.populations.red = redsData.map(toIndividual);
+    params.teams.forEach((team, index)=>{
+      team.active = index < 2;
+    });
+    renderTeamRoster();
+
+    let bestG = 0;
+    for(const item of greensData){
+      const val = Number(item?.fitness);
+      if(Number.isFinite(val) && val > bestG) bestG = val;
+    }
+    let bestR = 0;
+    for(const item of redsData){
+      const val = Number(item?.fitness);
+      if(Number.isFinite(val) && val > bestR) bestR = val;
+    }
+    bestFromSnapshot = { green:bestG, red:bestR };
+  }
+
   const parsedGen = Number(evoData.gen);
   evo.gen = Number.isFinite(parsedGen) && parsedGen > 0 ? parsedGen : 1;
-
-  setRangeValue('slGCount', evo.G.length);
-  setRangeValue('slRCount', evo.R.length);
 
   simSteps = 0;
   forceNextGen = false;
   awaitingManualAdvance = false;
   setup();
-  updateBestLabels(bestGreen, bestRed);
+
+  const bestCombined = Object.assign({}, bestFromSnapshot, data.best || {});
+  applyBestFitnessSnapshot(bestCombined);
 }
 
 function handleTrainingFileSelection(evt){
@@ -1680,7 +2100,7 @@ if(btnClearManual){
 }
 
 // Bind ranges after DOM ready
-['Fruits','Spawn','Obst','Tail','GCount','GSpeed','GSmart','GStrat','GSep','RCount','RSpeed','RSmart','RStrat','RSep','GenSteps','Mut','Elite'].forEach(k=>{
+['Fruits','Spawn','Obst','Tail','TeamCount','TeamSpeed','TeamSmart','TeamStrat','TeamSep','GenSteps','Mut','Elite'].forEach(k=>{
   bindRange('sl'+k, 'lb'+k, (v)=> (k.includes('Speed')||k.includes('Smart')||k.includes('Strat')||k.includes('Sep')) ? (v/100).toFixed(2) : v);
 });
 Q('btnReset').onclick = ()=> { awaitingManualAdvance=false; forceNextGen=false; simSteps=0; setup(); };
@@ -1691,6 +2111,7 @@ window.addEventListener('beforeunload', clearCurrentObjectUrl);
 
 // Start
 initMusicPanel();
+renderTeamRoster();
 readParams();
 setup();
 loop();
