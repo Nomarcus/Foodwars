@@ -5,61 +5,89 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>FoodSim – Two Teams with NEAT-lite</title>
   <style>
-    :root { --bg1:#0d111f; --bg2:#1a1f3b; --ink:#e5e7eb; }
+    :root {
+      --bg1:#050516;
+      --bg2:#161b3f;
+      --panel:rgba(18,24,56,.82);
+      --ink:#f1f5ff;
+      --muted:#a1a9d8;
+      --accent:#f472b6;
+      --accent-emerald:#2dd4bf;
+      --accent-cyan:#38bdf8;
+      --silver:rgba(222,231,255,.55);
+    }
     *{box-sizing:border-box}
-    html,body{height:100%;margin:0}
-    body{background:radial-gradient(circle at 50% 20%, var(--bg2) 0%, var(--bg1) 80%); color:var(--ink); font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial; display:flex; justify-content:center; align-items:flex-start}
+    body{margin:0; min-height:100vh; display:flex; flex-direction:column; background:radial-gradient(circle at 45% 12%, rgba(87,51,183,.55) 0%, rgba(39,56,121,.85) 45%, var(--bg1) 100%); color:var(--ink); font-family:"Inter",system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;}
 
-    .top-nav{position:fixed; top:20px; right:24px; z-index:99}
-    .info-link{display:inline-flex; align-items:center; gap:6px; padding:8px 14px; border-radius:999px; background:rgba(2,6,23,.85); border:1px solid rgba(148,163,184,.35); color:var(--ink); text-decoration:none; font-size:13px; letter-spacing:.02em; transition:transform .2s ease, box-shadow .2s ease, background .2s ease; cursor:pointer; font-family:inherit; line-height:1; appearance:none}
-    .info-link span{font-size:16px; line-height:1}
-    .info-link:hover{transform:translateY(-1px); background:rgba(30,64,175,.85); box-shadow:0 12px 25px rgba(30,64,175,.35)}
-    .info-link:focus-visible{outline:2px solid rgba(96,165,250,.85); outline-offset:3px}
+    .main-nav{position:sticky; top:0; z-index:200; padding:22px 48px; display:flex; align-items:center; justify-content:space-between; background:linear-gradient(120deg, rgba(15,20,48,.92) 0%, rgba(10,14,34,.75) 60%, rgba(10,14,34,.35) 100%); backdrop-filter:blur(14px); border-bottom:1px solid var(--silver); box-shadow:0 22px 45px rgba(5,9,25,.55)}
+    .brand{display:flex; align-items:center; gap:12px; font-size:22px; font-weight:700; letter-spacing:.02em; color:var(--ink)}
+    .brand-dot{width:14px; height:14px; border-radius:50%; background:linear-gradient(135deg, var(--accent) 0%, #8b5cf6 100%); box-shadow:0 0 18px rgba(244,114,182,.6)}
+    .nav-links{display:flex; align-items:center; gap:12px}
+    .pill-link{display:inline-flex; align-items:center; justify-content:center; padding:10px 20px; border-radius:999px; border:1px solid rgba(45,212,191,.45); background:linear-gradient(120deg, rgba(45,212,191,.18), rgba(59,130,246,.18)); color:var(--ink); text-decoration:none; font-size:14px; font-weight:600; letter-spacing:.03em; transition:transform .2s ease, box-shadow .2s ease, filter .2s ease, border-color .2s ease}
+    .pill-link.secondary{border-color:rgba(139,92,246,.45); background:linear-gradient(120deg, rgba(139,92,246,.18), rgba(244,114,182,.18))}
+    .pill-link:hover{transform:translateY(-1px); filter:brightness(1.05); box-shadow:0 16px 32px rgba(45,212,191,.25)}
+    .pill-link:focus-visible{outline:2px solid rgba(56,189,248,.65); outline-offset:3px}
 
-    .wrap{display:flex; align-items:flex-start; justify-content:center; gap:40px; padding:24px}
-    canvas{border-radius:20px; box-shadow:0 0 40px rgba(0,0,0,.6); background:#020617; cursor:crosshair}
+    main{flex:1; display:flex; justify-content:center; align-items:flex-start; padding:40px 48px 64px}
+    .wrap{display:flex; align-items:flex-start; justify-content:center; gap:40px; width:100%; max-width:1600px}
+    canvas{border-radius:24px; background:#04091f; box-shadow:0 0 45px rgba(15,23,61,.65), inset 0 0 22px rgba(118,133,255,.12); cursor:crosshair; border:1px solid var(--silver);}
 
     .side{width:360px; display:flex; flex-direction:column; gap:20px}
-    .panel{background:rgba(2,6,23,.7); border:1px solid rgba(148,163,184,.25); padding:18px; border-radius:16px; backdrop-filter:blur(10px); box-shadow:0 10px 30px rgba(0,0,0,.25); position:relative}
-    .panel-head{display:flex; align-items:center; justify-content:space-between; gap:12px; cursor:pointer; user-select:none; padding-bottom:6px; margin-bottom:10px; border-bottom:1px dashed rgba(148,163,184,.25)}
-    .panel-head .h{margin:0; font-size:16px}
-    .chev{font-weight:900; font-size:16px; opacity:.9; transition:transform .25s ease}
+    .panel{background:var(--panel); border:1px solid var(--silver); padding:22px; border-radius:20px; backdrop-filter:blur(16px); box-shadow:0 18px 45px rgba(5,7,24,.55); position:relative}
+    .panel-head{display:flex; align-items:center; justify-content:space-between; gap:12px; cursor:pointer; user-select:none; padding-bottom:10px; margin-bottom:14px; border-bottom:1px dashed rgba(189,206,255,.28)}
+    .panel-head .h{margin:0; font-size:17px; letter-spacing:.03em}
+    .chev{font-weight:900; font-size:16px; opacity:.75; transition:transform .25s ease}
     .panel-body{max-height:1200px; overflow:hidden; transition:max-height .35s ease, opacity .25s ease; opacity:1}
     .panel.collapsed .panel-body{max-height:0; opacity:.0}
     .panel.collapsed .chev{transform:rotate(-90deg)}
 
     .grid{display:grid; grid-template-columns: 1fr 1.3fr auto; gap:12px 12px; align-items:center}
-    .label{font-size:13px}
-    .val{font-family:ui-monospace,Menlo,Consolas,monospace; font-size:12px; padding:2px 6px; border-radius:6px; background:#0b1223; border:1px solid #1f2a42}
-    input[type=range]{width:100%; accent-color:#3b82f6}
-    .btn{display:block; width:100%; padding:8px 10px; border-radius:10px; border:1px solid #2f3b58; background:#1f2a42; color:#cfe0ff; cursor:pointer; text-align:center; margin-top:10px}
-    .btn:hover{filter:brightness(1.08)}
-    .sub{font-weight:800; font-size:14px; opacity:.9; margin:10px 0 8px}
-    .music-lead{font-size:13px; line-height:1.5; opacity:.85; margin:0 0 14px}
+    .label{font-size:13px; color:var(--muted); letter-spacing:.02em}
+    .val{font-family:ui-monospace,Menlo,Consolas,monospace; font-size:12px; padding:4px 8px; border-radius:8px; background:rgba(10,16,46,.7); border:1px solid var(--silver); color:var(--accent-cyan); box-shadow:inset 0 0 12px rgba(56,189,248,.12)}
+    input[type=range]{width:100%; accent-color:var(--accent-cyan)}
+    .btn{display:block; width:100%; padding:12px 14px; border-radius:12px; border:1px solid rgba(45,212,191,.45); background:linear-gradient(120deg, rgba(45,212,191,.18), rgba(59,130,246,.18)); color:var(--ink); cursor:pointer; text-align:center; margin-top:14px; font-weight:600; letter-spacing:.02em; transition:transform .2s ease, box-shadow .2s ease, filter .2s ease}
+    .btn:hover{filter:brightness(1.08); transform:translateY(-1px); box-shadow:0 20px 36px rgba(45,212,191,.28)}
+    .sub{font-weight:800; font-size:14px; opacity:.9; margin:10px 0 8px; letter-spacing:.05em; color:var(--ink)}
+    .music-lead{font-size:13px; line-height:1.6; opacity:.85; margin:0 0 14px}
     .music-select{display:flex; flex-direction:column; gap:6px}
-    .music-dropdown{width:100%; padding:10px 12px; border-radius:12px; border:1px solid rgba(148,163,184,.35); background:#0b1223; color:var(--ink); font-size:13px; font-family:inherit; letter-spacing:.01em}
+    .music-dropdown{width:100%; padding:10px 12px; border-radius:12px; border:1px solid var(--silver); background:rgba(12,18,44,.82); color:var(--ink); font-size:13px; font-family:inherit; letter-spacing:.01em; box-shadow:inset 0 0 12px rgba(118,133,255,.15)}
     .music-controls{display:flex; align-items:center; gap:12px; margin-top:12px; flex-wrap:wrap}
     .music-controls .btn{flex:0 0 auto; width:auto; padding:10px 18px; margin-top:0}
     .music-volume{display:flex; flex:1; align-items:center; gap:10px; min-width:200px}
     .music-volume .label{min-width:60px}
     .music-volume input[type=range]{flex:1}
-    .music-meta{margin-top:14px; font-size:12px; line-height:1.6; background:rgba(15,23,42,.55); border:1px solid rgba(148,163,184,.22); padding:10px 12px; border-radius:12px}
-    .music-status{display:flex; align-items:center; gap:8px; font-size:12px; text-transform:uppercase; letter-spacing:.08em; opacity:.82}
+    .music-meta{margin-top:14px; font-size:12px; line-height:1.6; background:rgba(11,16,44,.65); border:1px solid var(--silver); padding:12px 14px; border-radius:14px; box-shadow:inset 0 0 14px rgba(138,92,246,.12)}
+    .music-status{display:flex; align-items:center; gap:8px; font-size:12px; text-transform:uppercase; letter-spacing:.08em; opacity:.82; color:var(--accent-cyan)}
     .music-attr{opacity:.72}
-    .info-overlay{position:fixed; inset:0; display:none; align-items:center; justify-content:center; padding:24px; background:rgba(2,6,23,.85); backdrop-filter:blur(12px); z-index:120}
-    .info-overlay.show{display:flex}
-    .info-overlay-shell{position:relative; width:min(960px, calc(100% - 48px)); height:min(90vh, 840px); border-radius:26px; border:1px solid rgba(148,163,184,.35); background:rgba(2,6,23,.92); box-shadow:0 40px 140px rgba(2,6,23,.65); overflow:hidden}
-    .info-overlay-frame{width:100%; height:100%; border:0; background:transparent}
-    .info-close{position:absolute; top:14px; right:14px; width:38px; height:38px; border-radius:999px; border:1px solid rgba(148,163,184,.45); background:rgba(15,23,42,.72); color:var(--ink); font-size:20px; line-height:1; display:flex; align-items:center; justify-content:center; cursor:pointer; transition:background .2s ease, transform .2s ease}
-    .info-close:hover{background:rgba(30,64,175,.8); transform:translateY(-1px)}
-    .info-close:focus-visible{outline:2px solid rgba(96,165,250,.85); outline-offset:2px}
     .sr-only{position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0}
+
+    @media (max-width:1200px){
+      .wrap{flex-direction:column; align-items:center}
+      .side{width:100%; max-width:720px}
+    }
+    @media (max-width:900px){
+      main{padding:32px 28px 56px}
+    }
+    @media (max-width:768px){
+      .main-nav{flex-direction:column; align-items:flex-start; gap:16px; padding:18px 24px}
+      .nav-links{flex-wrap:wrap}
+      main{padding:28px 20px 56px}
+      .wrap{gap:28px}
+      canvas{width:100%; height:auto}
+      .side{max-width:100%}
+    }
   </style>
 </head>
 <body>
-  <div class="top-nav">
-    <button type="button" class="info-link" id="btnInfo"><span>ℹ️</span> Learn how NEAT & FoodSim work</button>
-  </div>
+  <header class="main-nav">
+    <div class="brand"><span class="brand-dot"></span>FoodSim NEAT Lab</div>
+    <nav class="nav-links" aria-label="Huvudmeny">
+      <a class="pill-link" href="#world">Spelfält</a>
+      <a class="pill-link" href="#panel-global">Kontroller</a>
+      <a class="pill-link secondary" href="learn-neat.html">Så funkar NEAT</a>
+    </nav>
+  </header>
+  <main>
   <div class="wrap">
     <!-- Left panel: Learning (NEAT) -->
     <aside class="side" id="left-panel">
@@ -177,14 +205,7 @@
       </div>
     </aside>
   </div>
-
-  <div class="info-overlay" id="infoOverlay" aria-hidden="true">
-    <div class="info-overlay-shell" role="dialog" aria-modal="true" aria-labelledby="infoOverlayTitle">
-      <h2 id="infoOverlayTitle" class="sr-only">How NEAT &amp; FoodSim work</h2>
-      <button type="button" class="info-close" id="infoOverlayClose" aria-label="Close NEAT guide">×</button>
-      <iframe id="infoOverlayFrame" class="info-overlay-frame" title="Learn how NEAT &amp; FoodSim work"></iframe>
-    </div>
-  </div>
+  </main>
 
   <audio id="bgm" preload="metadata" loop crossorigin="anonymous"></audio>
 
@@ -625,8 +646,6 @@ function loop(){
   }
 }
 
-let infoOverlayLoaded = false;
-
 function updateBestLabels(bestG, bestR){
   if(Number.isFinite(bestG)){
     Q('lbBestG').textContent = Number(bestG).toFixed(0);
@@ -781,29 +800,6 @@ function handleTrainingFileSelection(evt){
   reader.readAsText(file);
 }
 
-function closeInfoOverlay(){
-  const overlay = Q('infoOverlay');
-  if(!overlay) return;
-  overlay.classList.remove('show');
-  overlay.setAttribute('aria-hidden', 'true');
-  const infoBtn = Q('btnInfo');
-  if(infoBtn) infoBtn.focus();
-}
-
-function openInfoOverlay(){
-  const overlay = Q('infoOverlay');
-  if(!overlay) return;
-  overlay.classList.add('show');
-  overlay.setAttribute('aria-hidden', 'false');
-  const frame = Q('infoOverlayFrame');
-  if(!infoOverlayLoaded && frame){
-    frame.src = 'learn-neat.html';
-    infoOverlayLoaded = true;
-  }
-  const closeBtn = Q('infoOverlayClose');
-  if(closeBtn) closeBtn.focus();
-}
-
 const btnSaveTraining = Q('btnSaveTraining');
 if(btnSaveTraining){
   btnSaveTraining.addEventListener('click', downloadTrainingData);
@@ -814,26 +810,6 @@ if(btnLoadTraining && inputLoadTraining){
   btnLoadTraining.addEventListener('click', ()=> inputLoadTraining.click());
   inputLoadTraining.addEventListener('change', handleTrainingFileSelection);
 }
-
-const infoButton = Q('btnInfo');
-const infoOverlayEl = Q('infoOverlay');
-const infoOverlayClose = Q('infoOverlayClose');
-if(infoButton){
-  infoButton.addEventListener('click', openInfoOverlay);
-}
-if(infoOverlayClose){
-  infoOverlayClose.addEventListener('click', closeInfoOverlay);
-}
-if(infoOverlayEl){
-  infoOverlayEl.addEventListener('click', (e)=>{
-    if(e.target === infoOverlayEl) closeInfoOverlay();
-  });
-}
-document.addEventListener('keydown', (e)=>{
-  if(e.key === 'Escape' && infoOverlayEl && infoOverlayEl.classList.contains('show')){
-    closeInfoOverlay();
-  }
-});
 
 // Bind ranges after DOM ready
 ['Fruits','Spawn','Obst','Tail','GCount','GSpeed','GSmart','GStrat','GSep','RCount','RSpeed','RSmart','RStrat','RSep','GenSteps','Mut','Elite'].forEach(k=>{
