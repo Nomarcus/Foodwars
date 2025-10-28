@@ -207,7 +207,6 @@
   </div>
   </main>
 
-  <audio id="bgm" preload="metadata" loop crossorigin="anonymous"></audio>
 
 <script>
 // ===== Utils for UI =====
@@ -272,28 +271,59 @@ let lastObstCount = params.obstacles;
 const MUSIC_TRACKS = [
   {
     title: 'Forest Haze',
-    artist: 'Dream-Protocol',
-    source: 'Pixabay — Ambient Meditation by dream-protocol',
-    url: 'https://cdn.pixabay.com/download/audio/2022/10/21/audio_3f225524d86.mp3?filename=deep-in-forest-ambient-12484.mp3'
+    artist: 'FoodSim Ensemble',
+    source: 'Procedurally generated drone in C – loops seamlessly offline.',
+    duration: 24,
+    render: renderForestHaze
   },
   {
     title: 'Cloudlight',
-    artist: 'Lesfm',
-    source: 'Pixabay — Meditation by Lesfm',
-    url: 'https://cdn.pixabay.com/download/audio/2022/03/15/audio_c083352499.mp3?filename=ambient-110366.mp3'
+    artist: 'FoodSim Ensemble',
+    source: 'Procedurally generated airy chords in F major – works without internet.',
+    duration: 20,
+    render: renderCloudlight
   },
   {
     title: 'Luminous Air',
-    artist: 'Ashot-Danielyan-Composer',
-    source: 'Pixabay — Ambient Piano by Ashot-Danielyan-Composer',
-    url: 'https://cdn.pixabay.com/download/audio/2023/02/27/audio_aa79d23c34.mp3?filename=ambient-piano-14352.mp3'
+    artist: 'FoodSim Ensemble',
+    source: 'Procedurally generated evolving pad built into this demo.',
+    duration: 26,
+    render: renderLuminousAir
   }
 ];
-const musicAudio = document.getElementById('bgm');
 let currentTrackIndex = 0;
-let currentObjectUrl = null;
 let currentTrackToken = 0;
-let musicFetchController = null;
+let currentTrackBuffer = null;
+let isMusicPlaying = false;
+
+let audioCtx = null;
+let masterGain = null;
+let currentSource = null;
+const trackBufferCache = new Map();
+let pendingTrackPromise = null;
+let pendingVolume = 0.55;
+let musicToggleBtn = null;
+
+function ensureAudioContext(){
+  if(audioCtx) return audioCtx;
+  const AudioCtx = window.AudioContext || window.webkitAudioContext;
+  if(!AudioCtx){
+    throw new Error('Web Audio API not supported');
+  }
+  audioCtx = new AudioCtx();
+  masterGain = audioCtx.createGain();
+  masterGain.gain.value = pendingVolume;
+  masterGain.connect(audioCtx.destination);
+  return audioCtx;
+}
+
+async function resumeAudioContext(){
+  const ctx = ensureAudioContext();
+  if(ctx.state === 'suspended'){
+    await ctx.resume();
+  }
+  return ctx;
+}
 
 function readParams(){
   params.maxFruits = +Q('slFruits').value; Q('lbFruits').textContent=params.maxFruits;
@@ -320,7 +350,7 @@ function readParams(){
 }
 function updateMusicMeta(track, stateOverride=null){
   if(!track) return;
-  const state = stateOverride || (musicAudio.paused ? 'Paused' : 'Playing');
+  const state = stateOverride || (isMusicPlaying ? 'Playing' : 'Paused');
   Q('lbMusicState').textContent = state;
   Q('lbMusicNow').textContent = `${track.title} — ${track.artist}`;
   Q('lbMusicSource').textContent = track.source;
@@ -328,129 +358,181 @@ function updateMusicMeta(track, stateOverride=null){
 
 let awaitingAudioUnlock = false;
 
-function clearCurrentObjectUrl(){
-  if(currentObjectUrl){
-    URL.revokeObjectURL(currentObjectUrl);
-    currentObjectUrl = null;
+function updateMusicButton(){
+  if(!musicToggleBtn) return;
+  musicToggleBtn.textContent = isMusicPlaying ? 'Pause' : 'Play';
+  musicToggleBtn.setAttribute('aria-pressed', isMusicPlaying ? 'true' : 'false');
+}
+
+function stopCurrentTrack(silent=false){
+  if(currentSource){
+    try{ currentSource.stop(); }catch(err){ /* ignore stop errors */ }
+    currentSource.disconnect();
+    currentSource = null;
+  }
+  isMusicPlaying = false;
+  if(!silent){
+    updateMusicMeta(MUSIC_TRACKS[currentTrackIndex], 'Paused');
+    updateMusicButton();
   }
 }
 
-function abortMusicFetch(){
-  if(musicFetchController){
-    if(typeof musicFetchController.abort === 'function'){
-      musicFetchController.abort();
-    }
-    musicFetchController = null;
+function createAudioBuffer(channels, length, sampleRate){
+  if(typeof AudioBuffer === 'function'){
+    return new AudioBuffer({ numberOfChannels: channels, length, sampleRate });
   }
+  const OfflineCtx = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+  if(OfflineCtx){
+    const offline = new OfflineCtx(channels, length, sampleRate);
+    return offline.createBuffer(channels, length, sampleRate);
+  }
+  const AudioCtx = window.AudioContext || window.webkitAudioContext;
+  if(AudioCtx){
+    const tempCtx = new AudioCtx();
+    const buffer = tempCtx.createBuffer(channels, length, sampleRate);
+    if(typeof tempCtx.close === 'function') tempCtx.close();
+    return buffer;
+  }
+  throw new Error('Web Audio API not supported');
+}
+
+async function ensureTrackBuffer(track, sampleRate){
+  let buffersForRate = trackBufferCache.get(sampleRate);
+  if(!buffersForRate){
+    buffersForRate = new Map();
+    trackBufferCache.set(sampleRate, buffersForRate);
+  }
+  if(buffersForRate.has(track)) return buffersForRate.get(track);
+  const buffer = generateProceduralBuffer(track, sampleRate);
+  buffersForRate.set(track, buffer);
+  return buffer;
+}
+
+function generateProceduralBuffer(track, sampleRate){
+  const duration = Math.max(4, track.duration || 20);
+  const length = Math.max(1, Math.floor(duration * sampleRate));
+  const buffer = createAudioBuffer(2, length, sampleRate);
+  const left = buffer.getChannelData(0);
+  const right = buffer.getChannelData(1);
+  track.render(left, right, sampleRate, duration);
+  return buffer;
 }
 
 function requestAudioUnlock(){
   if(awaitingAudioUnlock) return;
   awaitingAudioUnlock = true;
-  const resume = ()=>{
+  const resume = async ()=>{
     document.removeEventListener('pointerdown', resume);
     document.removeEventListener('keydown', resume);
     awaitingAudioUnlock = false;
-    playCurrentTrack();
+    try{
+      await playCurrentTrack();
+    }catch(err){
+      handlePlaybackFailure(err, MUSIC_TRACKS[currentTrackIndex]);
+    }
   };
-  document.addEventListener('pointerdown', resume);
-  document.addEventListener('keydown', resume);
+  document.addEventListener('pointerdown', resume, { once:true });
+  document.addEventListener('keydown', resume, { once:true });
 }
 
-function handlePlayError(err){
+function handlePlaybackFailure(err, track){
   if(!err) return;
+  const activeTrack = track || MUSIC_TRACKS[currentTrackIndex];
+  isMusicPlaying = false;
   if(err.name === 'NotAllowedError' || err.name === 'SecurityError'){
-    updateMusicMeta(MUSIC_TRACKS[currentTrackIndex], 'Tap to enable audio');
+    updateMusicMeta(activeTrack, 'Tap to enable audio');
+    updateMusicButton();
     requestAudioUnlock();
     console.warn('Music playback is blocked until the page receives a user interaction.', err);
-  } else if(err.name === 'AbortError'){
-    // Interruption during load – ignore to avoid confusing messaging
-  } else if(err.name === 'NotSupportedError'){
-    updateMusicMeta(MUSIC_TRACKS[currentTrackIndex], 'Load failed');
-    Q('lbMusicNow').textContent = 'This browser cannot play the selected track.';
+  } else if(err.message === 'Web Audio API not supported' || err.name === 'NotSupportedError'){
+    updateMusicMeta(activeTrack, 'Audio unavailable');
+    Q('lbMusicNow').textContent = 'This browser cannot synthesize the selected track.';
+    updateMusicButton();
     console.error('Music playback failed', err);
   } else {
-    updateMusicMeta(MUSIC_TRACKS[currentTrackIndex], 'Playback failed');
+    updateMusicMeta(activeTrack, 'Playback failed');
+    updateMusicButton();
     console.error('Music playback failed', err);
   }
 }
 
-function playCurrentTrack(){
-  const promise = musicAudio.play();
-  if(promise){
-    promise.catch(handlePlayError);
+async function playCurrentTrack(){
+  const track = MUSIC_TRACKS[currentTrackIndex];
+  try{
+    const ctx = await resumeAudioContext();
+    const buffer = await ensureTrackBuffer(track, ctx.sampleRate);
+    currentTrackBuffer = buffer;
+    stopCurrentTrack(true);
+    const source = ctx.createBufferSource();
+    source.buffer = buffer;
+    source.loop = true;
+    source.connect(masterGain);
+    source.start();
+    currentSource = source;
+    isMusicPlaying = true;
+    source.addEventListener('ended', ()=>{
+      if(currentSource === source){
+        isMusicPlaying = false;
+        updateMusicMeta(track, 'Paused');
+        updateMusicButton();
+      }
+    });
+    updateMusicMeta(track, 'Playing');
+    updateMusicButton();
+  }catch(err){
+    handlePlaybackFailure(err, track);
+    throw err;
   }
 }
 
 async function setMusicTrack(index, autoplay=false){
   if(index<0 || index>=MUSIC_TRACKS.length) return;
-
   const track = MUSIC_TRACKS[index];
-  const wasPlaying = !musicAudio.paused && !!musicAudio.src;
-
-  musicAudio.pause();
-  abortMusicFetch();
-  clearCurrentObjectUrl();
-  musicAudio.removeAttribute('src');
-  try{
-    musicAudio.load();
-  }catch(err){
-    console.warn('Unable to reset audio element before loading a new track.', err);
-  }
-
+  const shouldAutoplay = autoplay || isMusicPlaying;
   currentTrackIndex = index;
-  const shouldAutoplay = autoplay || wasPlaying;
   const token = ++currentTrackToken;
 
-  updateMusicMeta(track, 'Loading…');
+  stopCurrentTrack(true);
+  updateMusicButton();
+  updateMusicMeta(track, 'Preparing…');
 
-  if(typeof fetch !== 'function'){
-    musicAudio.src = track.url;
-    musicAudio.load();
-    if(shouldAutoplay){
-      playCurrentTrack();
-    } else {
-      updateMusicMeta(track, 'Ready');
-    }
+  let sampleRate = 44100;
+  try{
+    const ctx = ensureAudioContext();
+    sampleRate = ctx.sampleRate || sampleRate;
+  }catch(err){
+    handlePlaybackFailure(err, track);
     return;
   }
 
-  try{
-    const controller = typeof AbortController === 'function' ? new AbortController() : null;
-    musicFetchController = controller;
-    const fetchOptions = controller ? { signal: controller.signal, mode:'cors' } : { mode:'cors' };
-    const response = await fetch(track.url, fetchOptions);
-    if(!response.ok){
-      throw new Error(`HTTP ${response.status}`);
-    }
-    const blob = await response.blob();
-    if(token !== currentTrackToken) return;
+  const promise = ensureTrackBuffer(track, sampleRate)
+    .then(async buffer => {
+      if(token !== currentTrackToken) return;
+      currentTrackBuffer = buffer;
+      if(shouldAutoplay){
+        await playCurrentTrack();
+      } else {
+        isMusicPlaying = false;
+        updateMusicMeta(track, 'Ready');
+        updateMusicButton();
+      }
+    })
+    .catch(err => {
+      handlePlaybackFailure(err, track);
+    })
+    .finally(()=>{
+      if(token === currentTrackToken){
+        pendingTrackPromise = null;
+      }
+    });
 
-    const objectUrl = URL.createObjectURL(blob);
-    currentObjectUrl = objectUrl;
-    musicAudio.src = objectUrl;
-    musicAudio.load();
-
-    if(shouldAutoplay){
-      playCurrentTrack();
-    } else {
-      updateMusicMeta(track, 'Ready');
-    }
-  }catch(err){
-    if(err.name === 'AbortError') return;
-    console.error('Failed to load music track', err);
-    updateMusicMeta(track, 'Load failed');
-    Q('lbMusicNow').textContent = 'Try another track from the list.';
-  }finally{
-    if(token === currentTrackToken){
-      musicFetchController = null;
-    }
-  }
+  pendingTrackPromise = promise;
+  return promise;
 }
 
 function initMusicPanel(){
   const select = Q('selMusic');
-  const toggle = Q('btnMusicToggle');
+  musicToggleBtn = Q('btnMusicToggle');
   const vol = Q('slMusicVolume');
   const volLabel = Q('lbMusicVolume');
 
@@ -464,59 +546,143 @@ function initMusicPanel(){
 
   const applyVolume = ()=>{
     const value = Math.round(vol.value);
-    musicAudio.volume = value/100;
+    pendingVolume = value/100;
+    if(masterGain){
+      masterGain.gain.setValueAtTime(pendingVolume, masterGain.context.currentTime);
+    }
     volLabel.textContent = `${value}%`;
   };
-  vol.addEventListener('input', applyVolume);
   applyVolume();
+  vol.addEventListener('input', applyVolume);
+
+  musicToggleBtn.addEventListener('click', async ()=>{
+    if(isMusicPlaying){
+      stopCurrentTrack();
+    } else {
+      musicToggleBtn.disabled = true;
+      try{
+        await playCurrentTrack();
+      }catch(err){
+        // handled in playCurrentTrack
+      }finally{
+        musicToggleBtn.disabled = false;
+      }
+    }
+  });
 
   select.addEventListener('change', ()=>{
-    const idx = Number(select.value);
-    const shouldAutoplay = !musicAudio.paused && !!musicAudio.src;
-    setMusicTrack(idx, shouldAutoplay);
+    const idx = parseInt(select.value, 10);
+    setMusicTrack(idx, isMusicPlaying);
   });
 
-  toggle.addEventListener('click', ()=>{
-    if(!musicAudio.src){
-      setMusicTrack(Number(select.value), true);
-      return;
-    }
-    if(musicAudio.paused){
-      playCurrentTrack();
-    } else {
-      musicAudio.pause();
-    }
-  });
-
-  musicAudio.addEventListener('play', ()=>{
-    toggle.textContent = 'Pause';
-    updateMusicMeta(MUSIC_TRACKS[currentTrackIndex], 'Playing');
-  });
-  musicAudio.addEventListener('pause', ()=>{
-    toggle.textContent = 'Play';
-    updateMusicMeta(MUSIC_TRACKS[currentTrackIndex], 'Paused');
-  });
-  musicAudio.addEventListener('loadeddata', ()=>{
-    const status = musicAudio.paused ? 'Ready' : 'Playing';
-    updateMusicMeta(MUSIC_TRACKS[currentTrackIndex], status);
-  });
-  musicAudio.addEventListener('waiting', ()=>{
-    updateMusicMeta(MUSIC_TRACKS[currentTrackIndex], 'Buffering…');
-  });
-  musicAudio.addEventListener('canplaythrough', ()=>{
-    const status = musicAudio.paused ? 'Ready' : 'Playing';
-    updateMusicMeta(MUSIC_TRACKS[currentTrackIndex], status);
-    if(!musicAudio.paused){
-      playCurrentTrack();
-    }
-  });
-  musicAudio.addEventListener('error', ()=>{
-    clearCurrentObjectUrl();
-    updateMusicMeta(MUSIC_TRACKS[currentTrackIndex], 'Load failed');
-    Q('lbMusicNow').textContent = 'Try another track from the list.';
-  });
-
+  updateMusicButton();
   setMusicTrack(currentTrackIndex, false);
+}
+
+const TAU = Math.PI * 2;
+
+function seededNoise(idx, offset=0){
+  const x = Math.sin((idx + offset) * 12.9898) * 43758.5453123;
+  return (x - Math.floor(x)) * 2 - 1;
+}
+
+function applyStereoFadeEnvelope(left, right, sampleRate, seconds){
+  const fadeSamples = Math.min(Math.floor(seconds * sampleRate), Math.floor(left.length/2));
+  if(fadeSamples <= 0) return;
+  const total = left.length;
+  for(let i=0; i<total; i++){
+    let gain = 1;
+    if(i < fadeSamples){
+      gain *= i / fadeSamples;
+    }
+    if(total - i < fadeSamples){
+      gain *= (total - i) / fadeSamples;
+    }
+    left[i] *= gain;
+    right[i] *= gain;
+  }
+}
+
+function normalizeStereo(left, right, target=0.82){
+  let peak = 0;
+  for(let i=0;i<left.length;i++){
+    const l = Math.abs(left[i]);
+    const r = Math.abs(right[i]);
+    if(l>peak) peak=l;
+    if(r>peak) peak=r;
+  }
+  if(peak > 0){
+    const scale = target/peak;
+    for(let i=0;i<left.length;i++){
+      left[i] *= scale;
+      right[i] *= scale;
+    }
+  }
+}
+
+function renderForestHaze(left, right, sampleRate, duration){
+  const total = left.length;
+  for(let i=0;i<total;i++){
+    const t = i / sampleRate;
+    const slow = Math.sin(t * 0.045 * TAU);
+    const slow2 = Math.sin(t * 0.062 * TAU + 1.3);
+    const voiceA = Math.sin(TAU * (110 + slow * 2.5) * t);
+    const voiceB = Math.sin(TAU * (165 + slow2 * 2.0) * t + 0.6);
+    const voiceC = Math.sin(TAU * (220 + Math.sin(t * 0.018 * TAU) * 3.5) * t + 1.1);
+    const shimmer = Math.sin(TAU * (55 + Math.sin(t * 0.01 * TAU) * 4) * t) * 0.35;
+    const noise = seededNoise(i, 4.2) * 0.06 * (0.4 + 0.6 * Math.sin(t * 0.08 * TAU + 2));
+    const pad = (voiceA * 0.5 + voiceB * 0.42 + voiceC * 0.36 + shimmer * 0.28) * 0.48 + noise;
+    const pan = Math.sin(t * 0.017 * TAU + 2.1) * 0.32;
+    left[i] = pad * (1 - pan);
+    right[i] = pad * (1 + pan);
+  }
+  applyStereoFadeEnvelope(left, right, sampleRate, 2.6);
+  normalizeStereo(left, right, 0.68);
+}
+
+function renderCloudlight(left, right, sampleRate, duration){
+  const total = left.length;
+  const voices = [349.23, 440.0, 523.25];
+  const weights = [0.46, 0.34, 0.28];
+  for(let i=0;i<total;i++){
+    const t = i / sampleRate;
+    let l=0, r=0;
+    const pulse = 0.55 + 0.45 * Math.sin(t * 0.12 * TAU);
+    for(let v=0; v<voices.length; v++){
+      const detune = Math.sin(t * (0.03 + v*0.018) * TAU + v) * 3.5;
+      const freq = voices[v] + detune;
+      const voice = Math.sin(TAU * freq * t + v * 0.8);
+      const pan = (v - 1) * 0.35 + Math.sin(t * 0.05 * TAU + v) * 0.12;
+      const amp = weights[v] * pulse;
+      l += voice * amp * (1 - pan);
+      r += voice * amp * (1 + pan);
+    }
+    const sparkle = seededNoise(i * 1.7, 8.2) * 0.045 * (0.35 + 0.65 * Math.sin(t * 0.42 * TAU));
+    left[i] = l + sparkle;
+    right[i] = r + sparkle * 0.85;
+  }
+  applyStereoFadeEnvelope(left, right, sampleRate, 1.6);
+  normalizeStereo(left, right, 0.74);
+}
+
+function renderLuminousAir(left, right, sampleRate, duration){
+  const total = left.length;
+  for(let i=0;i<total;i++){
+    const t = i / sampleRate;
+    const drift = Math.sin(t * 0.022 * TAU);
+    const voiceA = Math.sin(TAU * (196 + drift * 5) * t) * 0.55;
+    const voiceB = Math.sin(TAU * (294 + Math.sin(t * 0.019 * TAU + 2) * 7) * t + 1.2) * 0.48;
+    const airy = Math.sin(TAU * (147 + Math.sin(t * 0.083 * TAU) * 2.5) * t + 2.6) * 0.42;
+    const mod = 0.6 + 0.4 * Math.sin(t * 0.07 * TAU + 1.7);
+    const pad = (voiceA + voiceB + airy) * 0.32 * mod;
+    const breath = seededNoise(i * 0.9, 1.7) * 0.055 * (0.3 + 0.7 * Math.sin(t * 0.11 * TAU));
+    const shimmer = Math.sin(TAU * (880 + Math.sin(t * 0.5 * TAU) * 18) * t) * 0.028;
+    const pan = Math.sin(t * 0.026 * TAU + 0.5) * 0.38;
+    left[i] = pad * (1 - pan) + breath + shimmer * 0.6;
+    right[i] = pad * (1 + pan) + breath * 0.92 + shimmer;
+  }
+  applyStereoFadeEnvelope(left, right, sampleRate, 2.8);
+  normalizeStereo(left, right, 0.7);
 }
 
 // ===== Datastrukturer =====
