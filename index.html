@@ -413,7 +413,7 @@
             <input id="slSpawn" type="range" min="120" max="15000" value="900"><div class="val" id="lbSpawn">900</div>
 
             <div class="label">Obstacles</div>
-            <input id="slObst" type="range" min="0" max="40" value="8"><div class="val" id="lbObst">8</div>
+            <input id="slObst" type="range" min="0" max="40" value="0"><div class="val" id="lbObst">0</div>
 
             <div class="label">Trail length</div>
             <input id="slTail" type="range" min="4" max="1500" value="24"><div class="val" id="lbTail">24</div>
@@ -560,7 +560,7 @@ let dragRadius = 0;
 const params = {
   maxFruits: 32,
   spawnMs: 900,
-  obstacles: 8,
+  obstacles: 0,
   tailLen: 24,
   agentScale: 1.00,
   agentCollisions: false,
@@ -576,7 +576,7 @@ const params = {
     role:preset.role || 'collector',
     goalAnchor:Object.assign({}, preset.goalAnchor),
     spawn:preset.spawn ? { x:preset.spawn.x.slice(), y:preset.spawn.y.slice() } : { x:[0.1,0.9], y:[0.1,0.9] },
-    active:index < 2 || preset.role === 'blocker',
+    active:index < 2,
     count:28,
     speed:2.60,
     smart:1.80,
