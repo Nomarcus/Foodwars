@@ -81,6 +81,11 @@
     .label{font-size:13px; color:var(--muted); letter-spacing:.02em}
     .val{font-family:ui-monospace,Menlo,Consolas,monospace; font-size:12px; padding:4px 8px; border-radius:8px; background:rgba(10,16,46,.7); border:1px solid var(--silver); color:var(--accent-cyan); box-shadow:inset 0 0 12px rgba(56,189,248,.12)}
     input[type=range]{width:100%; accent-color:var(--accent-cyan)}
+    .fruit-placement-options{grid-column:2 / span 2; display:flex; flex-wrap:wrap; gap:8px}
+    .fruit-placement-option{position:relative; display:inline-flex; align-items:center; gap:8px; padding:8px 12px; border-radius:12px; border:1px solid var(--silver); background:rgba(12,18,44,.65); color:var(--muted); font-size:12px; font-weight:600; letter-spacing:.03em; cursor:pointer; transition:filter .2s ease, transform .2s ease, box-shadow .2s ease, border-color .2s ease}
+    .fruit-placement-option:hover{filter:brightness(1.05); transform:translateY(-1px)}
+    .fruit-placement-option.active{border-color:rgba(56,189,248,.55); color:var(--ink); background:rgba(12,22,56,.9); box-shadow:0 10px 24px rgba(56,189,248,.18)}
+    .fruit-placement-option input{position:absolute; inset:0; opacity:0; pointer-events:none}
     .btn{display:block; width:100%; padding:12px 14px; border-radius:12px; border:1px solid rgba(45,212,191,.45); background:linear-gradient(120deg, rgba(45,212,191,.18), rgba(59,130,246,.18)); color:var(--ink); cursor:pointer; text-align:center; margin-top:14px; font-weight:600; letter-spacing:.02em; transition:transform .2s ease, box-shadow .2s ease, filter .2s ease}
     .btn:hover{filter:brightness(1.08); transform:translateY(-1px); box-shadow:0 20px 36px rgba(45,212,191,.28)}
     .tool-hint{margin:0 0 14px; font-size:12px; line-height:1.6; color:var(--muted)}
@@ -380,6 +385,30 @@
             <div class="label">Fruit (max)</div>
             <input id="slFruits" type="range" min="2" max="1000" value="32"><div class="val" id="lbFruits">32</div>
 
+            <div class="label" id="fruitPlacementLabel">Fruit placement</div>
+            <div class="fruit-placement-options" role="group" aria-labelledby="fruitPlacementLabel">
+              <label class="fruit-placement-option">
+                <input type="checkbox" name="fruitPlacement" value="sw">
+                <span>Bottom left</span>
+              </label>
+              <label class="fruit-placement-option">
+                <input type="checkbox" name="fruitPlacement" value="se">
+                <span>Bottom right</span>
+              </label>
+              <label class="fruit-placement-option">
+                <input type="checkbox" name="fruitPlacement" value="ne">
+                <span>Top right</span>
+              </label>
+              <label class="fruit-placement-option">
+                <input type="checkbox" name="fruitPlacement" value="nw">
+                <span>Top left</span>
+              </label>
+              <label class="fruit-placement-option">
+                <input type="checkbox" name="fruitPlacement" value="random" checked>
+                <span>Random</span>
+              </label>
+            </div>
+
             <div class="label">Spawn (ms)</div>
             <input id="slSpawn" type="range" min="120" max="15000" value="900"><div class="val" id="lbSpawn">900</div>
 
@@ -454,6 +483,15 @@ const COLORS = {
   fruitOutline:'#000'
 };
 
+const FRUIT_PLACEMENT_LABELS = {
+  random: 'Random',
+  nw: 'Top left',
+  ne: 'Top right',
+  sw: 'Bottom left',
+  se: 'Bottom right'
+};
+const FRUIT_PLACEMENT_MODES = Object.keys(FRUIT_PLACEMENT_LABELS);
+
 const TEAM_PRESETS = [
   { id:'green', label:'Greens', icon:'🟢', color:'#00ff91', outline:'#003322', badge:'#bbf7d0', goalAnchor:{ x:0.86, y:0.35 }, spawn:{ x:[0.06,0.46], y:[0.12,0.92] } },
   { id:'red', label:'Reds', icon:'🔴', color:'#ff0055', outline:'#5a001a', badge:'#fecdd3', goalAnchor:{ x:0.14, y:0.65 }, spawn:{ x:[0.54,0.94], y:[0.08,0.9] } },
@@ -527,6 +565,7 @@ const params = {
   agentScale: 1.00,
   agentCollisions: false,
   showTopHighlight: true,
+  fruitPlacement: 'random',
   teams: TEAM_PRESETS.map((preset, index)=>({
     id:preset.id,
     label:preset.label,
@@ -1004,6 +1043,64 @@ const goalStates = {};
 const bestFitnessByTeam = {};
 const teamScoreBook = new Map();
 const teamScoreDisplays = new Map();
+
+function updateFruitPlacementUI(mode){
+  const options = document.querySelectorAll('.fruit-placement-options input[name="fruitPlacement"]');
+  options.forEach((input)=>{
+    const isActive = input.value === mode;
+    if(input.checked !== isActive){
+      input.checked = isActive;
+    }
+    const optionLabel = input.closest('.fruit-placement-option');
+    if(optionLabel){
+      optionLabel.classList.toggle('active', isActive);
+      optionLabel.setAttribute('data-selected', isActive ? 'true' : 'false');
+      const readable = FRUIT_PLACEMENT_LABELS[input.value] || input.value;
+      optionLabel.setAttribute('title', readable);
+    }
+  });
+  const placementLabel = Q('fruitPlacementLabel');
+  if(placementLabel){
+    placementLabel.setAttribute('data-selected', FRUIT_PLACEMENT_LABELS[mode] || mode);
+  }
+}
+
+function regenerateFruitField(){
+  const target = Math.max(0, Math.floor(params.maxFruits || 0));
+  fruits.length = 0;
+  for(let i=0;i<target;i++){
+    spawnFruit();
+  }
+  refreshStats();
+}
+
+function setFruitPlacement(mode, fromUser=false){
+  const normalized = FRUIT_PLACEMENT_MODES.includes(mode) ? mode : 'random';
+  if(params.fruitPlacement === normalized && !fromUser){
+    updateFruitPlacementUI(normalized);
+    return;
+  }
+  params.fruitPlacement = normalized;
+  updateFruitPlacementUI(normalized);
+  if(fromUser){
+    regenerateFruitField();
+  }
+}
+
+function initFruitPlacementControls(){
+  const options = Array.from(document.querySelectorAll('.fruit-placement-options input[name="fruitPlacement"]'));
+  if(!options.length) return;
+  options.forEach((input)=>{
+    input.addEventListener('change', ()=>{
+      if(input.checked){
+        setFruitPlacement(input.value, true);
+      }else if(params.fruitPlacement === input.value){
+        setFruitPlacement(params.fruitPlacement, false);
+      }
+    });
+  });
+  setFruitPlacement(params.fruitPlacement || 'random', false);
+}
 
 const PICKUP_REWARD = 8;
 const DELIVERY_REWARD = 120;
@@ -1755,8 +1852,107 @@ function obstacleClearance(o, px, py){
     }
   }
 }
-function findFreeFruitSpot(maxTry=80){ for(let i=0;i<maxTry;i++){ const x=rand(40,W-40), y=rand(40,H-40); if(goalTooClose(x,y,6,16)) continue; if(!pointInsideObstacle(x,y)) return {x,y}; } return null; }
-function spawnFruit(x=null,y=null){ if(fruits.length>=params.maxFruits) return; if(x==null||y==null){ const pos=findFreeFruitSpot(); if(!pos) return; x=pos.x; y=pos.y; } if(pointInsideObstacle(x,y)){ const pos=findFreeFruitSpot(); if(!pos) return; x=pos.x; y=pos.y; } fruits.push({x,y,r:6,color:COLORS.fruit}); }
+function getFruitSpawnArea(){
+  const mode = params.fruitPlacement;
+  if(!mode || mode === 'random') return null;
+  const margin = 48;
+  const spanX = Math.max(170, Math.min(280, W - margin*2));
+  const spanY = Math.max(150, Math.min(240, H - margin*2));
+  let minX = margin;
+  let minY = margin;
+  switch(mode){
+    case 'ne':
+      minX = Math.max(margin, W - margin - spanX);
+      break;
+    case 'se':
+      minX = Math.max(margin, W - margin - spanX);
+      minY = Math.max(margin, H - margin - spanY);
+      break;
+    case 'sw':
+      minY = Math.max(margin, H - margin - spanY);
+      break;
+    case 'nw':
+      // already top-left
+      break;
+    default:
+      return null;
+  }
+  const maxX = Math.min(W - margin, minX + spanX);
+  const maxY = Math.min(H - margin, minY + spanY);
+  return {
+    minX,
+    maxX,
+    minY,
+    maxY
+  };
+}
+
+function normalizeFruitArea(area){
+  if(!area) return null;
+  const minX = Math.max(40, Math.min(area.minX, W - 40));
+  const maxX = Math.min(area.maxX, W - 40);
+  const minY = Math.max(40, Math.min(area.minY, H - 40));
+  const maxY = Math.min(area.maxY, H - 40);
+  if(!Number.isFinite(minX) || !Number.isFinite(maxX) || maxX - minX < 20) return null;
+  if(!Number.isFinite(minY) || !Number.isFinite(maxY) || maxY - minY < 20) return null;
+  return { minX, maxX, minY, maxY };
+}
+
+function findFreeFruitSpot(maxTry=80, preferredArea=null){
+  const area = normalizeFruitArea(preferredArea);
+  const trySampler = (sampler)=>{
+    for(let i=0;i<maxTry;i++){
+      const { x, y } = sampler();
+      if(goalTooClose(x,y,6,16)) continue;
+      if(pointInsideObstacle(x,y)) continue;
+      return { x, y };
+    }
+    return null;
+  };
+  if(area){
+    const midX = (area.minX + area.maxX) / 2;
+    const midY = (area.minY + area.maxY) / 2;
+    const spanX = Math.max(20, (area.maxX - area.minX));
+    const spanY = Math.max(20, (area.maxY - area.minY));
+    const ringRadius = Math.max(36, Math.min(spanX, spanY) * 0.44);
+    const ringWidth = Math.max(18, Math.min(ringRadius * 0.6, Math.min(spanX, spanY) * 0.4));
+    const minRadius = Math.max(12, ringRadius - ringWidth * 0.5);
+    const maxRadius = ringRadius + ringWidth * 0.5;
+    const clusterSampler = ()=>{
+      const angle = Math.random() * TAU;
+      const radialJitter = clamp(randn() * ringWidth * 0.2, -ringWidth * 0.5, ringWidth * 0.5);
+      const radius = clamp(ringRadius + radialJitter, minRadius, maxRadius);
+      const orbitX = midX + Math.cos(angle) * radius;
+      const orbitY = midY + Math.sin(angle) * radius;
+      const jitterX = randn() * Math.min(6, ringWidth * 0.25);
+      const jitterY = randn() * Math.min(6, ringWidth * 0.25);
+      return {
+        x: clamp(orbitX + jitterX, area.minX, area.maxX),
+        y: clamp(orbitY + jitterY, area.minY, area.maxY)
+      };
+    };
+    const clusterSpot = trySampler(clusterSampler);
+    if(clusterSpot) return clusterSpot;
+  }
+  return trySampler(()=> ({ x: rand(40, W-40), y: rand(40, H-40) }));
+}
+
+function spawnFruit(x=null,y=null){
+  if(fruits.length>=params.maxFruits) return;
+  if(x==null||y==null){
+    const pos = findFreeFruitSpot(120, getFruitSpawnArea());
+    if(!pos) return;
+    x=pos.x;
+    y=pos.y;
+  }
+  if(pointInsideObstacle(x,y)){
+    const pos = findFreeFruitSpot(80, getFruitSpawnArea()) || findFreeFruitSpot();
+    if(!pos) return;
+    x=pos.x;
+    y=pos.y;
+  }
+  fruits.push({x,y,r:6,color:COLORS.fruit});
+}
 function goalTooClose(x,y,r,padding=40){
   for(const goal of getAllGoalStates()){
     if(Math.hypot(x-goal.x,y-goal.y) < goal.r + r + padding) return true;
@@ -3299,6 +3495,10 @@ function applyParamsSnapshot(snapshot){
     }
   }
 
+  if(typeof snapshot.fruitPlacement === 'string'){
+    setFruitPlacement(snapshot.fruitPlacement, false);
+  }
+
   if(Array.isArray(snapshot.teams) && snapshot.teams.length){
     const toNumber = (value)=>{
       const numeric = Number(value);
@@ -3561,6 +3761,7 @@ bindRange('slCrossover','lbCrossover',(v)=> `${v}% A`);
 bindRange('slTournament','lbTournament',(v)=> `×${(v/10).toFixed(1)}`);
 bindRange('slFresh','lbFresh',(v)=> `${v}%`);
 bindRange('slAgentScale','lbAgentScale',(v)=> (v/100).toFixed(2)+'×');
+initFruitPlacementControls();
 Q('btnReset').onclick = ()=> { awaitingManualAdvance=false; forceNextGen=false; simSteps=0; setup(); };
 Q('btnNextGen').onclick = ()=> { forceNextGen = true; };
 Q('chkAuto').addEventListener('change', ()=> readParams());
