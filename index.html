@@ -269,7 +269,7 @@
         <div class="brain-head">
           <div>
             <div class="brain-title">Neural Network Monitor</div>
-            <div class="brain-sub" id="brain-subtitle">Waiting for the first champion…</div>
+            <div class="brain-sub" id="brain-subtitle">The leading brain will appear here once a team starts scoring.</div>
             <div class="brain-controls">
               <label class="sr-only" for="brainTeamSelect">Choose the team to visualize</label>
               <select id="brainTeamSelect" class="brain-select">
@@ -299,8 +299,9 @@
         <summary>Neural network visual guide</summary>
         <div class="brain-guide-body">
           <p>
-            This simplified diagram breaks down the live neural network. Inputs on the left capture what an agent senses, the hidden
-            layer in the middle mixes those signals, and the outputs on the right steer direction and throttle.
+            This panel shows the brain of whichever team is winning the food race right now. Circles on the left are the signals the
+            agents feel — fruit direction, teammate distance, obstacle pings and the round timer. The middle dots mix those signals,
+            and the four outputs on the right tell the agent how to turn and how fast to move.
           </p>
           <figure class="brain-diagram">
             <svg viewBox="0 0 520 220" role="img" aria-labelledby="brain-diagram-title brain-diagram-desc">
@@ -369,8 +370,12 @@
             </svg>
           </figure>
           <p>
-            When weights glow brighter, that pathway carries a stronger influence. Cyan edges push movement in the same direction as
-            the input signal, while magenta edges push in the opposite direction.
+            Bright lines mean a strong signal. Cyan edges push movement in the same direction as the input, while magenta edges flip
+            the response. Watching the colours change makes it easier to spot why a team turns, speeds up or slows down.
+          </p>
+          <p>
+            The badge above the diagram lists which team owns the brain and which generation discovered it so you always know whose
+            strategy you are following.
           </p>
         </div>
       </details>
@@ -2356,12 +2361,12 @@ function updateBrainMeta(){
     if(!brainVizEnabled){
       if(bestBrainState.net){
         brainSubtitleEl.textContent = watchingTeam
-          ? 'Visualization paused — team stats still refresh in the background.'
-          : 'Visualization paused — leader stats still update in real time.';
+          ? 'View paused — team numbers still refresh in the background.'
+          : 'View paused — leader numbers still update in real time.';
       } else {
         brainSubtitleEl.textContent = watchingTeam
-          ? 'Visualization hidden until this team produces an active leader…'
-          : 'Visualization hidden until a leader emerges…';
+          ? 'View hidden until this team finds its first leader.'
+          : 'View hidden until a leader shows up.';
       }
     } else if(bestBrainState.net){
       if(bestBrainState.agentRef){
@@ -2371,16 +2376,16 @@ function updateBrainMeta(){
             ? Math.round(bestBrainState.agentRef.speedFactor * 100)
             : 100);
         const prefix = watchingTeam ? 'Team focus' : 'Top contender';
-        brainSubtitleEl.textContent = `${prefix} — live activations: cyan amplifies, pink dampens — throttle ${throttlePercent}% of max`;
+        brainSubtitleEl.textContent = `${prefix} — cyan links boost the signal, pink links reverse it — throttle at ${throttlePercent}% of max`;
       } else {
         brainSubtitleEl.textContent = watchingTeam
-          ? 'Best recorded brain for this team (snapshot) — Speed ± outputs control throttle'
-          : 'Highest fitness network (snapshot) — Speed ± outputs control throttle';
+          ? 'Saved brain for this team — Speed ± outputs adjust the throttle.'
+          : 'Saved best network — Speed ± outputs adjust the throttle.';
       }
     } else {
       brainSubtitleEl.textContent = watchingTeam
-        ? 'Waiting for the first leader from this team…'
-        : 'Waiting for the first champion…';
+        ? 'This team has not produced a leader yet.'
+        : 'The first winning brain will appear here soon.';
     }
   }
   if(brainTeamEl){
