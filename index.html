@@ -394,6 +394,9 @@
 
             <div class="label">Agent collisions</div>
             <input id="chkAgentCollisions" type="checkbox"><div class="val" id="lbAgentCollisions">off</div>
+
+            <div class="label">Top performer glow</div>
+            <input id="chkTopHighlight" type="checkbox" checked><div class="val" id="lbTopHighlight">on</div>
           </div>
           <button id="btnReset" class="btn">Restart</button>
         </div>
@@ -523,6 +526,7 @@ const params = {
   tailLen: 24,
   agentScale: 1.00,
   agentCollisions: false,
+  showTopHighlight: true,
   teams: TEAM_PRESETS.map((preset, index)=>({
     id:preset.id,
     label:preset.label,
@@ -631,6 +635,15 @@ function readParams(){
     const label = Q('lbAgentCollisions');
     if(label){
       label.textContent = collisionToggle.checked ? 'on' : 'off';
+    }
+  }
+
+  const topHighlightToggle = Q('chkTopHighlight');
+  if(topHighlightToggle){
+    params.showTopHighlight = topHighlightToggle.checked;
+    const label = Q('lbTopHighlight');
+    if(label){
+      label.textContent = topHighlightToggle.checked ? 'on' : 'off';
     }
   }
 
@@ -3057,6 +3070,7 @@ function drawObstacleShape(o, time, preview=false){
 }
 
 function drawTopAgentHighlight(agent, radius){
+  if(!params.showTopHighlight) return;
   if(!agent) return;
   const haloRadius = radius + Math.max(4, radius * 0.6);
   ctx.save();
@@ -3143,7 +3157,7 @@ function draw(){
         ctx.stroke();
       }
       drawTrail(a.trail, team.config.color);
-      if(topAgent && a === topAgent){
+      if(params.showTopHighlight && topAgent && a === topAgent){
         drawTopAgentHighlight(a, agentRadius);
       }
     }
@@ -3273,6 +3287,14 @@ function applyParamsSnapshot(snapshot){
     const toggle = Q('chkAgentCollisions');
     if(toggle){
       toggle.checked = !!snapshot.agentCollisions;
+      toggle.dispatchEvent(new Event('change', { bubbles:true }));
+    }
+  }
+
+  if(snapshot.showTopHighlight !== undefined){
+    const toggle = Q('chkTopHighlight');
+    if(toggle){
+      toggle.checked = !!snapshot.showTopHighlight;
       toggle.dispatchEvent(new Event('change', { bubbles:true }));
     }
   }
@@ -3545,6 +3567,11 @@ Q('chkAuto').addEventListener('change', ()=> readParams());
 const chkAgentCollisions = Q('chkAgentCollisions');
 if(chkAgentCollisions){
   chkAgentCollisions.addEventListener('change', ()=> readParams());
+}
+
+const chkTopHighlight = Q('chkTopHighlight');
+if(chkTopHighlight){
+  chkTopHighlight.addEventListener('change', ()=> readParams());
 }
 
 window.addEventListener('beforeunload', clearCurrentObjectUrl);
