@@ -1419,6 +1419,17 @@ function moveObstacleTo(o, nx, ny){
   }
 }
 
+function computeObstacleDragOffset(o, pointerX, pointerY){
+  if(!o) return { dx:0, dy:0 };
+  switch(o.type){
+    case 'circle':
+    case 'half':
+      return { dx:0, dy:0 };
+    default:
+      return { dx:o.x - pointerX, dy:o.y - pointerY };
+  }
+}
+
 function distanceToSegment(px, py, x1, y1, x2, y2){
   const vx = x2 - x1;
   const vy = y2 - y1;
@@ -1520,7 +1531,14 @@ canvas.addEventListener('mousedown', (e)=>{
   for(let i=obstacles.length-1; i>=0; i--){
     const o=obstacles[i];
     if(obstacleHitTest(o, x, y)){
-      dragTarget=o; dragKind='obst'; dragIndex=i; dragDX=o.x - x; dragDY=o.y - y; dragRadius=getObstacleRadius(o); return;
+      const offset = computeObstacleDragOffset(o, x, y);
+      dragTarget = o;
+      dragKind = 'obst';
+      dragIndex = i;
+      dragDX = offset.dx;
+      dragDY = offset.dy;
+      dragRadius = getObstacleRadius(o);
+      return;
     }
   }
   for(const goal of getAllGoalStates()){
@@ -3038,6 +3056,30 @@ function drawObstacleShape(o, time, preview=false){
   ctx.restore();
 }
 
+function drawTopAgentHighlight(agent, radius){
+  if(!agent) return;
+  const haloRadius = radius + Math.max(4, radius * 0.6);
+  ctx.save();
+  ctx.lineWidth = Math.max(2, radius * 0.9);
+  ctx.strokeStyle = 'rgba(251,191,36,0.85)';
+  ctx.shadowColor = 'rgba(251,191,36,0.65)';
+  ctx.shadowBlur = 16;
+  ctx.beginPath();
+  ctx.arc(agent.x, agent.y, haloRadius, 0, Math.PI*2);
+  ctx.stroke();
+  ctx.restore();
+
+  ctx.save();
+  const crownSize = Math.max(16, radius * 3.4);
+  ctx.font = `600 ${crownSize}px "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", "Twemoji Mozilla", sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'bottom';
+  ctx.shadowColor = 'rgba(251,191,36,0.6)';
+  ctx.shadowBlur = 10;
+  ctx.fillText('👑', agent.x, agent.y - radius - 6);
+  ctx.restore();
+}
+
 function draw(){
   ctx.clearRect(0,0,W,H);
 
@@ -3071,6 +3113,17 @@ function draw(){
   }
 
   // Agents (no shadow flash)
+  let topAgent = null;
+  let topAgentFitness = -Infinity;
+  for(const team of activeTeamStates){
+    for(const agent of team.agents){
+      const f = Number(agent.fitness);
+      if(Number.isFinite(f) && f > topAgentFitness){
+        topAgentFitness = f;
+        topAgent = agent;
+      }
+    }
+  }
   for(const team of activeTeamStates){
     const outline = team.config.outline || '#0f172a';
     for(const a of team.agents){
@@ -3090,6 +3143,9 @@ function draw(){
         ctx.stroke();
       }
       drawTrail(a.trail, team.config.color);
+      if(topAgent && a === topAgent){
+        drawTopAgentHighlight(a, agentRadius);
+      }
     }
   }
 }
