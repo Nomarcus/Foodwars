@@ -389,19 +389,19 @@
             <div class="fruit-placement-options" role="group" aria-labelledby="fruitPlacementLabel">
               <label class="fruit-placement-option">
                 <input type="checkbox" name="fruitPlacement" value="sw">
-                <span>Vänster nere</span>
+                <span>Bottom left</span>
               </label>
               <label class="fruit-placement-option">
                 <input type="checkbox" name="fruitPlacement" value="se">
-                <span>Höger nere</span>
+                <span>Bottom right</span>
               </label>
               <label class="fruit-placement-option">
                 <input type="checkbox" name="fruitPlacement" value="ne">
-                <span>Höger uppe</span>
+                <span>Top right</span>
               </label>
               <label class="fruit-placement-option">
                 <input type="checkbox" name="fruitPlacement" value="nw">
-                <span>Vänster uppe</span>
+                <span>Top left</span>
               </label>
               <label class="fruit-placement-option">
                 <input type="checkbox" name="fruitPlacement" value="random" checked>
@@ -485,10 +485,10 @@ const COLORS = {
 
 const FRUIT_PLACEMENT_LABELS = {
   random: 'Random',
-  nw: 'Vänster uppe',
-  ne: 'Höger uppe',
-  sw: 'Vänster nere',
-  se: 'Höger nere'
+  nw: 'Top left',
+  ne: 'Top right',
+  sw: 'Bottom left',
+  se: 'Bottom right'
 };
 const FRUIT_PLACEMENT_MODES = Object.keys(FRUIT_PLACEMENT_LABELS);
 
@@ -1856,8 +1856,8 @@ function getFruitSpawnArea(){
   const mode = params.fruitPlacement;
   if(!mode || mode === 'random') return null;
   const margin = 48;
-  const spanX = Math.max(180, Math.min(320, W - margin*2));
-  const spanY = Math.max(160, Math.min(260, H - margin*2));
+  const spanX = Math.max(170, Math.min(280, W - margin*2));
+  const spanY = Math.max(150, Math.min(240, H - margin*2));
   let minX = margin;
   let minY = margin;
   switch(mode){
@@ -1877,11 +1877,13 @@ function getFruitSpawnArea(){
     default:
       return null;
   }
+  const maxX = Math.min(W - margin, minX + spanX);
+  const maxY = Math.min(H - margin, minY + spanY);
   return {
     minX,
-    maxX: Math.min(W - margin, minX + spanX),
+    maxX,
     minY,
-    maxY: Math.min(H - margin, minY + spanY)
+    maxY
   };
 }
 
@@ -1910,12 +1912,25 @@ function findFreeFruitSpot(maxTry=80, preferredArea=null){
   if(area){
     const midX = (area.minX + area.maxX) / 2;
     const midY = (area.minY + area.maxY) / 2;
-    const spreadX = (area.maxX - area.minX) / 2;
-    const spreadY = (area.maxY - area.minY) / 2;
-    const clusterSampler = ()=>({
-      x: clamp(midX + randn()*spreadX*0.55, area.minX, area.maxX),
-      y: clamp(midY + randn()*spreadY*0.55, area.minY, area.maxY)
-    });
+    const spanX = Math.max(20, (area.maxX - area.minX));
+    const spanY = Math.max(20, (area.maxY - area.minY));
+    const ringRadius = Math.max(36, Math.min(spanX, spanY) * 0.44);
+    const ringWidth = Math.max(18, Math.min(ringRadius * 0.6, Math.min(spanX, spanY) * 0.4));
+    const minRadius = Math.max(12, ringRadius - ringWidth * 0.5);
+    const maxRadius = ringRadius + ringWidth * 0.5;
+    const clusterSampler = ()=>{
+      const angle = Math.random() * TAU;
+      const radialJitter = clamp(randn() * ringWidth * 0.2, -ringWidth * 0.5, ringWidth * 0.5);
+      const radius = clamp(ringRadius + radialJitter, minRadius, maxRadius);
+      const orbitX = midX + Math.cos(angle) * radius;
+      const orbitY = midY + Math.sin(angle) * radius;
+      const jitterX = randn() * Math.min(6, ringWidth * 0.25);
+      const jitterY = randn() * Math.min(6, ringWidth * 0.25);
+      return {
+        x: clamp(orbitX + jitterX, area.minX, area.maxX),
+        y: clamp(orbitY + jitterY, area.minY, area.maxY)
+      };
+    };
     const clusterSpot = trySampler(clusterSampler);
     if(clusterSpot) return clusterSpot;
   }
