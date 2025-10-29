@@ -2948,7 +2948,6 @@ function drawTrail(trail,color){
 function drawGoal(teamState){
   const g = teamState.goal;
   const tint = teamState.config.color;
-  const scoreboard = teamState.scoreboard || getTeamScoreData(teamState.config.id);
   ctx.beginPath();
   ctx.arc(g.x,g.y,g.r,0,Math.PI*2);
   ctx.fillStyle=COLORS.goalFill;
@@ -2963,11 +2962,7 @@ function drawGoal(teamState){
   ctx.fillStyle='#fff';
   ctx.textAlign='center';
   ctx.textBaseline='middle';
-  if(teamState.config.role === 'blocker'){
-    const blocks = scoreboard?.blocks || 0;
-    ctx.font='bold 16px ui-sans-serif';
-    ctx.fillText(`${blocks} blocks`, g.x, g.y);
-  } else {
+  if(teamState.config.role !== 'blocker'){
     ctx.font='bold 18px ui-sans-serif';
     ctx.fillText(String(g.delivered), g.x, g.y);
   }
