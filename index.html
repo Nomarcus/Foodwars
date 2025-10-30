@@ -3151,12 +3151,29 @@ function setup(){
     const maxX = (spawn.x?.[1] ?? 0.9) * W;
     const minY = (spawn.y?.[0] ?? 0.1) * H;
     const maxY = (spawn.y?.[1] ?? 0.9) * H;
+    const goal = state.goal;
+    const agentPadding = Math.max(AGENT_BASE_RADIUS * params.agentScale, 4);
     for(let i=0;i<state.config.count;i++){
       const netRef = state.population[i] || { net:makeNet(), fitness:0 };
       if(!state.population[i]) state.population[i] = netRef;
       netRef.fitness = 0;
       const AgentClass = state.config.role === 'blocker' ? Blocker : Collector;
-      const agent = new AgentClass(rand(minX, maxX), rand(minY, maxY), state, netRef);
+      let spawnX = rand(minX, maxX);
+      let spawnY = rand(minY, maxY);
+      if(goal){
+        const maxRadius = Math.max(0, goal.r - agentPadding);
+        if(maxRadius === 0){
+          spawnX = clamp(goal.x, agentPadding, W - agentPadding);
+          spawnY = clamp(goal.y, agentPadding, H - agentPadding);
+        } else {
+          const minRadius = Math.max(0, maxRadius * 0.35);
+          const radius = minRadius + Math.random() * (maxRadius - minRadius);
+          const angle = Math.random() * Math.PI * 2;
+          spawnX = clamp(goal.x + Math.cos(angle) * radius, agentPadding, W - agentPadding);
+          spawnY = clamp(goal.y + Math.sin(angle) * radius, agentPadding, H - agentPadding);
+        }
+      }
+      const agent = new AgentClass(spawnX, spawnY, state, netRef);
       state.agents.push(agent);
     }
   });
