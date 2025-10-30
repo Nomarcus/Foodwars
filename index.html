@@ -88,6 +88,7 @@
     .fruit-placement-option input{position:absolute; inset:0; opacity:0; pointer-events:none}
     .btn{display:block; width:100%; padding:12px 14px; border-radius:12px; border:1px solid rgba(45,212,191,.45); background:linear-gradient(120deg, rgba(45,212,191,.18), rgba(59,130,246,.18)); color:var(--ink); cursor:pointer; text-align:center; margin-top:14px; font-weight:600; letter-spacing:.02em; transition:transform .2s ease, box-shadow .2s ease, filter .2s ease}
     .btn:hover{filter:brightness(1.08); transform:translateY(-1px); box-shadow:0 20px 36px rgba(45,212,191,.28)}
+    .btn:disabled{opacity:.55; cursor:not-allowed; filter:saturate(.5); box-shadow:none}
     .tool-hint{margin:0 0 14px; font-size:12px; line-height:1.6; color:var(--muted)}
     .tool-buttons{display:grid; grid-template-columns:repeat(auto-fit,minmax(120px,1fr)); gap:10px}
     .tool-btn{padding:10px 12px; border-radius:12px; border:1px solid rgba(59,130,246,.28); background:rgba(18,27,66,.6); color:var(--ink); font-size:13px; font-weight:600; letter-spacing:.02em; cursor:pointer; transition:transform .2s ease, box-shadow .2s ease, filter .2s ease, border-color .2s ease}
@@ -211,6 +212,7 @@
             <button class="tool-btn" data-tool="line" aria-pressed="false">Line</button>
             <button class="tool-btn" data-tool="half" aria-pressed="false">Half circle</button>
           </div>
+          <button id="btnUndoManual" class="btn" disabled>Undo last manual obstacle</button>
           <button id="btnClearManual" class="btn">Clear manual obstacles</button>
         </div>
       </div>
@@ -1636,6 +1638,22 @@ function createCircleObstacle(x, y, r, paletteIndex=0, manual=false){
   return { type:'circle', x, y, r, paletteIndex, phase:Math.random()*Math.PI*2, manual };
 }
 
+function getManualObstacleCount(){
+  let count = 0;
+  for(const obstacle of obstacles){
+    if(obstacle.manual) count++;
+  }
+  return count;
+}
+
+function syncManualObstacleState(){
+  const manualCount = getManualObstacleCount();
+  manualPaletteCursor = manualCount % OBSTACLE_COLORS.length;
+  if(btnUndoManual){
+    btnUndoManual.disabled = manualCount === 0;
+  }
+}
+
 canvas.addEventListener('mousedown', (e)=>{
   const {x, y} = getCanvasCoords(e);
   if(currentTool !== TOOL_SELECT){
@@ -1700,6 +1718,7 @@ window.addEventListener('mouseup', ()=>{
       manualPaletteCursor = (manualPaletteCursor + 1) % OBSTACLE_COLORS.length;
       keepObstacleInside(created);
       obstacles.push(created);
+      syncManualObstacleState();
     }
     drawingState = null;
   }
@@ -3809,6 +3828,19 @@ if(toolButtons.length){
   setTool(TOOL_SELECT);
 }
 
+const btnUndoManual = Q('btnUndoManual');
+if(btnUndoManual){
+  btnUndoManual.addEventListener('click', ()=>{
+    for(let i=obstacles.length-1; i>=0; i--){
+      if(obstacles[i].manual){
+        obstacles.splice(i,1);
+        break;
+      }
+    }
+    syncManualObstacleState();
+  });
+}
+
 const btnClearManual = Q('btnClearManual');
 if(btnClearManual){
   btnClearManual.addEventListener('click', ()=>{
@@ -3817,9 +3849,11 @@ if(btnClearManual){
         obstacles.splice(i,1);
       }
     }
-    manualPaletteCursor = 0;
+    syncManualObstacleState();
   });
 }
+
+syncManualObstacleState();
 
 if(brainCanvas){
   window.addEventListener('resize', ()=>{
