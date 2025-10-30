@@ -1903,6 +1903,66 @@ function normalizeFruitArea(area){
   return { minX, maxX, minY, maxY };
 }
 
+function selectFruitClusterCenter(area, clusterRadius, fallbackX, fallbackY){
+  const keepouts = getAllGoalStates()
+    .map((goal)=> ({ x: goal.x, y: goal.y, r: goal.r + 10 }))
+    .filter((keep)=> (
+      keep.x >= area.minX - keep.r && keep.x <= area.maxX + keep.r &&
+      keep.y >= area.minY - keep.r && keep.y <= area.maxY + keep.r
+    ));
+  if(keepouts.length === 0){
+    return { x: fallbackX, y: fallbackY };
+  }
+
+  const padX = Math.min(clusterRadius * 0.75, (area.maxX - area.minX) * 0.5);
+  const padY = Math.min(clusterRadius * 0.75, (area.maxY - area.minY) * 0.5);
+  let clampMinX = area.minX + padX;
+  let clampMaxX = area.maxX - padX;
+  let clampMinY = area.minY + padY;
+  let clampMaxY = area.maxY - padY;
+  if(clampMinX > clampMaxX){
+    const mid = (area.minX + area.maxX) / 2;
+    clampMinX = clampMaxX = mid;
+  }
+  if(clampMinY > clampMaxY){
+    const mid = (area.minY + area.maxY) / 2;
+    clampMinY = clampMaxY = mid;
+  }
+
+  const candidates = [];
+  const addCandidate = (x, y)=>{
+    const cx = clamp(x, clampMinX, clampMaxX);
+    const cy = clamp(y, clampMinY, clampMaxY);
+    candidates.push({ x: cx, y: cy });
+  };
+
+  addCandidate(fallbackX, fallbackY);
+  addCandidate(area.minX + padX, area.minY + padY);
+  addCandidate(area.maxX - padX, area.minY + padY);
+  addCandidate(area.maxX - padX, area.maxY - padY);
+  addCandidate(area.minX + padX, area.maxY - padY);
+  for(const keep of keepouts){
+    const angle = Math.atan2(fallbackY - keep.y, fallbackX - keep.x);
+    const targetDist = keep.r + Math.min(clusterRadius * 0.6, 32);
+    addCandidate(keep.x - Math.cos(angle || 0) * targetDist, keep.y - Math.sin(angle || 0) * targetDist);
+  }
+
+  let best = { x: clamp(fallbackX, clampMinX, clampMaxX), y: clamp(fallbackY, clampMinY, clampMaxY) };
+  let bestScore = -Infinity;
+  for(const candidate of candidates){
+    let minClear = Infinity;
+    for(const keep of keepouts){
+      const clearance = Math.hypot(candidate.x - keep.x, candidate.y - keep.y) - keep.r;
+      if(clearance < minClear) minClear = clearance;
+    }
+    if(minClear > bestScore){
+      bestScore = minClear;
+      best = candidate;
+    }
+  }
+  return best;
+}
+
 function findFreeFruitSpot(maxTry=80, preferredArea=null){
   const area = normalizeFruitArea(preferredArea);
   const trySampler = (sampler)=>{
@@ -1922,11 +1982,12 @@ function findFreeFruitSpot(maxTry=80, preferredArea=null){
     const baseRadius = Math.min(spanX, spanY) * 0.45;
     const clusterRadius = clamp(baseRadius, 32, Math.min(spanX, spanY) * 0.5);
     const jitterLimit = Math.min(8, clusterRadius * 0.28);
+    const clusterCenter = selectFruitClusterCenter(area, clusterRadius, midX, midY);
     const clusterSampler = ()=>{
       const angle = Math.random() * TAU;
       const radius = Math.sqrt(Math.random()) * clusterRadius;
-      const orbitX = midX + Math.cos(angle) * radius;
-      const orbitY = midY + Math.sin(angle) * radius;
+      const orbitX = clusterCenter.x + Math.cos(angle) * radius;
+      const orbitY = clusterCenter.y + Math.sin(angle) * radius;
       const jitterX = clamp(randn() * jitterLimit, -jitterLimit, jitterLimit);
       const jitterY = clamp(randn() * jitterLimit, -jitterLimit, jitterLimit);
       return {
