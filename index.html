@@ -676,7 +676,7 @@ function updateMusicMeta(track, stateOverride=null){
   const state = stateOverride || (isMusicPlaying ? 'Playing' : 'Paused');
   Q('lbMusicState').textContent = state;
   Q('lbMusicNow').textContent = `${track.title} — ${track.artist}`;
-  Q('lbMusicSource').textContent = `File: audio/${track.filename}`;
+  Q('lbMusicSource').textContent = `File: /Audio/${track.filename}`;
 }
 
 let awaitingAudioUnlock = false;
