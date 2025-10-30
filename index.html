@@ -220,7 +220,7 @@
       <div class="panel" id="panel-music">
         <div class="panel-head"><div class="h">Ambient Sound Lounge</div><span class="chev">▾</span></div>
         <div class="panel-body">
-          <p class="music-lead">Slip into focus with a hand-picked selection of calm, looping ambient tracks.</p>
+          <p class="music-lead">Play MP3 files from your audio folder. Add your own tracks to the list!</p>
           <div class="music-select">
             <label class="label" for="selMusic">Curated playlist</label>
             <select id="selMusic" class="music-dropdown"></select>
@@ -594,80 +594,47 @@ const params = {
 };
 let lastObstCount = params.obstacles;
 
+// MP3 files from the audio folder
+// Add your MP3 files here - just add the filename (they should be in an 'audio' folder next to this HTML file)
 const MUSIC_TRACKS = [
-  {
-    title: 'Forest Haze',
-    artist: 'FoodSim Ensemble',
-    source: 'Procedurally generated drone in C – loops seamlessly offline.',
-    duration: 24,
-    render: renderForestHaze
-  },
-  {
-    title: 'Cloudlight',
-    artist: 'FoodSim Ensemble',
-    source: 'Procedurally generated airy chords in F major – works without internet.',
-    duration: 20,
-    render: renderCloudlight
-  },
-  {
-    title: 'Luminous Air',
-    artist: 'FoodSim Ensemble',
-    source: 'Procedurally generated evolving pad built into this demo.',
-    duration: 26,
-    render: renderLuminousAir
-  }
+  { filename: 'track1.mp3', title: 'Track 1', artist: 'Unknown Artist' },
+  { filename: 'track2.mp3', title: 'Track 2', artist: 'Unknown Artist' },
+  { filename: 'track3.mp3', title: 'Track 3', artist: 'Unknown Artist' },
+  // Add more tracks here as needed
 ];
+
 let currentTrackIndex = 0;
-let currentTrackToken = 0;
-let currentTrackBuffer = null;
 let isMusicPlaying = false;
-
-let currentObjectUrl = null;
-let currentObjectUrlToken = 0;
-
-function setCurrentObjectUrl(url){
-  clearCurrentObjectUrl();
-  currentObjectUrl = url;
-  currentObjectUrlToken++;
-  return { url, token: currentObjectUrlToken };
-}
-
-function clearCurrentObjectUrl(expectedToken=null){
-  if(expectedToken != null && expectedToken !== currentObjectUrlToken) return;
-  if(currentObjectUrl){
-    try{ URL.revokeObjectURL(currentObjectUrl); }catch(_err){ /* ignore */ }
-    currentObjectUrl = null;
-  }
-}
-
-let audioCtx = null;
-let masterGain = null;
-let currentSource = null;
-const trackBufferCache = new Map();
-let pendingTrackPromise = null;
-let pendingVolume = 0.55;
 let musicToggleBtn = null;
+let audioElement = null;
+let pendingVolume = 0.55;
 
-function ensureAudioContext(){
-  if(audioCtx) return audioCtx;
-  const AudioCtx = window.AudioContext || window.webkitAudioContext;
-  if(!AudioCtx){
-    throw new Error('Web Audio API not supported');
+// Initialize HTML5 Audio element
+function initAudioElement(){
+  if(!audioElement){
+    audioElement = new Audio();
+    audioElement.loop = true;
+    audioElement.volume = pendingVolume;
+    audioElement.addEventListener('ended', ()=>{
+      isMusicPlaying = false;
+      updateMusicMeta(MUSIC_TRACKS[currentTrackIndex], 'Ended');
+      updateMusicButton();
+    });
+    audioElement.addEventListener('error', (e)=>{
+      console.error('Audio playback error:', e);
+      isMusicPlaying = false;
+      updateMusicMeta(MUSIC_TRACKS[currentTrackIndex], 'Error loading track');
+      updateMusicButton();
+    });
+    audioElement.addEventListener('canplay', ()=>{
+      if(isMusicPlaying){
+        updateMusicMeta(MUSIC_TRACKS[currentTrackIndex], 'Playing');
+      }
+    });
   }
-  audioCtx = new AudioCtx();
-  masterGain = audioCtx.createGain();
-  masterGain.gain.value = pendingVolume;
-  masterGain.connect(audioCtx.destination);
-  return audioCtx;
+  return audioElement;
 }
 
-async function resumeAudioContext(){
-  const ctx = ensureAudioContext();
-  if(ctx.state === 'suspended'){
-    await ctx.resume();
-  }
-  return ctx;
-}
 
 function readParams(){
   params.maxFruits = +Q('slFruits').value; Q('lbFruits').textContent=params.maxFruits;
@@ -711,7 +678,7 @@ function updateMusicMeta(track, stateOverride=null){
   const state = stateOverride || (isMusicPlaying ? 'Playing' : 'Paused');
   Q('lbMusicState').textContent = state;
   Q('lbMusicNow').textContent = `${track.title} — ${track.artist}`;
-  Q('lbMusicSource').textContent = track.source;
+  Q('lbMusicSource').textContent = `File: audio/${track.filename}`;
 }
 
 let awaitingAudioUnlock = false;
@@ -723,10 +690,8 @@ function updateMusicButton(){
 }
 
 function stopCurrentTrack(silent=false){
-  if(currentSource){
-    try{ currentSource.stop(); }catch(err){ /* ignore stop errors */ }
-    currentSource.disconnect();
-    currentSource = null;
+  if(audioElement){
+    audioElement.pause();
   }
   isMusicPlaying = false;
   if(!silent){
@@ -735,110 +700,27 @@ function stopCurrentTrack(silent=false){
   }
 }
 
-function createAudioBuffer(channels, length, sampleRate){
-  if(typeof AudioBuffer === 'function'){
-    return new AudioBuffer({ numberOfChannels: channels, length, sampleRate });
-  }
-  const OfflineCtx = window.OfflineAudioContext || window.webkitOfflineAudioContext;
-  if(OfflineCtx){
-    const offline = new OfflineCtx(channels, length, sampleRate);
-    return offline.createBuffer(channels, length, sampleRate);
-  }
-  const AudioCtx = window.AudioContext || window.webkitAudioContext;
-  if(AudioCtx){
-    const tempCtx = new AudioCtx();
-    const buffer = tempCtx.createBuffer(channels, length, sampleRate);
-    if(typeof tempCtx.close === 'function') tempCtx.close();
-    return buffer;
-  }
-  throw new Error('Web Audio API not supported');
-}
-
-async function ensureTrackBuffer(track, sampleRate){
-  let buffersForRate = trackBufferCache.get(sampleRate);
-  if(!buffersForRate){
-    buffersForRate = new Map();
-    trackBufferCache.set(sampleRate, buffersForRate);
-  }
-  if(buffersForRate.has(track)) return buffersForRate.get(track);
-  const buffer = generateProceduralBuffer(track, sampleRate);
-  buffersForRate.set(track, buffer);
-  return buffer;
-}
-
-function generateProceduralBuffer(track, sampleRate){
-  const duration = Math.max(4, track.duration || 20);
-  const length = Math.max(1, Math.floor(duration * sampleRate));
-  const buffer = createAudioBuffer(2, length, sampleRate);
-  const left = buffer.getChannelData(0);
-  const right = buffer.getChannelData(1);
-  track.render(left, right, sampleRate, duration);
-  return buffer;
-}
-
-function requestAudioUnlock(){
-  if(awaitingAudioUnlock) return;
-  awaitingAudioUnlock = true;
-  const resume = async ()=>{
-    document.removeEventListener('pointerdown', resume);
-    document.removeEventListener('keydown', resume);
-    awaitingAudioUnlock = false;
-    try{
-      await playCurrentTrack();
-    }catch(err){
-      handlePlaybackFailure(err, MUSIC_TRACKS[currentTrackIndex]);
-    }
-  };
-  document.addEventListener('pointerdown', resume, { once:true });
-  document.addEventListener('keydown', resume, { once:true });
-}
-
-function handlePlaybackFailure(err, track){
-  if(!err) return;
-  const activeTrack = track || MUSIC_TRACKS[currentTrackIndex];
-  isMusicPlaying = false;
-  if(err.name === 'NotAllowedError' || err.name === 'SecurityError'){
-    updateMusicMeta(activeTrack, 'Tap to enable audio');
-    updateMusicButton();
-    requestAudioUnlock();
-    console.warn('Music playback is blocked until the page receives a user interaction.', err);
-  } else if(err.message === 'Web Audio API not supported' || err.name === 'NotSupportedError'){
-    updateMusicMeta(activeTrack, 'Audio unavailable');
-    Q('lbMusicNow').textContent = 'This browser cannot synthesize the selected track.';
-    updateMusicButton();
-    console.error('Music playback failed', err);
-  } else {
-    updateMusicMeta(activeTrack, 'Playback failed');
-    updateMusicButton();
-    console.error('Music playback failed', err);
-  }
-}
-
 async function playCurrentTrack(){
   const track = MUSIC_TRACKS[currentTrackIndex];
   try{
-    const ctx = await resumeAudioContext();
-    const buffer = await ensureTrackBuffer(track, ctx.sampleRate);
-    currentTrackBuffer = buffer;
+    const audio = initAudioElement();
     stopCurrentTrack(true);
-    const source = ctx.createBufferSource();
-    source.buffer = buffer;
-    source.loop = true;
-    source.connect(masterGain);
-    source.start();
-    currentSource = source;
+    
+    // Set the audio source to the MP3 file in the audio folder
+    audio.src = `audio/${track.filename}`;
+    audio.load();
+    
+    // Play the audio
+    await audio.play();
     isMusicPlaying = true;
-    source.addEventListener('ended', ()=>{
-      if(currentSource === source){
-        isMusicPlaying = false;
-        updateMusicMeta(track, 'Paused');
-        updateMusicButton();
-      }
-    });
+    
     updateMusicMeta(track, 'Playing');
     updateMusicButton();
   }catch(err){
-    handlePlaybackFailure(err, track);
+    console.error('Playback error:', err);
+    isMusicPlaying = false;
+    updateMusicMeta(track, 'Error: ' + err.message);
+    updateMusicButton();
     throw err;
   }
 }
@@ -848,44 +730,26 @@ async function setMusicTrack(index, autoplay=false){
   const track = MUSIC_TRACKS[index];
   const shouldAutoplay = autoplay || isMusicPlaying;
   currentTrackIndex = index;
-  const token = ++currentTrackToken;
 
   stopCurrentTrack(true);
   updateMusicButton();
-  updateMusicMeta(track, 'Preparing…');
+  updateMusicMeta(track, 'Loading…');
 
-  let sampleRate = 44100;
   try{
-    const ctx = ensureAudioContext();
-    sampleRate = ctx.sampleRate || sampleRate;
+    const audio = initAudioElement();
+    audio.src = `audio/${track.filename}`;
+    
+    if(shouldAutoplay){
+      await playCurrentTrack();
+    } else {
+      isMusicPlaying = false;
+      updateMusicMeta(track, 'Ready');
+      updateMusicButton();
+    }
   }catch(err){
-    handlePlaybackFailure(err, track);
-    return;
+    console.error('Track loading error:', err);
+    updateMusicMeta(track, 'Error loading track');
   }
-
-  const promise = ensureTrackBuffer(track, sampleRate)
-    .then(async buffer => {
-      if(token !== currentTrackToken) return;
-      currentTrackBuffer = buffer;
-      if(shouldAutoplay){
-        await playCurrentTrack();
-      } else {
-        isMusicPlaying = false;
-        updateMusicMeta(track, 'Ready');
-        updateMusicButton();
-      }
-    })
-    .catch(err => {
-      handlePlaybackFailure(err, track);
-    })
-    .finally(()=>{
-      if(token === currentTrackToken){
-        pendingTrackPromise = null;
-      }
-    });
-
-  pendingTrackPromise = promise;
-  return promise;
 }
 
 function initMusicPanel(){
@@ -905,8 +769,8 @@ function initMusicPanel(){
   const applyVolume = ()=>{
     const value = Math.round(vol.value);
     pendingVolume = value/100;
-    if(masterGain){
-      masterGain.gain.setValueAtTime(pendingVolume, masterGain.context.currentTime);
+    if(audioElement){
+      audioElement.volume = pendingVolume;
     }
     volLabel.textContent = `${value}%`;
   };
@@ -937,111 +801,7 @@ function initMusicPanel(){
   setMusicTrack(currentTrackIndex, false);
 }
 
-const TAU = Math.PI * 2;
-
-function seededNoise(idx, offset=0){
-  const x = Math.sin((idx + offset) * 12.9898) * 43758.5453123;
-  return (x - Math.floor(x)) * 2 - 1;
-}
-
-function applyStereoFadeEnvelope(left, right, sampleRate, seconds){
-  const fadeSamples = Math.min(Math.floor(seconds * sampleRate), Math.floor(left.length/2));
-  if(fadeSamples <= 0) return;
-  const total = left.length;
-  for(let i=0; i<total; i++){
-    let gain = 1;
-    if(i < fadeSamples){
-      gain *= i / fadeSamples;
-    }
-    if(total - i < fadeSamples){
-      gain *= (total - i) / fadeSamples;
-    }
-    left[i] *= gain;
-    right[i] *= gain;
-  }
-}
-
-function normalizeStereo(left, right, target=0.82){
-  let peak = 0;
-  for(let i=0;i<left.length;i++){
-    const l = Math.abs(left[i]);
-    const r = Math.abs(right[i]);
-    if(l>peak) peak=l;
-    if(r>peak) peak=r;
-  }
-  if(peak > 0){
-    const scale = target/peak;
-    for(let i=0;i<left.length;i++){
-      left[i] *= scale;
-      right[i] *= scale;
-    }
-  }
-}
-
-function renderForestHaze(left, right, sampleRate, duration){
-  const total = left.length;
-  for(let i=0;i<total;i++){
-    const t = i / sampleRate;
-    const slow = Math.sin(t * 0.045 * TAU);
-    const slow2 = Math.sin(t * 0.062 * TAU + 1.3);
-    const voiceA = Math.sin(TAU * (110 + slow * 2.5) * t);
-    const voiceB = Math.sin(TAU * (165 + slow2 * 2.0) * t + 0.6);
-    const voiceC = Math.sin(TAU * (220 + Math.sin(t * 0.018 * TAU) * 3.5) * t + 1.1);
-    const shimmer = Math.sin(TAU * (55 + Math.sin(t * 0.01 * TAU) * 4) * t) * 0.35;
-    const noise = seededNoise(i, 4.2) * 0.06 * (0.4 + 0.6 * Math.sin(t * 0.08 * TAU + 2));
-    const pad = (voiceA * 0.5 + voiceB * 0.42 + voiceC * 0.36 + shimmer * 0.28) * 0.48 + noise;
-    const pan = Math.sin(t * 0.017 * TAU + 2.1) * 0.32;
-    left[i] = pad * (1 - pan);
-    right[i] = pad * (1 + pan);
-  }
-  applyStereoFadeEnvelope(left, right, sampleRate, 2.6);
-  normalizeStereo(left, right, 0.68);
-}
-
-function renderCloudlight(left, right, sampleRate, duration){
-  const total = left.length;
-  const voices = [349.23, 440.0, 523.25];
-  const weights = [0.46, 0.34, 0.28];
-  for(let i=0;i<total;i++){
-    const t = i / sampleRate;
-    let l=0, r=0;
-    const pulse = 0.55 + 0.45 * Math.sin(t * 0.12 * TAU);
-    for(let v=0; v<voices.length; v++){
-      const detune = Math.sin(t * (0.03 + v*0.018) * TAU + v) * 3.5;
-      const freq = voices[v] + detune;
-      const voice = Math.sin(TAU * freq * t + v * 0.8);
-      const pan = (v - 1) * 0.35 + Math.sin(t * 0.05 * TAU + v) * 0.12;
-      const amp = weights[v] * pulse;
-      l += voice * amp * (1 - pan);
-      r += voice * amp * (1 + pan);
-    }
-    const sparkle = seededNoise(i * 1.7, 8.2) * 0.045 * (0.35 + 0.65 * Math.sin(t * 0.42 * TAU));
-    left[i] = l + sparkle;
-    right[i] = r + sparkle * 0.85;
-  }
-  applyStereoFadeEnvelope(left, right, sampleRate, 1.6);
-  normalizeStereo(left, right, 0.74);
-}
-
-function renderLuminousAir(left, right, sampleRate, duration){
-  const total = left.length;
-  for(let i=0;i<total;i++){
-    const t = i / sampleRate;
-    const drift = Math.sin(t * 0.022 * TAU);
-    const voiceA = Math.sin(TAU * (196 + drift * 5) * t) * 0.55;
-    const voiceB = Math.sin(TAU * (294 + Math.sin(t * 0.019 * TAU + 2) * 7) * t + 1.2) * 0.48;
-    const airy = Math.sin(TAU * (147 + Math.sin(t * 0.083 * TAU) * 2.5) * t + 2.6) * 0.42;
-    const mod = 0.6 + 0.4 * Math.sin(t * 0.07 * TAU + 1.7);
-    const pad = (voiceA + voiceB + airy) * 0.32 * mod;
-    const breath = seededNoise(i * 0.9, 1.7) * 0.055 * (0.3 + 0.7 * Math.sin(t * 0.11 * TAU));
-    const shimmer = Math.sin(TAU * (880 + Math.sin(t * 0.5 * TAU) * 18) * t) * 0.028;
-    const pan = Math.sin(t * 0.026 * TAU + 0.5) * 0.38;
-    left[i] = pad * (1 - pan) + breath + shimmer * 0.6;
-    right[i] = pad * (1 + pan) + breath * 0.92 + shimmer;
-  }
-  applyStereoFadeEnvelope(left, right, sampleRate, 2.8);
-  normalizeStereo(left, right, 0.7);
-}
+// Procedural audio generation functions removed - now using MP3 files from audio folder
 
 // ===== Data structures =====
 const fruits=[], obstacles=[];
@@ -3561,6 +3321,25 @@ function captureTrainingSnapshot(){
     },
     best:Object.fromEntries(Object.entries(bestFitnessByTeam))
   };
+}
+
+// Object URL management for downloads
+let currentObjectUrl = null;
+let currentObjectUrlToken = 0;
+
+function setCurrentObjectUrl(url){
+  clearCurrentObjectUrl();
+  currentObjectUrl = url;
+  currentObjectUrlToken++;
+  return { url, token: currentObjectUrlToken };
+}
+
+function clearCurrentObjectUrl(expectedToken=null){
+  if(expectedToken != null && expectedToken !== currentObjectUrlToken) return;
+  if(currentObjectUrl){
+    try{ URL.revokeObjectURL(currentObjectUrl); }catch(_err){ /* ignore */ }
+    currentObjectUrl = null;
+  }
 }
 
 function downloadTrainingData(){
