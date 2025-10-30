@@ -700,12 +700,11 @@ function stopCurrentTrack(silent=false){
 
 async function playCurrentTrack(){
   const track = MUSIC_TRACKS[currentTrackIndex];
-  try{
-    const audio = initAudioElement();
+  try{    const audio = initAudioElement();
     stopCurrentTrack(true);
     
     // Set the audio source to the MP3 file in the audio folder
-    audio.src = `audio/${track.filename}`;
+    audio.src = `Audio/${track.filename}`;
     audio.load();
     
     // Play the audio
@@ -735,7 +734,7 @@ async function setMusicTrack(index, autoplay=false){
 
   try{
     const audio = initAudioElement();
-    audio.src = `audio/${track.filename}`;
+    audio.src = `Audio/${track.filename}`;
     
     if(shouldAutoplay){
       await playCurrentTrack();
