@@ -167,32 +167,32 @@
         <div class="panel-head"><div class="h">Learning (NEAT-lite)</div><span class="chev">▾</span></div>
         <div class="panel-body">
           <div class="grid">
-            <div class="label">Steps / gen</div>
-            <input id="slGenSteps" type="range" min="600" max="100000000" value="2800"><div class="val" id="lbGenSteps">2800</div>
+            <div class="label" title="Number of simulation steps each generation runs before evaluating fitness.">Steps / gen</div>
+            <input id="slGenSteps" type="range" min="600" max="100000000" value="2800" title="Number of simulation steps each generation runs before evaluating fitness."><div class="val" id="lbGenSteps">2800</div>
 
-            <div class="label">Mutation %</div>
-            <input id="slMut" type="range" min="1" max="80" value="16"><div class="val" id="lbMut">16%</div>
+            <div class="label" title="Percentage of offspring genomes that receive random mutations.">Mutation %</div>
+            <input id="slMut" type="range" min="1" max="80" value="16" title="Percentage of offspring genomes that receive random mutations."><div class="val" id="lbMut">16%</div>
 
-            <div class="label">Elite ratio</div>
-            <input id="slElite" type="range" min="1" max="100" value="20"><div class="val" id="lbElite">20%</div>
+            <div class="label" title="Share of the best performers copied directly into the next generation.">Elite ratio</div>
+            <input id="slElite" type="range" min="1" max="100" value="20" title="Share of the best performers copied directly into the next generation."><div class="val" id="lbElite">20%</div>
 
-            <div class="label">Mutate weights</div>
-            <input id="slMutStrengthW" type="range" min="5" max="100" value="20"><div class="val" id="lbMutStrengthW">0.20</div>
+            <div class="label" title="Strength of the random adjustments applied to neural network connection weights.">Mutate weights</div>
+            <input id="slMutStrengthW" type="range" min="5" max="100" value="20" title="Strength of the random adjustments applied to neural network connection weights."><div class="val" id="lbMutStrengthW">0.20</div>
 
-            <div class="label">Mutate biases</div>
-            <input id="slMutStrengthB" type="range" min="5" max="100" value="20"><div class="val" id="lbMutStrengthB">0.20</div>
+            <div class="label" title="Strength of the random adjustments applied to neuron bias values.">Mutate biases</div>
+            <input id="slMutStrengthB" type="range" min="5" max="100" value="20" title="Strength of the random adjustments applied to neuron bias values."><div class="val" id="lbMutStrengthB">0.20</div>
 
-            <div class="label">Crossover bias</div>
-            <input id="slCrossover" type="range" min="0" max="100" value="50"><div class="val" id="lbCrossover">50% A</div>
+            <div class="label" title="Chance that crossover keeps genes from parent A versus parent B.">Crossover bias</div>
+            <input id="slCrossover" type="range" min="0" max="100" value="50" title="Chance that crossover keeps genes from parent A versus parent B."><div class="val" id="lbCrossover">50% A</div>
 
-            <div class="label">Selection pool</div>
-            <input id="slTournament" type="range" min="10" max="60" value="20" step="1"><div class="val" id="lbTournament">×2.0</div>
+            <div class="label" title="Number of contenders in the tournament pool when picking parents.">Selection pool</div>
+            <input id="slTournament" type="range" min="10" max="60" value="20" step="1" title="Number of contenders in the tournament pool when picking parents."><div class="val" id="lbTournament">×2.0</div>
 
-            <div class="label">Fresh spawn %</div>
-            <input id="slFresh" type="range" min="0" max="40" value="0"><div class="val" id="lbFresh">0%</div>
+            <div class="label" title="Percentage of brand new genomes injected into each generation.">Fresh spawn %</div>
+            <input id="slFresh" type="range" min="0" max="40" value="0" title="Percentage of brand new genomes injected into each generation."><div class="val" id="lbFresh">0%</div>
 
-            <div class="label">Auto next gen</div>
-            <input id="chkAuto" type="checkbox" checked><div class="val" id="lbAuto">on</div>
+            <div class="label" title="Automatically advance once the current generation finishes simulating.">Auto next gen</div>
+            <input id="chkAuto" type="checkbox" checked title="Automatically advance once the current generation finishes simulating."><div class="val" id="lbAuto">on</div>
           </div>
           <button id="btnNextGen" class="btn">Advance generation now</button>
           <button id="btnSaveTraining" class="btn">Save training (.json)</button>
@@ -1376,6 +1376,12 @@ function renderTeamControls(){
       valueEl.className='val';
       valueEl.textContent = options.format(team[key]);
 
+      if(options.tooltip){
+        label.title = options.tooltip;
+        input.title = options.tooltip;
+        valueEl.title = options.tooltip;
+      }
+
       input.addEventListener('input', ()=>{
         const numeric = options.fromSlider ? options.fromSlider(+input.value) : +input.value;
         team[key] = numeric;
@@ -1390,7 +1396,8 @@ function renderTeamControls(){
       min:2,
       max:200,
       format:(v)=> Math.round(v),
-      onChange:()=> resizePop()
+      onChange:()=> resizePop(),
+      tooltip:'How many agents this team spawns onto the field.'
     });
     makeSlider('Speed', 'speed', {
       min:10,
@@ -1398,28 +1405,32 @@ function renderTeamControls(){
       step:5,
       toSlider:(v)=> Math.round(v*100),
       fromSlider:(v)=> (v/100),
-      format:(v)=> v.toFixed(2)
+      format:(v)=> v.toFixed(2),
+      tooltip:'Base movement speed multiplier applied to the team.'
     });
     makeSlider('Awareness', 'smart', {
       min:0,
       max:300,
       toSlider:(v)=> Math.round(v*100),
       fromSlider:(v)=> (v/100),
-      format:(v)=> v.toFixed(2)
+      format:(v)=> v.toFixed(2),
+      tooltip:'How far agents sense fruit, teammates, and obstacles.'
     });
     makeSlider('Strategy', 'strat', {
       min:0,
       max:300,
       toSlider:(v)=> Math.round(v*100),
       fromSlider:(v)=> (v/100),
-      format:(v)=> v.toFixed(2)
+      format:(v)=> v.toFixed(2),
+      tooltip:'Balance between chasing goals and wandering for this team.'
     });
     makeSlider('Separation', 'sep', {
       min:0,
       max:300,
       toSlider:(v)=> Math.round(v*100),
       fromSlider:(v)=> (v/100),
-      format:(v)=> v.toFixed(2)
+      format:(v)=> v.toFixed(2),
+      tooltip:'How strongly agents steer away from crowding teammates.'
     });
 
     card.append(grid);
