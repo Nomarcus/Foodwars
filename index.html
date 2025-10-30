@@ -1919,18 +1919,16 @@ function findFreeFruitSpot(maxTry=80, preferredArea=null){
     const midY = (area.minY + area.maxY) / 2;
     const spanX = Math.max(20, (area.maxX - area.minX));
     const spanY = Math.max(20, (area.maxY - area.minY));
-    const ringRadius = Math.max(36, Math.min(spanX, spanY) * 0.44);
-    const ringWidth = Math.max(18, Math.min(ringRadius * 0.6, Math.min(spanX, spanY) * 0.4));
-    const minRadius = Math.max(12, ringRadius - ringWidth * 0.5);
-    const maxRadius = ringRadius + ringWidth * 0.5;
+    const baseRadius = Math.min(spanX, spanY) * 0.45;
+    const clusterRadius = clamp(baseRadius, 32, Math.min(spanX, spanY) * 0.5);
+    const jitterLimit = Math.min(8, clusterRadius * 0.28);
     const clusterSampler = ()=>{
       const angle = Math.random() * TAU;
-      const radialJitter = clamp(randn() * ringWidth * 0.2, -ringWidth * 0.5, ringWidth * 0.5);
-      const radius = clamp(ringRadius + radialJitter, minRadius, maxRadius);
+      const radius = Math.sqrt(Math.random()) * clusterRadius;
       const orbitX = midX + Math.cos(angle) * radius;
       const orbitY = midY + Math.sin(angle) * radius;
-      const jitterX = randn() * Math.min(6, ringWidth * 0.25);
-      const jitterY = randn() * Math.min(6, ringWidth * 0.25);
+      const jitterX = clamp(randn() * jitterLimit, -jitterLimit, jitterLimit);
+      const jitterY = clamp(randn() * jitterLimit, -jitterLimit, jitterLimit);
       return {
         x: clamp(orbitX + jitterX, area.minX, area.maxX),
         y: clamp(orbitY + jitterY, area.minY, area.maxY)
