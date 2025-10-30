@@ -509,6 +509,7 @@ const TEAM_PRESETS = [
 const TEAM_PRESET_MAP = new Map(TEAM_PRESETS.map((preset)=> [preset.id, preset]));
 
 const OBSTACLE_COLORS = ['#38bdf8', '#f472b6', '#2dd4bf'];
+const LINE_OBSTACLE_COLOR = '#38bdf8';
 
 function clamp(value, min, max){
   return Math.max(min, Math.min(max, value));
@@ -594,18 +595,67 @@ const params = {
 };
 let lastObstCount = params.obstacles;
 
-// MP3 files from the audio folder
-// Add your MP3 files here - just add the filename (they should be in an 'audio' folder next to this HTML file)
-const MUSIC_TRACKS = [
-  { filename: 'breath.mp3', title: 'breath.mp3', artist: 'Unknown Artist' },
-  // Add more tracks here as needed
-];
-
+// Dynamically discovered MP3 playlist
+let musicTracks = [];
 let currentTrackIndex = 0;
 let isMusicPlaying = false;
 let musicToggleBtn = null;
 let audioElement = null;
 let pendingVolume = 0.55;
+let musicSelect = null;
+
+async function discoverAudioTracks(){
+  const manifestUrl = 'Audio/manifest.json';
+  const directoryUrl = 'Audio/';
+  const normalize = (filename)=>{
+    const base = filename.replace(/^.*\//, '');
+    const title = base.replace(/\.[^.]+$/, '').replace(/[-_]+/g, ' ').replace(/\s+/g, ' ').trim();
+    return {
+      filename: base,
+      title: title ? title.replace(/\b\w/g, (c)=>c.toUpperCase()) : base,
+      artist: 'Local file'
+    };
+  };
+
+  // First try manifest.json for a curated list
+  try{
+    const manifestResponse = await fetch(manifestUrl, { cache:'no-store' });
+    if(manifestResponse.ok){
+      const data = await manifestResponse.json();
+      if(Array.isArray(data.files)){
+        const files = data.files.map(String).filter((name)=>/\.mp3$/i.test(name));
+        if(files.length){
+          return files.map(normalize);
+        }
+      }
+    }
+  }catch(err){
+    console.warn('Audio manifest.json not available:', err);
+  }
+
+  // Fallback: attempt to fetch directory listing and parse anchor tags
+  try{
+    const directoryResponse = await fetch(directoryUrl, { cache:'no-store' });
+    if(!directoryResponse.ok) throw new Error(`HTTP ${directoryResponse.status}`);
+    const text = await directoryResponse.text();
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(text, 'text/html');
+    const anchors = Array.from(doc.querySelectorAll('a'));
+    const files = anchors
+      .map((a)=>a.getAttribute('href') || '')
+      .map((href)=>href.split('?')[0])
+      .filter((href)=>/\.mp3$/i.test(href))
+      .map((href)=>decodeURIComponent(href.replace(/^\//, '')))
+      .map((href)=>href.replace(/^.*Audio\//i, ''));
+    const unique = Array.from(new Set(files.filter(Boolean)));
+    unique.sort((a,b)=>a.localeCompare(b, undefined, { sensitivity:'base' }));
+    return unique.map(normalize);
+  }catch(err){
+    console.warn('Unable to auto-discover audio files in /Audio:', err);
+  }
+
+  return [];
+}
 
 // Initialize HTML5 Audio element
 function initAudioElement(){
@@ -615,18 +665,18 @@ function initAudioElement(){
     audioElement.volume = pendingVolume;
     audioElement.addEventListener('ended', ()=>{
       isMusicPlaying = false;
-      updateMusicMeta(MUSIC_TRACKS[currentTrackIndex], 'Ended');
+      updateMusicMeta(getCurrentTrack(), 'Ended');
       updateMusicButton();
     });
     audioElement.addEventListener('error', (e)=>{
       console.error('Audio playback error:', e);
       isMusicPlaying = false;
-      updateMusicMeta(MUSIC_TRACKS[currentTrackIndex], 'Error loading track');
+      updateMusicMeta(getCurrentTrack(), 'Error loading track');
       updateMusicButton();
     });
     audioElement.addEventListener('canplay', ()=>{
       if(isMusicPlaying){
-        updateMusicMeta(MUSIC_TRACKS[currentTrackIndex], 'Playing');
+        updateMusicMeta(getCurrentTrack(), 'Playing');
       }
     });
   }
@@ -671,15 +721,22 @@ function readParams(){
     forceNextGen = true;
   }
 }
-function updateMusicMeta(track, stateOverride=null){
-  if(!track) return;
-  const state = stateOverride || (isMusicPlaying ? 'Playing' : 'Paused');
-  Q('lbMusicState').textContent = state;
-  Q('lbMusicNow').textContent = `${track.title} — ${track.artist}`;
-  Q('lbMusicSource').textContent = `File: Audio/${track.filename}`;
+function getCurrentTrack(){
+  if(!musicTracks.length) return null;
+  return musicTracks[Math.min(Math.max(currentTrackIndex, 0), musicTracks.length - 1)] || null;
 }
 
-let awaitingAudioUnlock = false;
+function updateMusicMeta(track, stateOverride=null){
+  const state = stateOverride || (isMusicPlaying ? 'Playing' : 'Paused');
+  Q('lbMusicState').textContent = state;
+  if(track){
+    Q('lbMusicNow').textContent = `${track.title} — ${track.artist}`;
+    Q('lbMusicSource').textContent = `File: Audio/${track.filename}`;
+  } else {
+    Q('lbMusicNow').textContent = 'No local audio files detected.';
+    Q('lbMusicSource').textContent = 'Add MP3 files to the Audio folder to enable playback.';
+  }
+}
 
 function updateMusicButton(){
   if(!musicToggleBtn) return;
@@ -693,16 +750,20 @@ function stopCurrentTrack(silent=false){
   }
   isMusicPlaying = false;
   if(!silent){
-    updateMusicMeta(MUSIC_TRACKS[currentTrackIndex], 'Paused');
+    updateMusicMeta(getCurrentTrack(), 'Paused');
     updateMusicButton();
   }
 }
 
 async function playCurrentTrack(){
-  const track = MUSIC_TRACKS[currentTrackIndex];
+  const track = getCurrentTrack();
+  if(!track){
+    updateMusicMeta(null, 'No tracks');
+    return;
+  }
   try{    const audio = initAudioElement();
     stopCurrentTrack(true);
-    
+
     // Set the audio source to the MP3 file in the audio folder
     audio.src = `Audio/${track.filename}`;
     audio.load();
@@ -723,8 +784,9 @@ async function playCurrentTrack(){
 }
 
 async function setMusicTrack(index, autoplay=false){
-  if(index<0 || index>=MUSIC_TRACKS.length) return;
-  const track = MUSIC_TRACKS[index];
+  if(!musicTracks.length) return;
+  if(index<0 || index>=musicTracks.length) return;
+  const track = musicTracks[index];
   const shouldAutoplay = autoplay || isMusicPlaying;
   currentTrackIndex = index;
 
@@ -750,18 +812,51 @@ async function setMusicTrack(index, autoplay=false){
 }
 
 function initMusicPanel(){
-  const select = Q('selMusic');
+  musicSelect = Q('selMusic');
   musicToggleBtn = Q('btnMusicToggle');
   const vol = Q('slMusicVolume');
   const volLabel = Q('lbMusicVolume');
 
-  MUSIC_TRACKS.forEach((track, idx)=>{
-    const opt = document.createElement('option');
-    opt.value = idx;
-    opt.textContent = `${track.title} — ${track.artist}`;
-    select.appendChild(opt);
-  });
-  select.value = String(currentTrackIndex);
+  if(musicSelect){
+    const loadingOption = document.createElement('option');
+    loadingOption.value = '';
+    loadingOption.textContent = 'Loading tracks…';
+    musicSelect.appendChild(loadingOption);
+    musicSelect.disabled = true;
+  }
+  if(musicToggleBtn){
+    musicToggleBtn.disabled = true;
+  }
+  updateMusicMeta(null, 'Loading…');
+
+  const populateSelect = (tracks)=>{
+    if(!musicSelect) return;
+    musicSelect.innerHTML = '';
+    if(!tracks.length){
+      const placeholder = document.createElement('option');
+      placeholder.value = '';
+      placeholder.textContent = 'No MP3 files found';
+      musicSelect.appendChild(placeholder);
+      musicSelect.disabled = true;
+      if(musicToggleBtn){
+        musicToggleBtn.disabled = true;
+      }
+      updateMusicMeta(null, 'Unavailable');
+      return;
+    }
+
+    tracks.forEach((track, idx)=>{
+      const opt = document.createElement('option');
+      opt.value = idx;
+      opt.textContent = `${track.title} — ${track.artist}`;
+      musicSelect.appendChild(opt);
+    });
+    musicSelect.disabled = false;
+    if(musicToggleBtn){
+      musicToggleBtn.disabled = false;
+    }
+    musicSelect.value = String(Math.min(Math.max(currentTrackIndex, 0), tracks.length - 1));
+  };
 
   const applyVolume = ()=>{
     const value = Math.round(vol.value);
@@ -789,13 +884,28 @@ function initMusicPanel(){
     }
   });
 
-  select.addEventListener('change', ()=>{
-    const idx = parseInt(select.value, 10);
-    setMusicTrack(idx, isMusicPlaying);
+  musicSelect.addEventListener('change', ()=>{
+    if(!musicTracks.length) return;
+    const idx = parseInt(musicSelect.value, 10);
+    if(Number.isFinite(idx)){
+      setMusicTrack(idx, isMusicPlaying);
+    }
   });
 
   updateMusicButton();
-  setMusicTrack(currentTrackIndex, false);
+
+  discoverAudioTracks().then((tracks)=>{
+    musicTracks = tracks;
+    currentTrackIndex = 0;
+    populateSelect(tracks);
+    if(tracks.length){
+      updateMusicMeta(tracks[currentTrackIndex], 'Ready');
+      setMusicTrack(currentTrackIndex, false);
+    }
+  }).catch((err)=>{
+    console.error('Failed to load audio tracks:', err);
+    populateSelect([]);
+  });
 }
 
 // Procedural audio generation functions removed - now using MP3 files from audio folder
@@ -3090,10 +3200,13 @@ function drawObstacleShape(o, time, preview=false){
       break;
     }
     case 'line':{
-      applyStroke();
-      ctx.lineWidth = (o.thickness||14) + (preview?0:2)*pulse;
+      ctx.shadowColor = 'transparent';
+      ctx.shadowBlur = 0;
+      ctx.strokeStyle = preview ? hexToRgba(LINE_OBSTACLE_COLOR, 0.75) : LINE_OBSTACLE_COLOR;
+      ctx.lineWidth = Math.max(4, o.thickness || 14);
       ctx.lineCap = 'round';
-      ctx.setLineDash(preview ? [6,6] : []);
+      ctx.lineJoin = 'round';
+      ctx.setLineDash([]);
       ctx.beginPath();
       ctx.moveTo(o.x1, o.y1);
       ctx.lineTo(o.x2, o.y2);
