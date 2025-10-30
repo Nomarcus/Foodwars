@@ -597,7 +597,7 @@ let lastObstCount = params.obstacles;
 // MP3 files from the audio folder
 // Add your MP3 files here - just add the filename (they should be in an 'audio' folder next to this HTML file)
 const MUSIC_TRACKS = [
-  { filename: 'breath-of-enlightenment.mp3', title: 'breath-of-enlightenment.mp3', artist: 'Unknown Artist' },
+  { filename: 'breath.mp3', title: 'breath.mp3', artist: 'Unknown Artist' },
   // Add more tracks here as needed
 ];
 
@@ -676,7 +676,7 @@ function updateMusicMeta(track, stateOverride=null){
   const state = stateOverride || (isMusicPlaying ? 'Playing' : 'Paused');
   Q('lbMusicState').textContent = state;
   Q('lbMusicNow').textContent = `${track.title} — ${track.artist}`;
-  Q('lbMusicSource').textContent = `File: /Audio/${track.filename}`;
+  Q('lbMusicSource').textContent = `File: Audio/${track.filename}`;
 }
 
 let awaitingAudioUnlock = false;
