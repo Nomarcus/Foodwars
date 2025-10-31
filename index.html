@@ -437,6 +437,9 @@
 
             <div class="label">Top performer glow</div>
             <input id="chkTopHighlight" type="checkbox" checked><div class="val" id="lbTopHighlight">on</div>
+
+            <div class="label">Energy rings</div>
+            <input id="chkEnergyHalo" type="checkbox" checked><div class="val" id="lbEnergyHalo">on</div>
           </div>
           <button id="btnReset" class="btn">Restart</button>
         </div>
@@ -585,6 +588,7 @@ const params = {
   agentScale: 1.00,
   agentCollisions: false,
   showTopHighlight: true,
+  showEnergyHalo: true,
   fruitPlacement: 'random',
   teams: TEAM_PRESETS.map((preset, index)=>({
     id:preset.id,
@@ -717,6 +721,15 @@ function readParams(){
     const label = Q('lbTopHighlight');
     if(label){
       label.textContent = topHighlightToggle.checked ? 'on' : 'off';
+    }
+  }
+
+  const energyHaloToggle = Q('chkEnergyHalo');
+  if(energyHaloToggle){
+    params.showEnergyHalo = energyHaloToggle.checked;
+    const label = Q('lbEnergyHalo');
+    if(label){
+      label.textContent = energyHaloToggle.checked ? 'on' : 'off';
     }
   }
 
@@ -3616,7 +3629,7 @@ function draw(){
         ctx.strokeStyle='#ffff33';
         ctx.stroke();
       }
-      if(a.energyMax>0){
+      if(a.energyMax>0 && params.showEnergyHalo){
         const ratio = clamp(a.energy / (a.energyMax||1), 0, 1);
         const ringRadius = agentRadius + Math.max(2.5, 2.2 * params.agentScale);
         ctx.beginPath();
@@ -3739,6 +3752,7 @@ function applyBestFitnessSnapshot(bestMap){
 }
 
 function captureTrainingSnapshot(){
+  readParams();
   const paramsClone = JSON.parse(JSON.stringify(params));
   const evoTeams = params.teams.map((team)=>{
     const population = getPopulation(team.id);
@@ -4009,6 +4023,14 @@ function applyParamsSnapshot(snapshot){
     const toggle = Q('chkTopHighlight');
     if(toggle){
       toggle.checked = !!snapshot.showTopHighlight;
+      toggle.dispatchEvent(new Event('change', { bubbles:true }));
+    }
+  }
+
+  if(snapshot.showEnergyHalo !== undefined){
+    const toggle = Q('chkEnergyHalo');
+    if(toggle){
+      toggle.checked = !!snapshot.showEnergyHalo;
       toggle.dispatchEvent(new Event('change', { bubbles:true }));
     }
   }
@@ -4323,6 +4345,11 @@ if(chkAgentCollisions){
 const chkTopHighlight = Q('chkTopHighlight');
 if(chkTopHighlight){
   chkTopHighlight.addEventListener('change', ()=> readParams());
+}
+
+const chkEnergyHalo = Q('chkEnergyHalo');
+if(chkEnergyHalo){
+  chkEnergyHalo.addEventListener('change', ()=> readParams());
 }
 
 window.addEventListener('beforeunload', clearCurrentObjectUrl);
