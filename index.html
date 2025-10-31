@@ -3001,7 +3001,7 @@ class Agent{
     return touched;
   }
   tickCooldowns(){ if(this.blockCooldown>0) this.blockCooldown--; }
-  integrate(){ const sp=Math.hypot(this.vx,this.vy); if(sp>this.maxSpeed){ this.vx*=this.maxSpeed/sp; this.vy*=this.maxSpeed/sp; } this.trail.push({x=this.x,y=this.y}); if(this.trail.length>params.tailLen) this.trail.shift(); this.x+=this.vx; this.y+=this.vy; const obstacleBefore = this.resolveObstaclePenetration(); const hitWall = this.keepInBounds(); const obstacleAfter = this.resolveObstaclePenetration(1); const touchedObstacle = obstacleBefore || obstacleAfter; const touched = touchedObstacle || hitWall; this.stuckT=(sp<0.10)?(this.stuckT+1):0; this.tickCooldowns(); return { touched, touchedObstacle, touchedWall:hitWall }; }
+  integrate(){ const sp=Math.hypot(this.vx,this.vy); if(sp>this.maxSpeed){ this.vx*=this.maxSpeed/sp; this.vy*=this.maxSpeed/sp; } this.trail.push({ x:this.x, y:this.y }); if(this.trail.length>params.tailLen) this.trail.shift(); this.x+=this.vx; this.y+=this.vy; const obstacleBefore = this.resolveObstaclePenetration(); const hitWall = this.keepInBounds(); const obstacleAfter = this.resolveObstaclePenetration(1); const touchedObstacle = obstacleBefore || obstacleAfter; const touched = touchedObstacle || hitWall; this.stuckT=(sp<0.10)?(this.stuckT+1):0; this.tickCooldowns(); return { touched, touchedObstacle, touchedWall:hitWall }; }
 }
 
 class Collector extends Agent{
