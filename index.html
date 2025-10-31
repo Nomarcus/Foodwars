@@ -195,6 +195,7 @@
             <input id="chkAuto" type="checkbox" checked title="Automatically advance once the current generation finishes simulating."><div class="val" id="lbAuto">on</div>
           </div>
           <button id="btnNextGen" class="btn">Advance generation now</button>
+          <button id="btnResetTraining" class="btn">Reset training</button>
           <button id="btnSaveTraining" class="btn">Save training (.json)</button>
           <button id="btnLoadTraining" class="btn">Load training…</button>
           <input type="file" id="inputLoadTraining" accept="application/json" style="display:none">
@@ -214,6 +215,9 @@
           </div>
           <button id="btnUndoManual" class="btn" disabled>Undo last manual obstacle</button>
           <button id="btnClearManual" class="btn">Clear manual obstacles</button>
+          <button id="btnSaveObstacles" class="btn">Save obstacles (.json)</button>
+          <button id="btnLoadObstacles" class="btn">Load obstacles…</button>
+          <input type="file" id="inputLoadObstacles" accept="application/json" style="display:none">
         </div>
       </div>
 
@@ -511,7 +515,7 @@ const TEAM_PRESETS = [
 const TEAM_PRESET_MAP = new Map(TEAM_PRESETS.map((preset)=> [preset.id, preset]));
 
 const OBSTACLE_COLORS = ['#38bdf8', '#f472b6', '#2dd4bf'];
-const LINE_OBSTACLE_COLOR = '#38bdf8';
+const LINE_OBSTACLE_COLOR = '#dbe7ff';
 
 function clamp(value, min, max){
   return Math.max(min, Math.min(max, value));
@@ -3449,9 +3453,9 @@ function drawObstacleShape(o, time, preview=false){
       break;
     }
     case 'line':{
-      ctx.shadowColor = 'transparent';
-      ctx.shadowBlur = 0;
-      ctx.strokeStyle = preview ? hexToRgba(LINE_OBSTACLE_COLOR, 0.75) : LINE_OBSTACLE_COLOR;
+      ctx.shadowColor = preview ? hexToRgba(LINE_OBSTACLE_COLOR, 0.45) : hexToRgba(LINE_OBSTACLE_COLOR, 0.85);
+      ctx.shadowBlur = preview ? 8 : 22;
+      ctx.strokeStyle = preview ? hexToRgba(LINE_OBSTACLE_COLOR, 0.78) : LINE_OBSTACLE_COLOR;
       ctx.lineWidth = Math.max(4, o.thickness || 14);
       ctx.lineCap = 'round';
       ctx.lineJoin = 'round';
@@ -3591,6 +3595,40 @@ function draw(){
 }
 
 let simSteps=0, forceNextGen=false, awaitingManualAdvance=false;
+
+function resetTraining(preserveObstacles=false){
+  const savedObstacles = preserveObstacles ? captureObstacleSnapshot() : null;
+  evo.gen = 1;
+  simSteps = 0;
+  forceNextGen = false;
+  awaitingManualAdvance = false;
+  for(const key of Object.keys(bestFitnessByTeam)){
+    delete bestFitnessByTeam[key];
+  }
+  evo.populations = {};
+  params.teams.forEach((team)=>{
+    const count = Math.max(0, Math.round(team.count));
+    evo.populations[team.id] = makePopulation(count);
+  });
+  resetBestBrainState(evo.gen);
+  if(savedObstacles){
+    try{
+      applyObstacleSnapshot(savedObstacles, { updateControls:false });
+    }catch(err){
+      console.error('Failed to restore preserved obstacles during reset', err);
+    }
+  } else {
+    obstacles.length = 0;
+    lastObstCount = params.obstacles;
+  }
+  setup();
+  syncManualObstacleState();
+  markPathCostDirty();
+  markBestBrainDirty();
+  renderBestBrain();
+  refreshStats();
+}
+
 function advanceGeneration(){
   for(const teamState of activeTeamStates){
     const pop = getPopulation(teamState.config.id);
@@ -3720,6 +3758,197 @@ function downloadTrainingData(){
     console.error('Failed to export training data', err);
     alert('Could not save training data. Please try again.');
   }
+}
+
+function sanitizeNumber(value, fallback=0){
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : fallback;
+}
+
+function normalizePaletteIndex(index){
+  const numeric = Math.round(sanitizeNumber(index, 0));
+  const len = OBSTACLE_COLORS.length || 1;
+  return ((numeric % len) + len) % len;
+}
+
+function serializeObstacle(obstacle){
+  if(!obstacle || typeof obstacle !== 'object') return null;
+  const type = typeof obstacle.type === 'string' ? obstacle.type : 'circle';
+  const base = {
+    type,
+    manual: !!obstacle.manual,
+    paletteIndex: sanitizeNumber(obstacle.paletteIndex, 0),
+    phase: sanitizeNumber(obstacle.phase, Math.random()*TAU)
+  };
+  switch(type){
+    case 'rect':{
+      base.x = sanitizeNumber(obstacle.x, W/2);
+      base.y = sanitizeNumber(obstacle.y, H/2);
+      base.width = Math.max(2, sanitizeNumber(obstacle.width, 20));
+      base.height = Math.max(2, sanitizeNumber(obstacle.height, 20));
+      break;
+    }
+    case 'line':{
+      const x1 = sanitizeNumber(obstacle.x1, obstacle.x || 0);
+      const y1 = sanitizeNumber(obstacle.y1, obstacle.y || 0);
+      const x2 = sanitizeNumber(obstacle.x2, obstacle.x || 0);
+      const y2 = sanitizeNumber(obstacle.y2, obstacle.y || 0);
+      base.x = sanitizeNumber(obstacle.x, (x1 + x2) / 2);
+      base.y = sanitizeNumber(obstacle.y, (y1 + y2) / 2);
+      base.x1 = x1;
+      base.y1 = y1;
+      base.x2 = x2;
+      base.y2 = y2;
+      base.thickness = Math.max(2, sanitizeNumber(obstacle.thickness, 14));
+      break;
+    }
+    case 'half':{
+      base.x = sanitizeNumber(obstacle.x, W/2);
+      base.y = sanitizeNumber(obstacle.y, H/2);
+      base.r = Math.max(4, sanitizeNumber(obstacle.r, 24));
+      base.angle = sanitizeNumber(obstacle.angle, 0);
+      break;
+    }
+    default:{
+      base.x = sanitizeNumber(obstacle.x, W/2);
+      base.y = sanitizeNumber(obstacle.y, H/2);
+      base.r = Math.max(4, sanitizeNumber(obstacle.r, 18));
+      break;
+    }
+  }
+  return base;
+}
+
+function deserializeObstacle(entry){
+  if(!entry || typeof entry !== 'object') return null;
+  const type = typeof entry.type === 'string' ? entry.type : 'circle';
+  const manual = !!entry.manual;
+  const paletteIndex = normalizePaletteIndex(entry.paletteIndex);
+  const phase = sanitizeNumber(entry.phase, Math.random()*TAU);
+  switch(type){
+    case 'rect':{
+      const width = Math.max(2, sanitizeNumber(entry.width, 20));
+      const height = Math.max(2, sanitizeNumber(entry.height, 20));
+      const x = sanitizeNumber(entry.x, W/2);
+      const y = sanitizeNumber(entry.y, H/2);
+      return { type:'rect', x, y, width, height, manual, paletteIndex, phase };
+    }
+    case 'line':{
+      const x1 = sanitizeNumber(entry.x1, sanitizeNumber(entry.x, 0));
+      const y1 = sanitizeNumber(entry.y1, sanitizeNumber(entry.y, 0));
+      const x2 = sanitizeNumber(entry.x2, sanitizeNumber(entry.x, 0));
+      const y2 = sanitizeNumber(entry.y2, sanitizeNumber(entry.y, 0));
+      const x = sanitizeNumber(entry.x, (x1 + x2) / 2);
+      const y = sanitizeNumber(entry.y, (y1 + y2) / 2);
+      const thickness = Math.max(2, sanitizeNumber(entry.thickness, 14));
+      return { type:'line', x, y, x1, y1, x2, y2, thickness, manual, paletteIndex, phase };
+    }
+    case 'half':{
+      const x = sanitizeNumber(entry.x, W/2);
+      const y = sanitizeNumber(entry.y, H/2);
+      const r = Math.max(4, sanitizeNumber(entry.r, 24));
+      const angle = sanitizeNumber(entry.angle, 0);
+      return { type:'half', x, y, r, angle, manual, paletteIndex, phase };
+    }
+    default:{
+      const x = sanitizeNumber(entry.x, W/2);
+      const y = sanitizeNumber(entry.y, H/2);
+      const r = Math.max(4, sanitizeNumber(entry.r, 18));
+      return { type:'circle', x, y, r, manual, paletteIndex, phase };
+    }
+  }
+}
+
+function captureObstacleSnapshot(){
+  const serialized = obstacles.map(serializeObstacle).filter(Boolean);
+  const autoCount = serialized.reduce((total, entry)=> total + (entry.manual ? 0 : 1), 0);
+  return {
+    version:1,
+    savedAt:new Date().toISOString(),
+    width:W,
+    height:H,
+    autoCount,
+    obstacles:serialized
+  };
+}
+
+function applyObstacleSnapshot(snapshot, options={}){
+  const { updateControls=true } = options;
+  const entries = Array.isArray(snapshot) ? snapshot : (Array.isArray(snapshot?.obstacles) ? snapshot.obstacles : null);
+  if(!entries){
+    throw new Error('Obstacle file does not contain an obstacles list.');
+  }
+  const restored = [];
+  entries.forEach((entry)=>{
+    const obstacle = deserializeObstacle(entry);
+    if(obstacle){
+      keepObstacleInside(obstacle);
+      restored.push(obstacle);
+    }
+  });
+  obstacles.length = 0;
+  restored.forEach((ob)=> obstacles.push(ob));
+
+  const inferredAuto = restored.reduce((total, entry)=> total + (entry.manual ? 0 : 1), 0);
+  const autoCount = Number.isFinite(snapshot?.autoCount) ? sanitizeNumber(snapshot.autoCount, inferredAuto) : inferredAuto;
+  params.obstacles = Math.max(0, Math.round(autoCount));
+  lastObstCount = params.obstacles;
+  if(updateControls){
+    const slider = Q('slObst');
+    if(slider){
+      const min = sanitizeNumber(slider.min, 0);
+      const max = sanitizeNumber(slider.max, params.obstacles);
+      const clamped = Math.max(min, Math.min(max, params.obstacles));
+      slider.value = String(clamped);
+      const label = Q('lbObst');
+      if(label) label.textContent = params.obstacles;
+    }
+  }
+  syncManualObstacleState();
+  markPathCostDirty();
+  return restored;
+}
+
+function downloadObstacleData(){
+  try{
+    const snapshot = captureObstacleSnapshot();
+    const json = JSON.stringify(snapshot, null, 2);
+    const blob = new Blob([json], { type:'application/json' });
+    const { url, token } = setCurrentObjectUrl(URL.createObjectURL(blob));
+    const stamp = snapshot.savedAt.replace(/[:.]/g, '-');
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `foodsim-obstacles-${stamp}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    setTimeout(()=> clearCurrentObjectUrl(token), 1000);
+  }catch(err){
+    console.error('Failed to export obstacles', err);
+    alert('Could not save obstacles. Please try again.');
+  }
+}
+
+function handleObstacleFileSelection(evt){
+  const input = evt.target;
+  const file = input?.files?.[0];
+  if(input) input.value = '';
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = ()=>{
+    try{
+      const parsed = JSON.parse(reader.result);
+      applyObstacleSnapshot(parsed);
+    }catch(err){
+      console.error('Failed to load obstacles file', err);
+      alert('Could not load obstacles. Please ensure the file was exported from this simulator.');
+    }
+  };
+  reader.onerror = ()=>{
+    console.error('Unable to read the selected obstacles file', reader.error);
+    alert('Could not read the selected file.');
+  };
+  reader.readAsText(file);
 }
 
 function applyParamsSnapshot(snapshot){
@@ -4005,6 +4234,17 @@ if(btnClearManual){
   });
 }
 
+const btnSaveObstacles = Q('btnSaveObstacles');
+if(btnSaveObstacles){
+  btnSaveObstacles.addEventListener('click', downloadObstacleData);
+}
+const btnLoadObstacles = Q('btnLoadObstacles');
+const inputLoadObstacles = Q('inputLoadObstacles');
+if(btnLoadObstacles && inputLoadObstacles){
+  btnLoadObstacles.addEventListener('click', ()=> inputLoadObstacles.click());
+  inputLoadObstacles.addEventListener('change', handleObstacleFileSelection);
+}
+
 syncManualObstacleState();
 
 if(brainCanvas){
@@ -4030,6 +4270,10 @@ bindRange('slFresh','lbFresh',(v)=> `${v}%`);
 bindRange('slAgentScale','lbAgentScale',(v)=> (v/100).toFixed(2)+'×');
 initFruitPlacementControls();
 Q('btnReset').onclick = ()=> { awaitingManualAdvance=false; forceNextGen=false; simSteps=0; setup(); };
+const btnResetTraining = Q('btnResetTraining');
+if(btnResetTraining){
+  btnResetTraining.addEventListener('click', ()=> resetTraining(true));
+}
 Q('btnNextGen').onclick = ()=> { forceNextGen = true; };
 Q('chkAuto').addEventListener('change', ()=> readParams());
 const chkAgentCollisions = Q('chkAgentCollisions');
