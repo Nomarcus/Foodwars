@@ -533,6 +533,7 @@ const COLLECTOR_ENERGY_MAX = 120;
 const COLLECTOR_ENERGY_DECAY = 0.08;
 const COLLECTOR_ENERGY_PICKUP_BOOST = 80;
 const COLLECTOR_ENERGY_SPEED_MIN = 0.45;
+const SAFE_NAVIGATION_REWARD = 0.06;
 
 function hexToRgba(hex, alpha){
   const h = hex.replace('#','');
@@ -2962,6 +2963,7 @@ class Agent{
     }
   }
   resolveObstaclePenetration(maxIter=4){
+    let touched=false;
     for(let iter=0; iter<maxIter; iter++){
       let adjusted=false;
       for(const o of obstacles){
@@ -2982,20 +2984,24 @@ class Agent{
             this.vy -= vn * ny;
           }
           adjusted = true;
+          touched = true;
         }
       }
       if(!adjusted) break;
     }
+    return touched;
   }
   keepInBounds(){
+    let touched=false;
     const pad = AGENT_BOUNDARY_PADDING * params.agentScale;
-    if(this.x<pad){ this.x=pad; this.vx=Math.abs(this.vx); }
-    if(this.x>W-pad){ this.x=W-pad; this.vx=-Math.abs(this.vx); }
-    if(this.y<pad){ this.y=pad; this.vy=Math.abs(this.vy); }
-    if(this.y>H-pad){ this.y=H-pad; this.vy=-Math.abs(this.vy); }
+    if(this.x<pad){ this.x=pad; this.vx=Math.abs(this.vx); touched=true; }
+    if(this.x>W-pad){ this.x=W-pad; this.vx=-Math.abs(this.vx); touched=true; }
+    if(this.y<pad){ this.y=pad; this.vy=Math.abs(this.vy); touched=true; }
+    if(this.y>H-pad){ this.y=H-pad; this.vy=-Math.abs(this.vy); touched=true; }
+    return touched;
   }
   tickCooldowns(){ if(this.blockCooldown>0) this.blockCooldown--; }
-  integrate(){ const sp=Math.hypot(this.vx,this.vy); if(sp>this.maxSpeed){ this.vx*=this.maxSpeed/sp; this.vy*=this.maxSpeed/sp; } this.trail.push({x:this.x,y:this.y}); if(this.trail.length>params.tailLen) this.trail.shift(); this.x+=this.vx; this.y+=this.vy; this.resolveObstaclePenetration(); this.keepInBounds(); this.resolveObstaclePenetration(1); this.stuckT=(sp<0.10)?(this.stuckT+1):0; this.tickCooldowns(); }
+  integrate(){ const sp=Math.hypot(this.vx,this.vy); if(sp>this.maxSpeed){ this.vx*=this.maxSpeed/sp; this.vy*=this.maxSpeed/sp; } this.trail.push({x=this.x,y=this.y}); if(this.trail.length>params.tailLen) this.trail.shift(); this.x+=this.vx; this.y+=this.vy; const obstacleBefore = this.resolveObstaclePenetration(); const hitWall = this.keepInBounds(); const obstacleAfter = this.resolveObstaclePenetration(1); const touchedObstacle = obstacleBefore || obstacleAfter; const touched = touchedObstacle || hitWall; this.stuckT=(sp<0.10)?(this.stuckT+1):0; this.tickCooldowns(); return { touched, touchedObstacle, touchedWall:hitWall }; }
 }
 
 class Collector extends Agent{
@@ -3131,7 +3137,13 @@ class Collector extends Agent{
       this.stuckT=0;
     }
     this.avoidObstacles();
-    this.integrate();
+    const navStatus = this.integrate();
+    if(!navStatus.touched){
+      this.fitness += SAFE_NAVIGATION_REWARD;
+      if(this.energyMax>0 && Number.isFinite(this.energyDecay) && this.energyDecay>0){
+        this.adjustEnergy(this.energyDecay);
+      }
+    }
     if(this.carry){
       rewardCollectorPathProgress(this, myGoal);
     }
@@ -3294,7 +3306,10 @@ class Blocker extends Agent{
       this.fitness -= 0.02;
     }
     this.avoidObstacles();
-    this.integrate();
+    const navStatus = this.integrate();
+    if(!navStatus.touched){
+      this.fitness += SAFE_NAVIGATION_REWARD;
+    }
   }
 }
 
