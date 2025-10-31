@@ -1018,6 +1018,10 @@ const PATH_STUCK_THRESHOLD = 90;
 const PATH_STUCK_PENALTY = 0.25;
 const PATH_EXPLORATION_REWARD = 0.35;
 const PATH_EXPLORATION_LIMIT = 600;
+const FRUIT_APPROACH_REWARD = 0.22;
+const FRUIT_APPROACH_BASELINE_SCALE = 220;
+const FRUIT_APPROACH_MAX_MULTIPLIER = 2.8;
+const FRUIT_APPROACH_MIN_DELTA = 0.4;
 
 function getTeamScoreData(teamId){
   if(!teamId) return { score:0, pickups:0, deliveries:0, blocks:0, fumbles:0 };
@@ -3009,6 +3013,9 @@ class Collector extends Agent{
     this.pathProgressTicks = 0;
     this.visitedCells = new Set();
     this.stuckPenaltyCooldown = 0;
+    this.currentFruitTarget = null;
+    this.bestFruitDistance = Infinity;
+    this.fruitApproachBaseline = 0;
     this.enableEnergy(COLLECTOR_ENERGY_MAX);
     this.energyDecay = COLLECTOR_ENERGY_DECAY;
     this.minEnergyMultiplier = COLLECTOR_ENERGY_SPEED_MIN;
@@ -3033,6 +3040,43 @@ class Collector extends Agent{
     const myGoal=this.teamState.goal;
     const tgt = this.carry? myGoal : nearest(fruits, this.x, this.y);
     let tx=0,ty=0, dn=1;
+    if(this.carry){
+      this.currentFruitTarget = null;
+      this.bestFruitDistance = Infinity;
+      this.fruitApproachBaseline = 0;
+    } else if(tgt){
+      if(this.currentFruitTarget !== tgt){
+        this.currentFruitTarget = tgt;
+        this.bestFruitDistance = Infinity;
+        const base = Math.hypot(myGoal.x - tgt.x, myGoal.y - tgt.y);
+        this.fruitApproachBaseline = Number.isFinite(base) ? Math.max(base, 1) : 0;
+      }
+      const distToFruit = Math.hypot(tgt.x - this.x, tgt.y - this.y);
+      if(Number.isFinite(distToFruit)){
+        if(!Number.isFinite(this.bestFruitDistance)){
+          this.bestFruitDistance = distToFruit;
+        } else {
+          const improvement = this.bestFruitDistance - distToFruit;
+          if(improvement > FRUIT_APPROACH_MIN_DELTA){
+            const baseline = this.fruitApproachBaseline > 0 ? this.fruitApproachBaseline : distToFruit;
+            const bonusBase = Math.max(baseline, 1);
+            const bonusFactor = clamp((bonusBase / FRUIT_APPROACH_BASELINE_SCALE), 0, FRUIT_APPROACH_MAX_MULTIPLIER - 1);
+            const multiplier = clamp(1 + bonusFactor, 1, FRUIT_APPROACH_MAX_MULTIPLIER);
+            const reward = improvement * FRUIT_APPROACH_REWARD * multiplier;
+            if(Number.isFinite(reward) && reward > 0){
+              this.fitness += reward;
+            }
+            this.bestFruitDistance = distToFruit;
+          } else if(distToFruit < this.bestFruitDistance){
+            this.bestFruitDistance = distToFruit;
+          }
+        }
+      }
+    } else {
+      this.currentFruitTarget = null;
+      this.bestFruitDistance = Infinity;
+      this.fruitApproachBaseline = 0;
+    }
     if(tgt){ tx=tgt.x-this.x; ty=tgt.y-this.y; dn=Math.hypot(tx,ty)||1; tx/=dn; ty/=dn; }
     const g = senseGrad(teamId, this.carry? 'home':'food', this.x, this.y);
     const mates = this.teamState.agents;
