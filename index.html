@@ -524,6 +524,12 @@ function clamp(value, min, max){
 const SPEED_FACTOR_MIN = 0.35;
 const SPEED_FACTOR_MAX = 1.0;
 const SPEED_FACTOR_ADJUST = 0.03;
+const ENERGY_MULTIPLIER_MIN = 0.35;
+const ENERGY_MULTIPLIER_MAX = 1.0;
+const COLLECTOR_ENERGY_MAX = 120;
+const COLLECTOR_ENERGY_DECAY = 0.08;
+const COLLECTOR_ENERGY_PICKUP_BOOST = 80;
+const COLLECTOR_ENERGY_SPEED_MIN = 0.45;
 
 function hexToRgba(hex, alpha){
   const h = hex.replace('#','');
@@ -2901,9 +2907,14 @@ function evolveTeam(teamState){
 
 // ===== Agent core =====
 class Agent{
-  constructor(x,y,color,maxSpeed,team){ this.x=x; this.y=y; this.vx=rand(-1,1); this.vy=rand(-1,1); this.color=color; this.baseSpeed=maxSpeed; this.speedFactor=1; this.minSpeedFactor=SPEED_FACTOR_MIN; this.maxSpeedFactor=SPEED_FACTOR_MAX; this.maxSpeed=maxSpeed; this.trail=[]; this.carry=false; this.team=team; this.side=Math.random()<0.5?-1:1; this.stuckT=0; this.wander={x:rand(-1,1), y:rand(-1,1)}; this.activationScratch={ input:[], hidden:[], output:[], timestamp:0 }; this.blockCooldown=0; }
-  stepSpeed(v){ this.baseSpeed=v; this.maxSpeed=this.baseSpeed*this.speedFactor; }
-  setSpeedFactor(factor){ this.speedFactor=clamp(factor, this.minSpeedFactor, this.maxSpeedFactor); this.maxSpeed=this.baseSpeed*this.speedFactor; }
+  constructor(x,y,color,maxSpeed,team){ this.x=x; this.y=y; this.vx=rand(-1,1); this.vy=rand(-1,1); this.color=color; this.baseSpeed=maxSpeed; this.speedFactor=1; this.minSpeedFactor=SPEED_FACTOR_MIN; this.maxSpeedFactor=SPEED_FACTOR_MAX; this.energyMultiplier=1; this.minEnergyMultiplier=ENERGY_MULTIPLIER_MIN; this.maxEnergyMultiplier=ENERGY_MULTIPLIER_MAX; this.energyMax=0; this.energy=0; this.updateMaxSpeed(); this.trail=[]; this.carry=false; this.team=team; this.side=Math.random()<0.5?-1:1; this.stuckT=0; this.wander={x:rand(-1,1), y:rand(-1,1)}; this.activationScratch={ input:[], hidden:[], output:[], timestamp:0 }; this.blockCooldown=0; }
+  updateMaxSpeed(){ this.maxSpeed=this.baseSpeed*this.speedFactor*this.energyMultiplier; }
+  stepSpeed(v){ this.baseSpeed=v; this.updateMaxSpeed(); }
+  setSpeedFactor(factor){ this.speedFactor=clamp(factor, this.minSpeedFactor, this.maxSpeedFactor); this.updateMaxSpeed(); }
+  setEnergyMultiplier(mult){ const min=this.minEnergyMultiplier ?? ENERGY_MULTIPLIER_MIN; const max=this.maxEnergyMultiplier ?? ENERGY_MULTIPLIER_MAX; this.energyMultiplier=clamp(mult, min, max); this.updateMaxSpeed(); }
+  enableEnergy(maxEnergy, initialEnergy=null){ this.energyMax=Math.max(0, Number(maxEnergy)||0); const start=Number.isFinite(initialEnergy)?initialEnergy:this.energyMax; this.energy=clamp(start, 0, this.energyMax); }
+  adjustEnergy(amount){ if(!Number.isFinite(amount) || amount===0 || this.energyMax<=0) return this.energy; this.energy=clamp(this.energy+amount, 0, this.energyMax); return this.energy; }
+  getEnergyRatio(){ if(this.energyMax<=0) return 1; return this.energy/this.energyMax; }
   adjustSpeedFactor(delta){ if(!Number.isFinite(delta) || delta===0) return; this.setSpeedFactor(this.speedFactor + delta); }
   getThrottlePercent(){ return Math.round(this.speedFactor * 100); }
   steerSeparation(peers, radius=18, gain=0.12){
@@ -2985,12 +2996,27 @@ class Collector extends Agent{
     this.pathProgressTicks = 0;
     this.visitedCells = new Set();
     this.stuckPenaltyCooldown = 0;
+    this.enableEnergy(COLLECTOR_ENERGY_MAX);
+    this.energyDecay = COLLECTOR_ENERGY_DECAY;
+    this.minEnergyMultiplier = COLLECTOR_ENERGY_SPEED_MIN;
+    this.maxEnergyMultiplier = ENERGY_MULTIPLIER_MAX;
+  }
+  updateEnergyThrottle(){
+    if(this.energyMax<=0) return;
+    const ratio = clamp(this.getEnergyRatio(), 0, 1);
+    const maxMultiplier = ENERGY_MULTIPLIER_MAX;
+    const multiplier = COLLECTOR_ENERGY_SPEED_MIN + (maxMultiplier - COLLECTOR_ENERGY_SPEED_MIN) * ratio;
+    this.setEnergyMultiplier(multiplier);
   }
   update(){
     const cfg=this.teamState.config;
     const teamId=cfg.id;
     const wasCarrying = this.carry;
+    if(this.energyMax>0){
+      this.adjustEnergy(-this.energyDecay);
+    }
     this.stepSpeed(cfg.speed);
+    this.updateEnergyThrottle();
     const myGoal=this.teamState.goal;
     const tgt = this.carry? myGoal : nearest(fruits, this.x, this.y);
     let tx=0,ty=0, dn=1;
@@ -3033,6 +3059,10 @@ class Collector extends Agent{
       this.carry=true;
       this.fitness += PICKUP_REWARD;
       awardTeamPoints(this.teamState, 'pickup', PICKUP_REWARD);
+      if(this.energyMax>0){
+        this.adjustEnergy(COLLECTOR_ENERGY_PICKUP_BOOST);
+        this.updateEnergyThrottle();
+      }
     }
     deposit(teamId, this.carry? 'food':'home', this.x, this.y, 0.30);
     if(this.stuckPenaltyCooldown > 0){
@@ -3584,6 +3614,15 @@ function draw(){
         const carryOutline = Math.max(1.5, outlineWidth + 0.6*params.agentScale);
         ctx.lineWidth=carryOutline;
         ctx.strokeStyle='#ffff33';
+        ctx.stroke();
+      }
+      if(a.energyMax>0){
+        const ratio = clamp(a.energy / (a.energyMax||1), 0, 1);
+        const ringRadius = agentRadius + Math.max(2.5, 2.2 * params.agentScale);
+        ctx.beginPath();
+        ctx.arc(a.x, a.y, ringRadius, -Math.PI/2, -Math.PI/2 + TAU*ratio);
+        ctx.lineWidth = Math.max(1.2, 1.6 * params.agentScale);
+        ctx.strokeStyle = 'rgba(250,204,21,0.85)';
         ctx.stroke();
       }
       drawTrail(a.trail, team.config.color);
