@@ -503,6 +503,9 @@
             <div class="label">Obstacles</div>
             <input id="slObst" type="range" min="0" max="40" value="0"><div class="val" id="lbObst">0</div>
 
+            <div class="label">Hills</div>
+            <input id="slHills" type="range" min="0" max="12" value="0"><div class="val" id="lbHills">0</div>
+
             <div class="label">Trail length</div>
             <input id="slTail" type="range" min="4" max="1500" value="24"><div class="val" id="lbTail">24</div>
 
@@ -672,6 +675,16 @@ const NAV = {
   safeNavReward: 0.06
 };
 const ENERGY_DEATH_PENALTY = 150;
+const HILL_RADIUS_MIN = 60;
+const HILL_RADIUS_MAX = 160;
+const HILL_HEIGHT_MIN = 0.35;
+const HILL_HEIGHT_MAX = 1.0;
+const HILL_SPEED_REQUIREMENT_BASE = 3.4;
+const HILL_SPEED_REQUIREMENT_PER_HEIGHT = 1.6;
+const HILL_SPEED_SLOW_PENALTY = 0.12;
+const HILL_MIN_SLOW_FACTOR = 0.25;
+const HILL_SPEED_BONUS = 0.28;
+const HILL_ENERGY_COST = 0.35;
 
 function hexToRgba(hex, alpha){
   const h = hex.replace('#','');
@@ -730,6 +743,7 @@ const params = {
   maxFruits: 32,
   spawnMs: 900,
   obstacles: 0,
+  hills: 0,
   tailLen: 24,
   agentScale: 1.00,
   agentCollisions: false,
@@ -761,6 +775,7 @@ const params = {
   learn: { genSteps:2800, mut:0.16, elite:0.20, mutStrengthW:0.20, mutStrengthB:0.20, crossoverBias:0.50, tournamentFactor:2.0, fresh:0, auto:true }
 };
 let lastObstCount = params.obstacles;
+let lastHillCount = params.hills;
 
 function getEnergyEmptySpeedSetting(){
   const value = params?.energyEmptySpeed;
@@ -908,6 +923,7 @@ function readParams(){
   params.maxFruits = +Q('slFruits').value; Q('lbFruits').textContent=params.maxFruits;
   params.spawnMs = +Q('slSpawn').value; Q('lbSpawn').textContent=params.spawnMs;
   params.obstacles = +Q('slObst').value; Q('lbObst').textContent=params.obstacles; if(params.obstacles !== lastObstCount){ makeObstacles(params.obstacles); lastObstCount = params.obstacles; }
+  params.hills = +Q('slHills').value; Q('lbHills').textContent=params.hills; if(params.hills !== lastHillCount){ makeHills(params.hills); lastHillCount = params.hills; }
   params.tailLen = +Q('slTail').value; Q('lbTail').textContent=params.tailLen;
   params.agentScale = (+Q('slAgentScale').value)/100; Q('lbAgentScale').textContent=`${params.agentScale.toFixed(2)}×`;
   const collisionToggle = Q('chkAgentCollisions');
@@ -1191,7 +1207,7 @@ function initMusicPanel(){
 // Procedural audio generation functions removed - now using MP3 files from audio folder
 
 // ===== Data structures =====
-const fruits=[], obstacles=[];
+const fruits=[], obstacles=[], hills=[];
 let activeTeamStates=[];
 const goalStates = {};
 const bestFitnessByTeam = {};
@@ -1791,6 +1807,7 @@ function applyPreset(name){
   if(ui.agentScalePct != null) setRangeValue('slAgentScale', ui.agentScalePct);
   if(ui.energyEmptyPct != null) setRangeValue('slEnergyEmptySpeed', ui.energyEmptyPct);
   if(ui.energyCapacity != null) setRangeValue('slEnergyCapacity', ui.energyCapacity);
+  if(ui.hills != null) setRangeValue('slHills', ui.hills);
   if(ui.agentCollisions !== undefined) setToggleValue('chkAgentCollisions', ui.agentCollisions);
 
   const teamSettings = ui.team || {};
@@ -2562,6 +2579,123 @@ function makeObstacles(n){
         obstacles.push(createCircleObstacle(x,y,smallR,i%paletteLen,false));
         placed=true;
       }
+    }
+  }
+  markPathCostDirty();
+}
+
+function hillOverlaps(x, y, r){
+  for(const hill of hills){
+    if(Math.hypot(x - hill.x, y - hill.y) < (r + hill.r + 28)){
+      return true;
+    }
+  }
+  return false;
+}
+
+function makeHills(count){
+  hills.length = 0;
+  const desired = Math.max(0, Math.round(count));
+  if(desired === 0){
+    markPathCostDirty();
+    return;
+  }
+  for(let i=0; i<desired; i++){
+    let placed = false;
+    let radius = rand(HILL_RADIUS_MIN, HILL_RADIUS_MAX);
+    for(let tries=0; tries<420 && !placed; tries++){
+      if(tries === 180){
+        radius = Math.max(HILL_RADIUS_MIN * 0.75, radius * 0.9);
+      }
+      const r = radius;
+      const margin = r + 24;
+      const x = rand(margin, W - margin);
+      const y = rand(margin, H - margin);
+      if(goalTooClose(x, y, r, 24)) continue;
+      if(obstacleOverlaps(x, y, r + 12)) continue;
+      if(hillOverlaps(x, y, r)) continue;
+      const height = rand(HILL_HEIGHT_MIN, HILL_HEIGHT_MAX);
+      hills.push({ x, y, r, height, seed:Math.random()*TAU });
+      placed = true;
+    }
+    if(!placed){
+      const fallbackR = Math.max(HILL_RADIUS_MIN, Math.min(radius, HILL_RADIUS_MAX));
+      const fallbackX = clamp(W * 0.5, fallbackR + 24, W - fallbackR - 24);
+      const fallbackY = clamp(H * 0.5, fallbackR + 24, H - fallbackR - 24);
+      hills.push({ x:fallbackX, y:fallbackY, r:fallbackR, height:rand(HILL_HEIGHT_MIN, HILL_HEIGHT_MAX), seed:Math.random()*TAU });
+    }
+  }
+  markPathCostDirty();
+}
+
+function getHillInfluence(x, y){
+  if(!hills.length) return null;
+  let best = null;
+  for(const hill of hills){
+    const dx = x - hill.x;
+    const dy = y - hill.y;
+    const dist = Math.hypot(dx, dy);
+    if(dist > hill.r) continue;
+    const strength = clamp(1 - (dist / hill.r), 0, 1);
+    if(!best || strength > best.strength){
+      best = { hill, strength };
+    }
+  }
+  return best;
+}
+
+function restoreHillsFromSnapshot(entries){
+  hills.length = 0;
+  if(!Array.isArray(entries) || !entries.length){
+    if(params.hills > 0){
+      makeHills(params.hills);
+      lastHillCount = params.hills;
+    } else {
+      markPathCostDirty();
+      lastHillCount = 0;
+    }
+    return;
+  }
+  for(const entry of entries){
+    const rawX = Number(entry?.x);
+    const rawY = Number(entry?.y);
+    const rawR = Number(entry?.r);
+    if(!Number.isFinite(rawX) || !Number.isFinite(rawY) || !Number.isFinite(rawR)) continue;
+    const radius = clamp(rawR, HILL_RADIUS_MIN * 0.5, HILL_RADIUS_MAX * 1.5);
+    const clampedX = clamp(rawX, radius, W - radius);
+    const clampedY = clamp(rawY, radius, H - radius);
+    const rawHeight = Number(entry?.height);
+    const height = clamp(Number.isFinite(rawHeight) ? rawHeight : HILL_HEIGHT_MIN, HILL_HEIGHT_MIN * 0.5, HILL_HEIGHT_MAX * 1.5);
+    const seed = Number(entry?.seed);
+    hills.push({
+      x:clampedX,
+      y:clampedY,
+      r:radius,
+      height,
+      seed:Number.isFinite(seed) ? seed : Math.random()*TAU
+    });
+  }
+  const slider = Q('slHills');
+  if(slider){
+    const min = Number(slider.min);
+    const max = Number(slider.max);
+    if(Number.isFinite(max) && hills.length > max){
+      hills.length = max;
+    }
+    const clamped = Math.max(Number.isFinite(min) ? min : 0, Math.min(Number.isFinite(max) ? max : hills.length, hills.length));
+    params.hills = clamped;
+    lastHillCount = clamped;
+    slider.value = String(clamped);
+    const label = Q('lbHills');
+    if(label){
+      label.textContent = String(clamped);
+    }
+  } else {
+    params.hills = hills.length;
+    lastHillCount = params.hills;
+    const label = Q('lbHills');
+    if(label){
+      label.textContent = String(params.hills);
     }
   }
   markPathCostDirty();
@@ -3528,7 +3662,55 @@ class Agent{
     return touched;
   }
   tickCooldowns(){ if(this.blockCooldown>0) this.blockCooldown--; }
-  integrate(){ const sp=Math.hypot(this.vx,this.vy); if(sp>this.maxSpeed){ this.vx*=this.maxSpeed/sp; this.vy*=this.maxSpeed/sp; } this.trail.push({ x:this.x, y:this.y }); if(this.trail.length>params.tailLen) this.trail.shift(); this.x+=this.vx; this.y+=this.vy; const obstacleBefore = this.resolveObstaclePenetration(); const hitWall = this.keepInBounds(); const obstacleAfter = this.resolveObstaclePenetration(1); const touchedObstacle = obstacleBefore || obstacleAfter; const touched = touchedObstacle || hitWall; this.stuckT=(sp<0.10)?(this.stuckT+1):0; this.tickCooldowns(); return { touched, touchedObstacle, touchedWall:hitWall }; }
+  integrate(){
+    let maxAllowedSpeed = this.maxSpeed;
+    const hillEffect = getHillInfluence(this.x, this.y);
+    if(hillEffect){
+      const { hill, strength } = hillEffect;
+      const requirement = HILL_SPEED_REQUIREMENT_BASE + hill.height * HILL_SPEED_REQUIREMENT_PER_HEIGHT;
+      if(maxAllowedSpeed < requirement){
+        const deficit = requirement - maxAllowedSpeed;
+        const slowFactor = clamp(1 - deficit * HILL_SPEED_SLOW_PENALTY * Math.max(0.6, strength), HILL_MIN_SLOW_FACTOR, 1);
+        if(Number.isFinite(slowFactor) && slowFactor < 1){
+          this.vx *= slowFactor;
+          this.vy *= slowFactor;
+          maxAllowedSpeed *= slowFactor;
+        }
+      } else {
+        const boost = 1 + HILL_SPEED_BONUS * hill.height * strength;
+        const blend = 1 + (boost - 1) * 0.6;
+        if(Number.isFinite(blend) && blend > 0){
+          this.vx *= blend;
+          this.vy *= blend;
+        }
+        if(Number.isFinite(boost) && boost > 0){
+          maxAllowedSpeed *= boost;
+        }
+        if(this.energyMax>0){
+          const travelSpeed = Math.hypot(this.vx, this.vy);
+          const normalizedBase = Math.max(1, this.baseSpeed || 1);
+          const drain = HILL_ENERGY_COST * hill.height * strength * Math.max(0.6, travelSpeed / normalizedBase);
+          if(Number.isFinite(drain) && drain > 0){
+            this.adjustEnergy(-drain);
+          }
+        }
+      }
+    }
+    const sp=Math.hypot(this.vx,this.vy);
+    if(sp>maxAllowedSpeed && maxAllowedSpeed>0){ this.vx*=maxAllowedSpeed/sp; this.vy*=maxAllowedSpeed/sp; }
+    this.trail.push({ x:this.x, y:this.y });
+    if(this.trail.length>params.tailLen) this.trail.shift();
+    this.x+=this.vx;
+    this.y+=this.vy;
+    const obstacleBefore = this.resolveObstaclePenetration();
+    const hitWall = this.keepInBounds();
+    const obstacleAfter = this.resolveObstaclePenetration(1);
+    const touchedObstacle = obstacleBefore || obstacleAfter;
+    const touched = touchedObstacle || hitWall;
+    this.stuckT=(sp<0.10)?(this.stuckT+1):0;
+    this.tickCooldowns();
+    return { touched, touchedObstacle, touchedWall:hitWall };
+  }
 }
 
 class Collector extends Agent{
@@ -4047,6 +4229,16 @@ function setup(){
   }
   makeGrid();
   if(obstacles.length===0){ makeObstacles(params.obstacles); }
+  if(params.hills === 0){
+    if(hills.length){
+      hills.length = 0;
+      markPathCostDirty();
+    }
+    lastHillCount = 0;
+  } else if(hills.length === 0 || params.hills !== lastHillCount){
+    makeHills(params.hills);
+    lastHillCount = params.hills;
+  }
   resizePop();
   params.teams.forEach((team)=>{
     resetGoalDelivery(team.id);
@@ -4143,6 +4335,38 @@ function drawTrail(trail,color){
   for(let i=1;i<trail.length;i++) ctx.lineTo(trail[i].x,trail[i].y);
   ctx.stroke();
 }
+
+function drawHill(hill, t){
+  if(!hill) return;
+  ctx.save();
+  const pulse = 0.32 + Math.sin((t + hill.seed) * 0.8) * 0.12;
+  const crestOffset = hill.r * 0.18;
+  const gradient = ctx.createRadialGradient(hill.x, hill.y - crestOffset, hill.r * 0.15, hill.x, hill.y, hill.r);
+  const topAlpha = clamp(0.18 + hill.height * 0.22, 0.1, 0.4) + pulse * 0.1;
+  gradient.addColorStop(0, `rgba(148, 163, 255, ${topAlpha})`);
+  gradient.addColorStop(0.45, `rgba(59, 130, 246, ${0.18 + hill.height * 0.18})`);
+  gradient.addColorStop(0.82, `rgba(15, 23, 42, ${0.12 + hill.height * 0.16})`);
+  gradient.addColorStop(1, 'rgba(2, 6, 23, 0.65)');
+  ctx.beginPath();
+  ctx.arc(hill.x, hill.y, hill.r, 0, TAU);
+  ctx.fillStyle = gradient;
+  ctx.fill();
+
+  const rimWidth = Math.max(1.2, 2.4 * hill.height);
+  ctx.lineWidth = rimWidth;
+  ctx.strokeStyle = 'rgba(13, 21, 40, 0.9)';
+  ctx.stroke();
+
+  const highlightRadius = Math.max(10, hill.r * 0.32);
+  const highlightAlpha = clamp(0.10 + hill.height * 0.12 + pulse * 0.08, 0.08, 0.35);
+  ctx.beginPath();
+  ctx.arc(hill.x, hill.y - crestOffset * 0.8, highlightRadius, 0, TAU);
+  ctx.fillStyle = `rgba(226, 232, 255, ${highlightAlpha})`;
+  ctx.fill();
+
+  ctx.restore();
+}
+
 function drawGoal(teamState){
   const g = teamState.goal;
   const tint = teamState.config.color;
@@ -4317,13 +4541,19 @@ function drawAgentSensors(agent){
 function draw(){
   ctx.clearRect(0,0,W,H);
 
+  const t = performance.now()*0.001;
+
+  // Terrain hills
+  for(const hill of hills){
+    drawHill(hill, t);
+  }
+
   // Goals (static, no blinking)
   for(const team of activeTeamStates){
     drawGoal(team);
   }
 
   // Obstacles (ambient pulse)
-  const t = performance.now()*0.001;
   for(const o of obstacles){
     drawObstacleShape(o, t, false);
   }
@@ -4403,6 +4633,7 @@ let simSteps=0, forceNextGen=false, awaitingManualAdvance=false;
 
 function resetTraining(preserveObstacles=false){
   const savedObstacles = preserveObstacles ? captureObstacleSnapshot() : null;
+  const savedHills = preserveObstacles ? hills.map((hill)=> ({ x:hill.x, y:hill.y, r:hill.r, height:hill.height, seed:hill.seed })) : null;
   evo.gen = 1;
   simSteps = 0;
   forceNextGen = false;
@@ -4426,7 +4657,11 @@ function resetTraining(preserveObstacles=false){
     obstacles.length = 0;
     lastObstCount = params.obstacles;
   }
+  hills.length = 0;
   setup();
+  if(savedHills && savedHills.length){
+    restoreHillsFromSnapshot(savedHills);
+  }
   syncManualObstacleState();
   markPathCostDirty();
   markBestBrainDirty();
@@ -4508,6 +4743,13 @@ function applyBestFitnessSnapshot(bestMap){
 function captureTrainingSnapshot(){
   readParams();
   const paramsClone = JSON.parse(JSON.stringify(params));
+  const hillSnapshot = hills.map((hill)=> ({
+    x:hill.x,
+    y:hill.y,
+    r:hill.r,
+    height:hill.height,
+    seed:hill.seed
+  }));
   const evoTeams = params.teams.map((team)=>{
     const population = getPopulation(team.id);
     return {
@@ -4520,6 +4762,9 @@ function captureTrainingSnapshot(){
     version:2,
     savedAt:new Date().toISOString(),
     params:paramsClone,
+    terrain:{
+      hills:hillSnapshot
+    },
     evo:{
       gen:evo.gen,
       teams:evoTeams
@@ -4763,6 +5008,7 @@ function applyParamsSnapshot(snapshot){
   if(snapshot.maxFruits != null) setRangeValue('slFruits', snapshot.maxFruits);
   if(snapshot.spawnMs != null) setRangeValue('slSpawn', snapshot.spawnMs);
   if(snapshot.obstacles != null) setRangeValue('slObst', snapshot.obstacles);
+  if(snapshot.hills != null) setRangeValue('slHills', snapshot.hills);
   if(snapshot.tailLen != null) setRangeValue('slTail', snapshot.tailLen);
   if(snapshot.agentScale != null) setRangeValue('slAgentScale', Math.round(snapshot.agentScale*100));
   if(snapshot.energyEmptySpeed != null){
@@ -4895,6 +5141,10 @@ function loadTrainingSnapshot(data){
   let bestBrainCandidate = null;
 
   if(data.params) applyParamsSnapshot(data.params);
+
+  if(data.terrain && Array.isArray(data.terrain.hills)){
+    restoreHillsFromSnapshot(data.terrain.hills);
+  }
 
   if(Array.isArray(evoData.teams)){
     bestFromSnapshot = {};
@@ -5092,7 +5342,7 @@ if(brainCanvas){
 }
 
 // Bind ranges after DOM ready
-['Fruits','Spawn','Obst','Tail','GenSteps'].forEach(k=>{
+['Fruits','Spawn','Obst','Hills','Tail','GenSteps'].forEach(k=>{
   bindRange('sl'+k, 'lb'+k, (v)=> v);
 });
 bindRange('slMut','lbMut',(v)=> `${v}%`);
