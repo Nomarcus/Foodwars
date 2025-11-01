@@ -684,6 +684,9 @@ function hexToRgba(hex, alpha){
 
 const canvas = document.getElementById('world');
 const ctx = canvas.getContext('2d');
+if(canvas){
+  canvas.style.touchAction = 'none';
+}
 const W = canvas.width, H = canvas.height;
 
 const brainCanvas = document.getElementById('brainVizCanvas');
@@ -720,6 +723,7 @@ let currentTool = TOOL_SELECT;
 let drawingState = null;
 let manualPaletteCursor = 0;
 let dragRadius = 0;
+let activePointerId = null;
 
 // ===== Parameters =====
 const params = {
@@ -1848,9 +1852,22 @@ function refreshStats(){
 
 function getCanvasCoords(evt){
   const rect = canvas.getBoundingClientRect();
+  let clientX = evt?.clientX;
+  let clientY = evt?.clientY;
+  if((clientX === undefined || clientY === undefined) && evt?.touches?.length){
+    clientX = evt.touches[0].clientX;
+    clientY = evt.touches[0].clientY;
+  } else if((clientX === undefined || clientY === undefined) && evt?.changedTouches?.length){
+    clientX = evt.changedTouches[0].clientX;
+    clientY = evt.changedTouches[0].clientY;
+  }
+  if(clientX === undefined || clientY === undefined){
+    clientX = rect.left;
+    clientY = rect.top;
+  }
   return {
-    x: evt.clientX - rect.left,
-    y: evt.clientY - rect.top
+    x: clientX - rect.left,
+    y: clientY - rect.top
   };
 }
 
@@ -2063,10 +2080,17 @@ function syncManualObstacleState(){
   }
 }
 
-canvas.addEventListener('mousedown', (e)=>{
+canvas.addEventListener('pointerdown', (e)=>{
+  if(!e.isPrimary) return;
+  if(e.pointerType !== 'touch' && e.button !== 0) return;
+  activePointerId = e.pointerId;
+  if(typeof canvas.setPointerCapture === 'function'){
+    canvas.setPointerCapture(e.pointerId);
+  }
   const {x, y} = getCanvasCoords(e);
   if(currentTool !== TOOL_SELECT){
     drawingState = { tool:currentTool, startX:x, startY:y, currentX:x, currentY:y };
+    e.preventDefault();
     return;
   }
   dragTarget=null; dragKind=null; dragIndex=-1; dragRadius=0;
@@ -2080,6 +2104,7 @@ canvas.addEventListener('mousedown', (e)=>{
       dragDX = offset.dx;
       dragDY = offset.dy;
       dragRadius = getObstacleRadius(o);
+      e.preventDefault();
       return;
     }
   }
@@ -2089,12 +2114,14 @@ canvas.addEventListener('mousedown', (e)=>{
       dragKind=`goal:${goal.id}`;
       dragDX=goal.x-x;
       dragDY=goal.y-y;
+      e.preventDefault();
       return;
     }
   }
 });
 
-window.addEventListener('mousemove', (e)=>{
+window.addEventListener('pointermove', (e)=>{
+  if(activePointerId !== null && e.pointerId !== activePointerId) return;
   const {x, y} = getCanvasCoords(e);
   if(drawingState){
     drawingState.currentX = x;
@@ -2117,7 +2144,10 @@ window.addEventListener('mousemove', (e)=>{
   }
 });
 
-window.addEventListener('mouseup', ()=>{
+function endPointerInteraction(e){
+  if(activePointerId !== null && e?.pointerId !== undefined && e.pointerId !== activePointerId){
+    return;
+  }
   if(drawingState){
     const created = buildObstacleFromState(drawingState);
     if(created){
@@ -2134,6 +2164,18 @@ window.addEventListener('mouseup', ()=>{
     drawingState = null;
   }
   dragTarget=null; dragKind=null; dragIndex=-1; dragRadius=0;
+  if(e && typeof canvas.hasPointerCapture === 'function' && canvas.hasPointerCapture(e.pointerId) && typeof canvas.releasePointerCapture === 'function'){
+    canvas.releasePointerCapture(e.pointerId);
+  }
+  activePointerId = null;
+}
+
+window.addEventListener('pointerup', (e)=>{
+  endPointerInteraction(e);
+});
+
+window.addEventListener('pointercancel', (e)=>{
+  endPointerInteraction(e);
 });
 
 // Utils
