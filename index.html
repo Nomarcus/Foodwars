@@ -23,14 +23,19 @@
     .brand{display:flex; align-items:center; gap:12px; font-size:22px; font-weight:700; letter-spacing:.02em; color:var(--ink)}
     .brand-dot{width:14px; height:14px; border-radius:50%; background:linear-gradient(135deg, var(--accent) 0%, #8b5cf6 100%); box-shadow:0 0 18px rgba(244,114,182,.6)}
     .nav-links{display:flex; align-items:center; gap:12px}
-    .pill-link{display:inline-flex; align-items:center; justify-content:center; padding:10px 20px; border-radius:999px; border:1px solid rgba(45,212,191,.45); background:linear-gradient(120deg, rgba(45,212,191,.18), rgba(59,130,246,.18)); color:var(--ink); text-decoration:none; font-size:14px; font-weight:600; letter-spacing:.03em; transition:transform .2s ease, box-shadow .2s ease, filter .2s ease, border-color .2s ease}
+    .pill-link,.pill-button{display:inline-flex; align-items:center; justify-content:center; padding:10px 20px; border-radius:999px; border:1px solid rgba(45,212,191,.45); background:linear-gradient(120deg, rgba(45,212,191,.18), rgba(59,130,246,.18)); color:var(--ink); text-decoration:none; font-size:14px; font-weight:600; letter-spacing:.03em; transition:transform .2s ease, box-shadow .2s ease, filter .2s ease, border-color .2s ease; cursor:pointer; font-family:inherit}
     .pill-link.secondary{border-color:rgba(139,92,246,.45); background:linear-gradient(120deg, rgba(139,92,246,.18), rgba(244,114,182,.18))}
-    .pill-link:hover{transform:translateY(-1px); filter:brightness(1.05); box-shadow:0 16px 32px rgba(45,212,191,.25)}
-    .pill-link:focus-visible{outline:2px solid rgba(56,189,248,.65); outline-offset:3px}
+    .pill-link:hover,.pill-button:hover{transform:translateY(-1px); filter:brightness(1.05); box-shadow:0 16px 32px rgba(45,212,191,.25)}
+    .pill-link:focus-visible,.pill-button:focus-visible{outline:2px solid rgba(56,189,248,.65); outline-offset:3px}
+    .pill-button{background:linear-gradient(120deg, rgba(139,92,246,.22), rgba(56,189,248,.22)); border-color:rgba(56,189,248,.45)}
+    .pill-button.pill-button--active{border-color:rgba(244,114,182,.65); background:linear-gradient(120deg, rgba(244,114,182,.25), rgba(59,130,246,.25)); box-shadow:0 18px 40px rgba(244,114,182,.32)}
 
     main{flex:1; display:flex; justify-content:center; align-items:flex-start; padding:40px 48px 64px}
     .wrap{display:flex; align-items:flex-start; justify-content:center; gap:40px; width:100%; max-width:2000px}
     .field-area{flex:1 1 auto; display:flex; flex-direction:column; align-items:stretch; gap:18px; min-width:0}
+    .playfield-frame{position:relative; padding:18px; border-radius:30px; background:rgba(4,8,26,.85); box-shadow:0 18px 36px rgba(9,14,36,.55); border:1px solid rgba(148,163,209,.22); transition:box-shadow .3s ease, transform .3s ease, background .3s ease, border-color .3s ease}
+    .playfield-frame::before{content:""; position:absolute; inset:-8px; border-radius:inherit; background:linear-gradient(135deg, rgba(56,189,248,.35), rgba(244,114,182,.32)); opacity:0; filter:blur(12px); transition:opacity .35s ease, filter .35s ease; z-index:0}
+    .playfield-frame canvas{position:relative; z-index:1}
     canvas{border-radius:24px; background:#04091f; box-shadow:0 0 45px rgba(15,23,61,.65), inset 0 0 22px rgba(118,133,255,.12); cursor:crosshair; border:1px solid var(--silver);}
     .stats-bar{display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:16px; padding:18px 22px; border-radius:18px; background:rgba(11,16,44,.78); border:1px solid var(--silver); box-shadow:0 18px 32px rgba(5,9,25,.45)}
     .stat-card{display:flex; flex-direction:column; gap:6px; padding:6px 0}
@@ -129,6 +134,20 @@
     .music-attr{opacity:.72}
     .sr-only{position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0}
 
+    body.performance-mode{background:radial-gradient(circle at 50% 18%, rgba(59,130,246,.22) 0%, rgba(15,23,42,.9) 55%, #030513 100%);}
+    body.performance-mode .brand, body.performance-mode .nav-links{display:none}
+    body.performance-mode .main-nav{background:transparent; border:none; box-shadow:none; padding:20px 28px; justify-content:flex-end}
+    body.performance-mode .main-nav::before{display:none}
+    body.performance-mode .wrap{max-width:none; justify-content:center}
+    body.performance-mode main{padding:40px 0 60px}
+    body.performance-mode .side, body.performance-mode .stats-bar, body.performance-mode .brain-viz, body.performance-mode .brain-guide{display:none !important}
+    body.performance-mode .field-area{align-items:center; gap:28px}
+    body.performance-mode .field-area > :not(.playfield-frame){display:none !important}
+    body.performance-mode .playfield-frame{max-width:min(1100px, 92vw); width:100%; padding:28px; border:1px solid rgba(148,163,209,.35); background:rgba(8,12,30,.82); box-shadow:0 0 40px rgba(56,189,248,.35), 0 0 140px rgba(244,114,182,.25)}
+    body.performance-mode .playfield-frame::before{opacity:1; filter:blur(22px)}
+    body.performance-mode canvas{width:100%; height:auto; box-shadow:0 0 55px rgba(56,189,248,.22), inset 0 0 28px rgba(148,163,209,.16); border:1px solid rgba(148,163,209,.45)}
+    body.performance-mode #btnPerformance{pointer-events:auto}
+
     @media (max-width:1200px){
       .wrap{flex-direction:column; align-items:center}
       .field-area{width:100%}
@@ -158,6 +177,7 @@
       <a class="pill-link" href="#panel-global">Controls</a>
       <a class="pill-link secondary" href="learn-neat.html">How NEAT works</a>
     </nav>
+    <button type="button" id="btnPerformance" class="pill-button" aria-pressed="false" title="Focus on the playfield and boost frame rates">Performance</button>
   </header>
   <main>
   <div class="wrap">
@@ -248,7 +268,9 @@
 
     <!-- Middle: playfield -->
     <div class="field-area">
-      <canvas id="world" width="1100" height="640"></canvas>
+      <div class="playfield-frame">
+        <canvas id="world" width="1100" height="640"></canvas>
+      </div>
       <section class="stats-bar" aria-label="Simulation progress" aria-live="polite">
         <div class="stat-card">
           <span class="stat-label">Generation</span>
@@ -570,9 +592,12 @@ const brainToggleBtn = Q('brainToggleBtn');
 const brainPausedEl = Q('brainPausedNotice');
 const brainVizSection = document.querySelector('.brain-viz');
 const brainTeamSelect = Q('brainTeamSelect');
+const performanceBtn = document.getElementById('btnPerformance');
 let brainCanvasWidth = brainCanvas ? brainCanvas.clientWidth : 0;
 let brainCanvasHeight = brainCanvas ? brainCanvas.clientHeight : 0;
 let brainVizEnabled = true;
+let performanceModeActive = false;
+const performanceModePrefs = { topHighlight:null, energyHalo:null, brainViz:null };
 const AGENT_BASE_RADIUS = 5.2;
 const AGENT_BASE_PICKUP_RADIUS = 9;
 const AGENT_BASE_SEPARATION_RADIUS = 22;
@@ -1514,6 +1539,7 @@ function renderTeamControls(){
 }
 
 function refreshStats(){
+  if(performanceModeActive) return;
   const genEl = Q('stat-gen');
   if(genEl) genEl.textContent = evo.gen;
   const teamEl = Q('stat-teams');
@@ -2500,6 +2526,95 @@ if(brainTeamSelect){
   });
 }
 applyBrainVizState();
+
+function syncPerformanceButton(){
+  if(!performanceBtn) return;
+  performanceBtn.classList.toggle('pill-button--active', performanceModeActive);
+  performanceBtn.textContent = performanceModeActive ? 'Exit Performance' : 'Performance';
+  performanceBtn.setAttribute('aria-pressed', performanceModeActive ? 'true' : 'false');
+  performanceBtn.setAttribute('title', performanceModeActive
+    ? 'Return to the full control surface'
+    : 'Focus on the playfield and boost frame rates');
+}
+
+function setPerformanceMode(enabled){
+  if(enabled === performanceModeActive) return;
+  performanceModeActive = enabled;
+  document.body.classList.toggle('performance-mode', enabled);
+
+  let shouldApplyBrainVizState = false;
+
+  if(enabled){
+    performanceModePrefs.topHighlight = params.showTopHighlight;
+    performanceModePrefs.energyHalo = params.showEnergyHalo;
+    performanceModePrefs.brainViz = brainVizEnabled;
+
+    params.showTopHighlight = false;
+    params.showEnergyHalo = false;
+
+    const topToggle = Q('chkTopHighlight');
+    if(topToggle){
+      topToggle.checked = false;
+      const label = Q('lbTopHighlight');
+      if(label) label.textContent = 'off';
+    }
+
+    const haloToggle = Q('chkEnergyHalo');
+    if(haloToggle){
+      haloToggle.checked = false;
+      const label = Q('lbEnergyHalo');
+      if(label) label.textContent = 'off';
+    }
+
+    if(brainVizEnabled){
+      brainVizEnabled = false;
+      shouldApplyBrainVizState = true;
+    }
+  } else {
+    if(performanceModePrefs.topHighlight != null){
+      params.showTopHighlight = !!performanceModePrefs.topHighlight;
+      const topToggle = Q('chkTopHighlight');
+      if(topToggle){
+        topToggle.checked = !!performanceModePrefs.topHighlight;
+        const label = Q('lbTopHighlight');
+        if(label) label.textContent = topToggle.checked ? 'on' : 'off';
+      }
+    }
+    if(performanceModePrefs.energyHalo != null){
+      params.showEnergyHalo = !!performanceModePrefs.energyHalo;
+      const haloToggle = Q('chkEnergyHalo');
+      if(haloToggle){
+        haloToggle.checked = !!performanceModePrefs.energyHalo;
+        const label = Q('lbEnergyHalo');
+        if(label) label.textContent = haloToggle.checked ? 'on' : 'off';
+      }
+    }
+    if(performanceModePrefs.brainViz != null){
+      brainVizEnabled = !!performanceModePrefs.brainViz;
+      shouldApplyBrainVizState = true;
+    }
+    refreshStats();
+  }
+
+  if(shouldApplyBrainVizState){
+    applyBrainVizState();
+  }
+
+  syncPerformanceButton();
+}
+
+if(performanceBtn){
+  performanceBtn.addEventListener('click', ()=> setPerformanceMode(!performanceModeActive));
+}
+
+document.addEventListener('keydown', (evt)=>{
+  if(evt.key === 'Escape' && performanceModeActive){
+    setPerformanceMode(false);
+  }
+});
+
+syncPerformanceButton();
+
 function resetBestBrainState(gen){
   resetBrainState(bestBrainState, gen);
   resetBrainState(globalBrainChampion, gen);
@@ -3717,7 +3832,9 @@ function draw(){
         ctx.strokeStyle = 'rgba(250,204,21,0.85)';
         ctx.stroke();
       }
-      drawTrail(a.trail, team.config.color);
+      if(!performanceModeActive){
+        drawTrail(a.trail, team.config.color);
+      }
       if(params.showTopHighlight && topAgent && a === topAgent){
         drawTopAgentHighlight(a, agentRadius);
       }
