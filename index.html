@@ -209,6 +209,9 @@
             <div class="label" title="Number of simulation steps each generation runs before evaluating fitness.">Steps / gen</div>
             <input id="slGenSteps" type="range" min="600" max="100000" value="2800" title="Number of simulation steps each generation runs before evaluating fitness."><div class="val" id="lbGenSteps">2800</div>
 
+            <div class="label" title="Hidden neurons connecting the sensory inputs to the outputs.">Hidden neurons</div>
+            <input id="slHidden" type="range" min="4" max="96" value="16" title="Hidden neurons connecting the sensory inputs to the outputs."><div class="val" id="lbHidden">16 neurons</div>
+
             <div class="label" title="Percentage of offspring genomes that receive random mutations.">Mutation %</div>
             <input id="slMut" type="range" min="1" max="80" value="16" title="Percentage of offspring genomes that receive random mutations."><div class="val" id="lbMut">16%</div>
 
@@ -758,7 +761,7 @@ const params = {
     strat:2.40,
     sep:1.10
   })),
-  learn: { genSteps:2800, mut:0.16, elite:0.20, mutStrengthW:0.20, mutStrengthB:0.20, crossoverBias:0.50, tournamentFactor:2.0, fresh:0, auto:true }
+  learn: { genSteps:2800, hidden: NET_HIDDEN, mut:0.16, elite:0.20, mutStrengthW:0.20, mutStrengthB:0.20, crossoverBias:0.50, tournamentFactor:2.0, fresh:0, auto:true }
 };
 let lastObstCount = params.obstacles;
 
@@ -989,6 +992,17 @@ function readParams(){
   }
 
   params.learn.genSteps = +Q('slGenSteps').value; Q('lbGenSteps').textContent=params.learn.genSteps;
+  const hiddenSlider = Q('slHidden');
+  if(hiddenSlider){
+    const desired = Math.round(Number(hiddenSlider.value));
+    const clampedHidden = clamp(desired, NET_HIDDEN_MIN, NET_HIDDEN_MAX);
+    params.learn.hidden = clampedHidden;
+    const label = Q('lbHidden');
+    if(label){
+      label.textContent = `${clampedHidden} neuron${clampedHidden===1?'':'s'}`;
+    }
+    applyHiddenLayerSize(clampedHidden);
+  }
   params.learn.mut = (+Q('slMut').value)/100; Q('lbMut').textContent=`${Math.round(params.learn.mut*100)}%`;
   params.learn.elite = (+Q('slElite').value)/100; Q('lbElite').textContent=`${Math.round(params.learn.elite*100)}%`;
   params.learn.mutStrengthW = (+Q('slMutStrengthW').value)/100; Q('lbMutStrengthW').textContent=params.learn.mutStrengthW.toFixed(2);
@@ -1816,6 +1830,7 @@ function applyPreset(name){
 
   const learn = ui.learn || {};
   if(learn.steps != null) setRangeValue('slGenSteps', learn.steps);
+  if(learn.hidden != null) setRangeValue('slHidden', learn.hidden);
   if(learn.mutPct != null) setRangeValue('slMut', learn.mutPct);
   if(learn.elitePct != null) setRangeValue('slElite', learn.elitePct);
 
@@ -2570,11 +2585,13 @@ function makeObstacles(n){
 
 
 const NET_INPUTS = 11;
-const NET_HIDDEN = 16;
+const NET_HIDDEN_MIN = 4;
+const NET_HIDDEN_MAX = 96;
+let NET_HIDDEN = 16;
 const NET_OUTPUTS = 4;
 const OUTPUT_NODE_LABELS = ['Drive X', 'Drive Y', 'Speed +', 'Speed −'];
 
-// ===== NEAT‑lite (7→16→4) =====
+// ===== NEAT‑lite (7→H→4) =====
 function randn(){ let u=0,v=0; while(u===0) u=Math.random(); while(v===0) v=Math.random(); return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v); }
 function matmulVec(W, x, out){ const rows=W.length, cols=W[0].length; for(let i=0;i<rows;i++){ let s=0; const Wi=W[i]; for(let j=0;j<cols;j++) s+=Wi[j]*x[j]; out[i]=s; } return out; }
 function tanhVec(v){ for(let i=0;i<v.length;i++) v[i]=Math.tanh(v[i]); return v; }
@@ -2595,8 +2612,27 @@ function ensureNetInputSize(net, desired=NET_INPUTS){
   return net;
 }
 
+function ensureNetHiddenSize(net, desired=NET_HIDDEN){
+  if(!net) return net;
+  const target = Math.max(1, Math.round(Number.isFinite(desired) ? desired : NET_HIDDEN));
+  if(!Array.isArray(net.W1)) net.W1 = [];
+  if(!Array.isArray(net.b1)) net.b1 = [];
+  const inputDim = Array.isArray(net.W1?.[0]) ? net.W1[0].length : (Array.isArray(net.W2?.[0]) ? net.W2[0].length : NET_INPUTS);
+  ensureNetInputSize(net, inputDim);
+  while(net.W1.length < target){
+    net.W1.push(Array.from({length:inputDim}, ()=> (Math.random()*2-1)*0.5));
+  }
+  while(net.b1.length < target){
+    net.b1.push((Math.random()*2-1)*0.2);
+  }
+  if(net.W1.length > target) net.W1.length = target;
+  if(net.b1.length > target) net.b1.length = target;
+  return net;
+}
+
 function ensureNetOutputSize(net, desired=NET_OUTPUTS){
   if(!net) return net;
+  ensureNetHiddenSize(net, NET_HIDDEN);
   ensureNetInputSize(net, NET_INPUTS);
   const hiddenDim = Array.isArray(net.W1) ? net.W1.length : (Array.isArray(net.W2?.[0]) ? net.W2[0].length : NET_HIDDEN);
   if(!Array.isArray(net.W2)) net.W2 = [];
@@ -2627,6 +2663,7 @@ function makeNet(inDim=NET_INPUTS,h=NET_HIDDEN,out=NET_OUTPUTS){
     W2:Array.from({length:out},()=>Array.from({length:h},()=> (Math.random()*2-1)*0.5)),
     b2:Array.from({length:out},()=> (Math.random()*2-1)*0.2)
   };
+  ensureNetHiddenSize(net, h);
   ensureNetInputSize(net, inDim);
   return ensureNetOutputSize(net, out);
 }
@@ -2637,6 +2674,7 @@ function cloneNet(n){
     W2:n.W2.map(r=>r.slice()),
     b2:n.b2.slice()
   };
+  ensureNetHiddenSize(cloned, NET_HIDDEN);
   ensureNetInputSize(cloned, NET_INPUTS);
   return ensureNetOutputSize(cloned);
 }
@@ -2684,6 +2722,7 @@ function crossover(a,b){
 }
 function forward(n, x, capture=null){
   ensureNetInputSize(n, x.length);
+  ensureNetHiddenSize(n, NET_HIDDEN);
   ensureNetOutputSize(n);
   const hidden = capture ? ensureArraySize(capture.hidden, n.b1.length) : new Array(n.b1.length);
   const output = capture ? ensureArraySize(capture.output, n.b2.length) : new Array(n.b2.length);
@@ -2724,6 +2763,57 @@ const teamBrainCache = new Map();
 let brainViewMode = 'auto';
 let brainViewTeamId = null;
 let bestBrainDirty = true;
+
+function applyHiddenLayerSize(desired){
+  const numeric = Math.round(Number(desired));
+  const clamped = clamp(Number.isFinite(numeric) ? numeric : NET_HIDDEN, NET_HIDDEN_MIN, NET_HIDDEN_MAX);
+  if(clamped === NET_HIDDEN){
+    return;
+  }
+  NET_HIDDEN = clamped;
+  if(params?.learn){
+    params.learn.hidden = clamped;
+  }
+  const adjustNet = (net)=>{
+    if(!net) return;
+    ensureNetHiddenSize(net, clamped);
+    ensureNetInputSize(net, NET_INPUTS);
+    ensureNetOutputSize(net, NET_OUTPUTS);
+  };
+  const populations = evo?.populations ? Object.values(evo.populations) : [];
+  populations.forEach((pop)=>{
+    if(!Array.isArray(pop)) return;
+    pop.forEach((member)=>{
+      if(member?.net) adjustNet(member.net);
+    });
+  });
+  const adjustState = (state)=>{
+    if(!state) return;
+    if(state.net) adjustNet(state.net);
+    if(state.activations){
+      state.activations.input = ensureArraySize(state.activations.input, NET_INPUTS);
+      state.activations.hidden = ensureArraySize(state.activations.hidden, clamped);
+      state.activations.output = ensureArraySize(state.activations.output, NET_OUTPUTS);
+    }
+  };
+  adjustState(bestBrainState);
+  adjustState(globalBrainChampion);
+  if(teamBrainCache && typeof teamBrainCache.forEach === 'function'){
+    teamBrainCache.forEach((state)=> adjustState(state));
+  }
+  if(Array.isArray(activeTeamStates)){
+    for(const team of activeTeamStates){
+      if(!team?.agents) continue;
+      for(const agent of team.agents){
+        if(!agent?.activationScratch) continue;
+        agent.activationScratch.input = ensureArraySize(agent.activationScratch.input, NET_INPUTS);
+        agent.activationScratch.hidden = ensureArraySize(agent.activationScratch.hidden, clamped);
+        agent.activationScratch.output = ensureArraySize(agent.activationScratch.output, NET_OUTPUTS);
+      }
+    }
+  }
+  markBestBrainDirty();
+}
 
 function markBestBrainDirty(){
   bestBrainDirty = true;
@@ -4860,6 +4950,7 @@ function applyParamsSnapshot(snapshot){
 
   if(snapshot.learn){
     if(snapshot.learn.genSteps != null) setRangeValue('slGenSteps', snapshot.learn.genSteps);
+    if(snapshot.learn.hidden != null) setRangeValue('slHidden', snapshot.learn.hidden);
     if(snapshot.learn.mut != null) setRangeValue('slMut', Math.round(snapshot.learn.mut*100));
     if(snapshot.learn.elite != null) setRangeValue('slElite', Math.round(snapshot.learn.elite*100));
     if(snapshot.learn.mutStrengthW != null) setRangeValue('slMutStrengthW', Math.round(snapshot.learn.mutStrengthW*100));
@@ -5102,6 +5193,10 @@ bindRange('slMutStrengthB','lbMutStrengthB',(v)=> (v/100).toFixed(2));
 bindRange('slCrossover','lbCrossover',(v)=> `${v}% A`);
 bindRange('slTournament','lbTournament',(v)=> `×${(v/10).toFixed(1)}`);
 bindRange('slFresh','lbFresh',(v)=> `${v}%`);
+bindRange('slHidden','lbHidden',(v)=>{
+  const count = Math.round(Number(v));
+  return `${count} neuron${count===1?'':'s'}`;
+});
 bindRange('slAgentScale','lbAgentScale',(v)=> (v/100).toFixed(2)+'×');
 bindRange('slEnergyEmptySpeed','lbEnergyEmptySpeed',(v)=> `${v}%`);
 bindRange('slEnergyCapacity','lbEnergyCapacity',(v)=> {
