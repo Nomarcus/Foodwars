@@ -400,23 +400,33 @@
             <div class="fruit-placement-options" role="group" aria-labelledby="fruitPlacementLabel">
               <label class="fruit-placement-option">
                 <input type="checkbox" name="fruitPlacement" value="sw">
-                <span>Bottom left</span>
+                <span aria-hidden="true">BL</span>
+                <span class="sr-only">Bottom left</span>
               </label>
               <label class="fruit-placement-option">
                 <input type="checkbox" name="fruitPlacement" value="se">
-                <span>Bottom right</span>
+                <span aria-hidden="true">BR</span>
+                <span class="sr-only">Bottom right</span>
               </label>
               <label class="fruit-placement-option">
                 <input type="checkbox" name="fruitPlacement" value="ne">
-                <span>Top right</span>
+                <span aria-hidden="true">TR</span>
+                <span class="sr-only">Top right</span>
               </label>
               <label class="fruit-placement-option">
                 <input type="checkbox" name="fruitPlacement" value="nw">
-                <span>Top left</span>
+                <span aria-hidden="true">TL</span>
+                <span class="sr-only">Top left</span>
+              </label>
+              <label class="fruit-placement-option">
+                <input type="checkbox" name="fruitPlacement" value="center">
+                <span aria-hidden="true">C</span>
+                <span class="sr-only">Center</span>
               </label>
               <label class="fruit-placement-option">
                 <input type="checkbox" name="fruitPlacement" value="random" checked>
-                <span>Random</span>
+                <span aria-hidden="true">R</span>
+                <span class="sr-only">Random</span>
               </label>
             </div>
 
@@ -501,6 +511,7 @@ const COLORS = {
 
 const FRUIT_PLACEMENT_LABELS = {
   random: 'Random',
+  center: 'Center',
   nw: 'Top left',
   ne: 'Top right',
   sw: 'Bottom left',
@@ -1963,6 +1974,15 @@ function getFruitSpawnArea(){
   let minX = margin;
   let minY = margin;
   switch(mode){
+    case 'center':{
+      const desiredMinX = (W - spanX) / 2;
+      const desiredMinY = (H - spanY) / 2;
+      const maxMinX = Math.max(margin, W - margin - spanX);
+      const maxMinY = Math.max(margin, H - margin - spanY);
+      minX = clamp(desiredMinX, margin, maxMinX);
+      minY = clamp(desiredMinY, margin, maxMinY);
+      break;
+    }
     case 'ne':
       minX = Math.max(margin, W - margin - spanX);
       break;
