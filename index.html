@@ -59,8 +59,22 @@
     .brain-team{display:flex; align-items:center; gap:10px; font-size:13px; color:var(--muted); flex-wrap:wrap}
     .brain-badge{display:inline-flex; align-items:center; justify-content:center; width:26px; height:26px; border-radius:50%; background:rgba(56,189,248,.3); color:#020617; font-size:15px; font-weight:700; box-shadow:0 0 18px rgba(56,189,248,.28)}
     .brain-gen{margin-left:auto; font-size:11px; color:var(--muted); letter-spacing:.08em; text-transform:uppercase}
+    .brain-visual-wrap{display:flex; flex-wrap:wrap; gap:18px; align-items:stretch}
+    .brain-canvas-wrap{flex:1 1 360px; min-width:0; display:flex; flex-direction:column; gap:10px}
     .brain-canvas{width:100%; height:220px; border-radius:18px; background:linear-gradient(135deg, rgba(15,23,61,.65), rgba(12,18,44,.92)); border:1px solid rgba(148,163,209,.28)}
-    .brain-paused{margin-top:10px; padding:12px 14px; border-radius:14px; border:1px dashed rgba(148,163,209,.4); background:rgba(15,23,61,.55); font-size:12px; line-height:1.6; color:var(--muted)}
+    .brain-paused{padding:12px 14px; border-radius:14px; border:1px dashed rgba(148,163,209,.4); background:rgba(15,23,61,.55); font-size:12px; line-height:1.6; color:var(--muted)}
+    .brain-legend{flex:0 1 240px; min-width:220px; align-self:stretch; border-radius:18px; border:1px solid rgba(148,163,209,.22); background:linear-gradient(135deg, rgba(10,18,46,.65), rgba(7,12,30,.82)); padding:16px 18px; display:flex; flex-direction:column; gap:14px; box-shadow:inset 0 0 18px rgba(59,130,246,.08)}
+    .brain-legend-title{font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.08em; color:var(--muted)}
+    .brain-legend-list{list-style:none; margin:0; padding:0; display:grid; gap:10px}
+    .brain-legend-item{display:flex; align-items:center; gap:10px; font-size:12px; line-height:1.5; color:var(--ink)}
+    .brain-legend-dot{width:14px; height:14px; border-radius:50%; box-shadow:0 0 10px rgba(56,189,248,.45)}
+    .brain-legend-dot-pair{display:inline-flex; align-items:center; gap:6px}
+    .brain-legend-dot--target{background:linear-gradient(135deg, rgba(56,189,248,.9), rgba(96,165,250,.75))}
+    .brain-legend-dot--target-home{background:linear-gradient(135deg, rgba(251,191,36,.9), rgba(253,224,71,.75)); box-shadow:0 0 10px rgba(251,191,36,.45)}
+    .brain-legend-dot--gradient{background:linear-gradient(135deg, rgba(45,212,191,.9), rgba(16,185,129,.75)); box-shadow:0 0 10px rgba(45,212,191,.45)}
+    .brain-legend-dot--separation{background:linear-gradient(135deg, rgba(244,114,182,.9), rgba(251,191,188,.75)); box-shadow:0 0 10px rgba(244,114,182,.45)}
+    .brain-legend-dot--velocity{background:linear-gradient(135deg, rgba(167,139,250,.9), rgba(129,140,248,.75)); box-shadow:0 0 10px rgba(167,139,250,.45)}
+    .brain-legend-note{font-size:11px; line-height:1.6; color:var(--muted); border-top:1px dashed rgba(148,163,209,.3); padding-top:10px}
     .brain-guide{margin-top:16px; padding:18px 20px; border-radius:18px; border:1px solid var(--silver); background:rgba(11,16,44,.78); box-shadow:0 12px 28px rgba(5,9,25,.35);}
     .brain-guide summary{cursor:pointer; font-weight:600; letter-spacing:.04em; text-transform:uppercase; font-size:12px; color:var(--muted); display:flex; align-items:center; justify-content:space-between; gap:12px}
     .brain-guide summary::-webkit-details-marker{display:none}
@@ -166,6 +180,8 @@
       .stat-value{font-size:22px}
       .side{max-width:100%}
       .brain-canvas{height:200px}
+      .brain-visual-wrap{flex-direction:column}
+      .brain-legend{width:100%; min-width:0}
     }
   </style>
 </head>
@@ -318,9 +334,33 @@
           <span id="brain-team">No leader yet</span>
           <span class="brain-gen" id="brain-generation">Gen —</span>
         </div>
-        <canvas id="brainVizCanvas" class="brain-canvas" width="560" height="240" role="img" aria-label="Visualization of the current top neural network"></canvas>
-        <div id="brainPausedNotice" class="brain-paused" hidden>
-          Visualization hidden to save performance. Toggle it back on anytime to resume live updates.
+        <div class="brain-visual-wrap">
+          <div class="brain-canvas-wrap">
+            <canvas id="brainVizCanvas" class="brain-canvas" width="560" height="240" role="img" aria-label="Visualization of the current top neural network"></canvas>
+            <div id="brainPausedNotice" class="brain-paused" hidden>
+              Visualization hidden to save performance. Toggle it back on anytime to resume live updates.
+            </div>
+          </div>
+          <aside class="brain-legend" aria-label="Neural network legend">
+            <div class="brain-legend-section">
+              <div class="brain-legend-title">Inputs</div>
+              <ul class="brain-legend-list">
+                <li class="brain-legend-item"><span class="brain-legend-dot-pair" aria-hidden="true"><span class="brain-legend-dot brain-legend-dot--target"></span><span class="brain-legend-dot brain-legend-dot--target-home"></span></span><span>Fruit direction turns cyan — it glows amber while carrying food home.</span></li>
+                <li class="brain-legend-item"><span class="brain-legend-dot brain-legend-dot--gradient" aria-hidden="true"></span><span>Trail gradient pointing toward food or back to base.</span></li>
+                <li class="brain-legend-item"><span class="brain-legend-dot brain-legend-dot--separation" aria-hidden="true"></span><span>Repulsion from nearby teammates to prevent crowding.</span></li>
+                <li class="brain-legend-item"><span class="brain-legend-dot brain-legend-dot--velocity" aria-hidden="true"></span><span>Blocker-only: predicted movement of the closest rival.</span></li>
+              </ul>
+            </div>
+            <div class="brain-legend-note">Toggle “Sensor overlay” in Global controls to paint these signals directly on the field.</div>
+            <div class="brain-legend-section">
+              <div class="brain-legend-title">Outputs</div>
+              <ul class="brain-legend-list">
+                <li class="brain-legend-item">Drive X / Drive Y — steering left &amp; right</li>
+                <li class="brain-legend-item">Speed + — accelerate</li>
+                <li class="brain-legend-item">Speed − — brake</li>
+              </ul>
+            </div>
+          </aside>
         </div>
       </section>
       <details class="brain-guide" id="brainGuide">
@@ -472,6 +512,9 @@
 
             <div class="label">Energy rings</div>
             <input id="chkEnergyHalo" type="checkbox" checked><div class="val" id="lbEnergyHalo">on</div>
+
+            <div class="label">Sensor overlay</div>
+            <input id="chkSensorRadar" type="checkbox"><div class="val" id="lbSensorRadar">off</div>
           </div>
           <button id="btnReset" class="btn">Restart</button>
         </div>
@@ -597,7 +640,7 @@ let brainCanvasWidth = brainCanvas ? brainCanvas.clientWidth : 0;
 let brainCanvasHeight = brainCanvas ? brainCanvas.clientHeight : 0;
 let brainVizEnabled = true;
 let performanceModeActive = false;
-const performanceModePrefs = { topHighlight:null, energyHalo:null, brainViz:null };
+const performanceModePrefs = { topHighlight:null, energyHalo:null, brainViz:null, sensorRadar:null };
 const AGENT_BASE_RADIUS = 5.2;
 const AGENT_BASE_PICKUP_RADIUS = 9;
 const AGENT_BASE_SEPARATION_RADIUS = 22;
@@ -626,6 +669,7 @@ const params = {
   agentCollisions: false,
   showTopHighlight: true,
   showEnergyHalo: true,
+  showSensorRadar: false,
   fruitPlacement: 'random',
   teams: TEAM_PRESETS.map((preset, index)=>({
     id:preset.id,
@@ -767,6 +811,15 @@ function readParams(){
     const label = Q('lbEnergyHalo');
     if(label){
       label.textContent = energyHaloToggle.checked ? 'on' : 'off';
+    }
+  }
+
+  const radarToggle = Q('chkSensorRadar');
+  if(radarToggle){
+    params.showSensorRadar = radarToggle.checked;
+    const label = Q('lbSensorRadar');
+    if(label){
+      label.textContent = radarToggle.checked ? 'on' : 'off';
     }
   }
 
@@ -2558,9 +2611,11 @@ function setPerformanceMode(enabled){
     performanceModePrefs.topHighlight = params.showTopHighlight;
     performanceModePrefs.energyHalo = params.showEnergyHalo;
     performanceModePrefs.brainViz = brainVizEnabled;
+    performanceModePrefs.sensorRadar = params.showSensorRadar;
 
     params.showTopHighlight = false;
     params.showEnergyHalo = false;
+    params.showSensorRadar = false;
 
     const topToggle = Q('chkTopHighlight');
     if(topToggle){
@@ -2573,6 +2628,13 @@ function setPerformanceMode(enabled){
     if(haloToggle){
       haloToggle.checked = false;
       const label = Q('lbEnergyHalo');
+      if(label) label.textContent = 'off';
+    }
+
+    const radarToggle = Q('chkSensorRadar');
+    if(radarToggle){
+      radarToggle.checked = false;
+      const label = Q('lbSensorRadar');
       if(label) label.textContent = 'off';
     }
 
@@ -2597,6 +2659,15 @@ function setPerformanceMode(enabled){
         haloToggle.checked = !!performanceModePrefs.energyHalo;
         const label = Q('lbEnergyHalo');
         if(label) label.textContent = haloToggle.checked ? 'on' : 'off';
+      }
+    }
+    if(performanceModePrefs.sensorRadar != null){
+      params.showSensorRadar = !!performanceModePrefs.sensorRadar;
+      const radarToggle = Q('chkSensorRadar');
+      if(radarToggle){
+        radarToggle.checked = !!performanceModePrefs.sensorRadar;
+        const label = Q('lbSensorRadar');
+        if(label) label.textContent = radarToggle.checked ? 'on' : 'off';
       }
     }
     if(performanceModePrefs.brainViz != null){
@@ -3070,7 +3141,7 @@ function evolveTeam(teamState){
 
 // ===== Agent core =====
 class Agent{
-  constructor(x,y,color,maxSpeed,team){ this.x=x; this.y=y; this.vx=rand(-1,1); this.vy=rand(-1,1); this.color=color; this.baseSpeed=maxSpeed; this.speedFactor=1; this.minSpeedFactor=SPEED_FACTOR_MIN; this.maxSpeedFactor=SPEED_FACTOR_MAX; this.energyMultiplier=1; this.minEnergyMultiplier=ENERGY_MULTIPLIER_MIN; this.maxEnergyMultiplier=ENERGY_MULTIPLIER_MAX; this.energyMax=0; this.energy=0; this.updateMaxSpeed(); this.trail=[]; this.carry=false; this.team=team; this.side=Math.random()<0.5?-1:1; this.stuckT=0; this.wander={x:rand(-1,1), y:rand(-1,1)}; this.activationScratch={ input:[], hidden:[], output:[], timestamp:0 }; this.blockCooldown=0; }
+  constructor(x,y,color,maxSpeed,team){ this.x=x; this.y=y; this.vx=rand(-1,1); this.vy=rand(-1,1); this.color=color; this.baseSpeed=maxSpeed; this.speedFactor=1; this.minSpeedFactor=SPEED_FACTOR_MIN; this.maxSpeedFactor=SPEED_FACTOR_MAX; this.energyMultiplier=1; this.minEnergyMultiplier=ENERGY_MULTIPLIER_MIN; this.maxEnergyMultiplier=ENERGY_MULTIPLIER_MAX; this.energyMax=0; this.energy=0; this.updateMaxSpeed(); this.trail=[]; this.carry=false; this.team=team; this.side=Math.random()<0.5?-1:1; this.stuckT=0; this.wander={x:rand(-1,1), y:rand(-1,1)}; this.activationScratch={ input:[], hidden:[], output:[], timestamp:0 }; this.blockCooldown=0; this.sensorVectors={}; }
   updateMaxSpeed(){ this.maxSpeed=this.baseSpeed*this.speedFactor*this.energyMultiplier; }
   stepSpeed(v){ this.baseSpeed=v; this.updateMaxSpeed(); }
   setSpeedFactor(factor){ this.speedFactor=clamp(factor, this.minSpeedFactor, this.maxSpeedFactor); this.updateMaxSpeed(); }
@@ -3080,6 +3151,23 @@ class Agent{
   getEnergyRatio(){ if(this.energyMax<=0) return 1; return this.energy/this.energyMax; }
   adjustSpeedFactor(delta){ if(!Number.isFinite(delta) || delta===0) return; this.setSpeedFactor(this.speedFactor + delta); }
   getThrottlePercent(){ return Math.round(this.speedFactor * 100); }
+  updateSensorVectors(map){
+    if(!map || typeof map !== 'object'){ this.sensorVectors={}; return; }
+    const next={};
+    for(const [key, value] of Object.entries(map)){
+      if(!value) continue;
+      const vx = Number(value.x)||0;
+      const vy = Number(value.y)||0;
+      const magnitude = Math.hypot(vx, vy);
+      const entry = { x:vx, y:vy, magnitude };
+      if(value && typeof value === 'object'){
+        if(value.mode) entry.mode = value.mode;
+        if(value.label) entry.label = value.label;
+      }
+      next[key] = entry;
+    }
+    this.sensorVectors = next;
+  }
   steerSeparation(peers, radius=18, gain=0.12){
     let sx=0,sy=0;
     const limit = radius * params.agentScale;
@@ -3239,6 +3327,11 @@ class Collector extends Agent{
       const d=Math.hypot(dx,dy);
       if(d>0 && d<separationRadius){ sx+=dx/(d*d); sy+=dy/(d*d); }
     }
+    this.updateSensorVectors({
+      target:{ x:tx, y:ty, mode:this.carry ? 'goal' : 'fruit' },
+      gradient:{ x:g.gx, y:g.gy, mode:this.carry ? 'home' : 'food' },
+      separation:{ x:sx, y:sy }
+    });
     const input = [tx,ty, g.gx, g.gy, sx, sy, 1.0];
     const capture = this.activationScratch;
     const out = forward(this.netRef.net, input, capture);
@@ -3420,6 +3513,11 @@ class Blocker extends Agent{
       const d=Math.hypot(dx,dy);
       if(d>0 && d<separationRadius){ sx+=dx/(d*d); sy+=dy/(d*d); }
     }
+    this.updateSensorVectors({
+      target:{ x:tx, y:ty, mode:closestCarrier ? 'carrier' : 'rival' },
+      targetVelocity:{ x:tvx, y:tvy },
+      separation:{ x:sx, y:sy }
+    });
     const input = [tx, ty, tvx, tvy, sx, sy, 1.0];
     const capture = this.activationScratch;
     const out = forward(this.netRef.net, input, capture);
@@ -3790,6 +3888,54 @@ function drawTopAgentHighlight(agent, radius){
   ctx.restore();
 }
 
+function getSensorStrokeColor(key, vec, agent){
+  if(key==='target'){
+    if(vec?.mode === 'goal' || vec?.mode === 'carrier') return 'rgba(251,191,36,0.9)';
+    return 'rgba(56,189,248,0.9)';
+  }
+  if(key==='gradient'){
+    return vec?.mode === 'home' ? 'rgba(251,191,36,0.7)' : 'rgba(45,212,191,0.9)';
+  }
+  if(key==='separation') return 'rgba(244,114,182,0.85)';
+  if(key==='targetVelocity') return 'rgba(167,139,250,0.88)';
+  return agent?.teamState?.config?.color || 'rgba(148,163,209,0.7)';
+}
+
+function drawAgentSensors(agent){
+  if(!params.showSensorRadar) return;
+  if(!agent || !agent.sensorVectors) return;
+  const entries = Object.entries(agent.sensorVectors);
+  if(!entries.length) return;
+  ctx.save();
+  ctx.lineCap='round';
+  ctx.lineJoin='round';
+  for(const [key, vec] of entries){
+    if(!vec) continue;
+    const magnitude = Number.isFinite(vec.magnitude) ? vec.magnitude : Math.hypot(vec.x||0, vec.y||0);
+    if(!magnitude || magnitude <= 0.0001) continue;
+    const nx = vec.x / magnitude;
+    const ny = vec.y / magnitude;
+    if(!Number.isFinite(nx) || !Number.isFinite(ny)) continue;
+    const scale = params.agentScale || 1;
+    const clampedMag = Math.min(1.5, Math.abs(magnitude));
+    const length = (28 + clampedMag * 36) * scale;
+    const tipX = agent.x + nx * length;
+    const tipY = agent.y + ny * length;
+    const stroke = getSensorStrokeColor(key, vec, agent);
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = Math.max(1.2, 1.4 * scale + clampedMag);
+    ctx.beginPath();
+    ctx.moveTo(agent.x, agent.y);
+    ctx.lineTo(tipX, tipY);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.fillStyle = stroke;
+    ctx.arc(tipX, tipY, 3 + clampedMag * 1.8, 0, TAU);
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
 function draw(){
   ctx.clearRect(0,0,W,H);
 
@@ -3837,6 +3983,7 @@ function draw(){
   for(const team of activeTeamStates){
     const outline = team.config.outline || '#0f172a';
     for(const a of team.agents){
+      drawAgentSensors(a);
       ctx.beginPath();
       const agentRadius = Math.max(2.5, AGENT_BASE_RADIUS * params.agentScale);
       ctx.arc(a.x,a.y,agentRadius,0,Math.PI*2);
@@ -4575,6 +4722,11 @@ if(chkTopHighlight){
 const chkEnergyHalo = Q('chkEnergyHalo');
 if(chkEnergyHalo){
   chkEnergyHalo.addEventListener('change', ()=> readParams());
+}
+
+const chkSensorRadar = Q('chkSensorRadar');
+if(chkSensorRadar){
+  chkSensorRadar.addEventListener('change', ()=> readParams());
 }
 
 window.addEventListener('beforeunload', clearCurrentObjectUrl);
