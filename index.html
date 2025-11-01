@@ -75,6 +75,8 @@
     .brain-legend-dot--gradient{background:linear-gradient(135deg, rgba(45,212,191,.9), rgba(16,185,129,.75)); box-shadow:0 0 10px rgba(45,212,191,.45)}
     .brain-legend-dot--separation{background:linear-gradient(135deg, rgba(244,114,182,.9), rgba(251,191,188,.75)); box-shadow:0 0 10px rgba(244,114,182,.45)}
     .brain-legend-dot--velocity{background:linear-gradient(135deg, rgba(167,139,250,.9), rgba(129,140,248,.75)); box-shadow:0 0 10px rgba(167,139,250,.45)}
+    .brain-legend-dot--obstacle{background:linear-gradient(135deg, rgba(248,113,113,.9), rgba(239,68,68,.75)); box-shadow:0 0 10px rgba(248,113,113,.45)}
+    .brain-legend-dot--boundary{background:linear-gradient(135deg, rgba(96,165,250,.9), rgba(59,130,246,.75)); box-shadow:0 0 10px rgba(96,165,250,.45)}
     .brain-legend-note{font-size:11px; line-height:1.6; color:var(--muted); border-top:1px dashed rgba(148,163,209,.3); padding-top:10px}
     .brain-guide{margin-top:16px; padding:18px 20px; border-radius:18px; border:1px solid var(--silver); background:rgba(11,16,44,.78); box-shadow:0 12px 28px rgba(5,9,25,.35);}
     .brain-guide summary{cursor:pointer; font-weight:600; letter-spacing:.04em; text-transform:uppercase; font-size:12px; color:var(--muted); display:flex; align-items:center; justify-content:space-between; gap:12px}
@@ -349,6 +351,8 @@
                 <li class="brain-legend-item"><span class="brain-legend-dot-pair" aria-hidden="true"><span class="brain-legend-dot brain-legend-dot--target"></span><span class="brain-legend-dot brain-legend-dot--target-home"></span></span><span>Fruit direction turns cyan — it glows amber while carrying food home.</span></li>
                 <li class="brain-legend-item"><span class="brain-legend-dot brain-legend-dot--gradient" aria-hidden="true"></span><span>Trail gradient pointing toward food or back to base.</span></li>
                 <li class="brain-legend-item"><span class="brain-legend-dot brain-legend-dot--separation" aria-hidden="true"></span><span>Repulsion from nearby teammates to prevent crowding.</span></li>
+                <li class="brain-legend-item"><span class="brain-legend-dot brain-legend-dot--obstacle" aria-hidden="true"></span><span>Obstacle avoidance pulse steering away from hazards.</span></li>
+                <li class="brain-legend-item"><span class="brain-legend-dot brain-legend-dot--boundary" aria-hidden="true"></span><span>Wall clearance hint nudging agents toward open space.</span></li>
                 <li class="brain-legend-item"><span class="brain-legend-dot brain-legend-dot--velocity" aria-hidden="true"></span><span>Blocker-only: predicted movement of the closest rival.</span></li>
               </ul>
             </div>
@@ -517,6 +521,9 @@
             <div class="label">Energy empty speed</div>
             <input id="slEnergyEmptySpeed" type="range" min="10" max="100" value="45" step="5"><div class="val" id="lbEnergyEmptySpeed">45%</div>
 
+            <div class="label" title="Agents that run out of energy will be removed and penalized.">Energy exhaustion death</div>
+            <input id="chkEnergyDeath" type="checkbox"><div class="val" id="lbEnergyDeath">off</div>
+
             <div class="label">Sensor overlay</div>
             <input id="chkSensorRadar" type="checkbox"><div class="val" id="lbSensorRadar">off</div>
           </div>
@@ -614,6 +621,7 @@ const COLLECTOR_ENERGY_DECAY = 0.08;
 const COLLECTOR_ENERGY_PICKUP_BOOST = 80;
 const COLLECTOR_ENERGY_SPEED_MIN_DEFAULT = 0.45;
 const SAFE_NAVIGATION_REWARD = 0.06;
+const ENERGY_DEATH_PENALTY = 150;
 
 function hexToRgba(hex, alpha){
   const h = hex.replace('#','');
@@ -674,6 +682,7 @@ const params = {
   showTopHighlight: true,
   showEnergyHalo: true,
   energyEmptySpeed: COLLECTOR_ENERGY_SPEED_MIN_DEFAULT,
+  dieOnEnergyLoss: false,
   showSensorRadar: false,
   fruitPlacement: 'random',
   teams: TEAM_PRESETS.map((preset, index)=>({
@@ -833,6 +842,15 @@ function readParams(){
     const label = Q('lbEnergyEmptySpeed');
     if(label){
       label.textContent = `${Math.round(percent)}%`;
+    }
+  }
+
+  const energyDeathToggle = Q('chkEnergyDeath');
+  if(energyDeathToggle){
+    params.dieOnEnergyLoss = energyDeathToggle.checked;
+    const label = Q('lbEnergyDeath');
+    if(label){
+      label.textContent = energyDeathToggle.checked ? 'on' : 'off';
     }
   }
 
@@ -2316,7 +2334,7 @@ function makeObstacles(n){
 
 
 
-const NET_INPUTS = 7;
+const NET_INPUTS = 11;
 const NET_HIDDEN = 16;
 const NET_OUTPUTS = 4;
 const OUTPUT_NODE_LABELS = ['Drive X', 'Drive Y', 'Speed +', 'Speed −'];
@@ -2327,8 +2345,24 @@ function matmulVec(W, x, out){ const rows=W.length, cols=W[0].length; for(let i=
 function tanhVec(v){ for(let i=0;i<v.length;i++) v[i]=Math.tanh(v[i]); return v; }
 function addBias(v,b){ for(let i=0;i<v.length;i++) v[i]+=b[i]; return v; }
 function ensureArraySize(arr, length){ return (Array.isArray(arr) && arr.length===length) ? arr : new Array(length); }
+function ensureNetInputSize(net, desired=NET_INPUTS){
+  if(!net || !Array.isArray(net.W1)) return net;
+  for(let i=0;i<net.W1.length;i++){
+    let row = Array.isArray(net.W1[i]) ? net.W1[i] : [];
+    while(row.length < desired){
+      row.push((Math.random()*2-1)*0.5);
+    }
+    if(row.length > desired){
+      row.length = desired;
+    }
+    net.W1[i] = row;
+  }
+  return net;
+}
+
 function ensureNetOutputSize(net, desired=NET_OUTPUTS){
   if(!net) return net;
+  ensureNetInputSize(net, NET_INPUTS);
   const hiddenDim = Array.isArray(net.W1) ? net.W1.length : (Array.isArray(net.W2?.[0]) ? net.W2[0].length : NET_HIDDEN);
   if(!Array.isArray(net.W2)) net.W2 = [];
   if(!Array.isArray(net.b2)) net.b2 = [];
@@ -2358,6 +2392,7 @@ function makeNet(inDim=NET_INPUTS,h=NET_HIDDEN,out=NET_OUTPUTS){
     W2:Array.from({length:out},()=>Array.from({length:h},()=> (Math.random()*2-1)*0.5)),
     b2:Array.from({length:out},()=> (Math.random()*2-1)*0.2)
   };
+  ensureNetInputSize(net, inDim);
   return ensureNetOutputSize(net, out);
 }
 function cloneNet(n){
@@ -2367,6 +2402,7 @@ function cloneNet(n){
     W2:n.W2.map(r=>r.slice()),
     b2:n.b2.slice()
   };
+  ensureNetInputSize(cloned, NET_INPUTS);
   return ensureNetOutputSize(cloned);
 }
 function mutateNet(n, rate){
@@ -2412,6 +2448,7 @@ function crossover(a,b){
   return c;
 }
 function forward(n, x, capture=null){
+  ensureNetInputSize(n, x.length);
   ensureNetOutputSize(n);
   const hidden = capture ? ensureArraySize(capture.hidden, n.b1.length) : new Array(n.b1.length);
   const output = capture ? ensureArraySize(capture.output, n.b2.length) : new Array(n.b2.length);
@@ -3163,7 +3200,7 @@ function evolveTeam(teamState){
 
 // ===== Agent core =====
 class Agent{
-  constructor(x,y,color,maxSpeed,team){ this.x=x; this.y=y; this.vx=rand(-1,1); this.vy=rand(-1,1); this.color=color; this.baseSpeed=maxSpeed; this.speedFactor=1; this.minSpeedFactor=SPEED_FACTOR_MIN; this.maxSpeedFactor=SPEED_FACTOR_MAX; this.energyMultiplier=1; this.minEnergyMultiplier=ENERGY_MULTIPLIER_MIN; this.maxEnergyMultiplier=ENERGY_MULTIPLIER_MAX; this.energyMax=0; this.energy=0; this.updateMaxSpeed(); this.trail=[]; this.carry=false; this.team=team; this.side=Math.random()<0.5?-1:1; this.stuckT=0; this.wander={x:rand(-1,1), y:rand(-1,1)}; this.activationScratch={ input:[], hidden:[], output:[], timestamp:0 }; this.blockCooldown=0; this.sensorVectors={}; }
+  constructor(x,y,color,maxSpeed,team){ this.x=x; this.y=y; this.vx=rand(-1,1); this.vy=rand(-1,1); this.color=color; this.baseSpeed=maxSpeed; this.speedFactor=1; this.minSpeedFactor=SPEED_FACTOR_MIN; this.maxSpeedFactor=SPEED_FACTOR_MAX; this.energyMultiplier=1; this.minEnergyMultiplier=ENERGY_MULTIPLIER_MIN; this.maxEnergyMultiplier=ENERGY_MULTIPLIER_MAX; this.energyMax=0; this.energy=0; this.updateMaxSpeed(); this.trail=[]; this.carry=false; this.team=team; this.side=Math.random()<0.5?-1:1; this.stuckT=0; this.wander={x:rand(-1,1), y:rand(-1,1)}; this.activationScratch={ input:[], hidden:[], output:[], timestamp:0 }; this.blockCooldown=0; this.sensorVectors={}; this.dead=false; }
   updateMaxSpeed(){ this.maxSpeed=this.baseSpeed*this.speedFactor*this.energyMultiplier; }
   stepSpeed(v){ this.baseSpeed=v; this.updateMaxSpeed(); }
   setSpeedFactor(factor){ this.speedFactor=clamp(factor, this.minSpeedFactor, this.maxSpeedFactor); this.updateMaxSpeed(); }
@@ -3282,6 +3319,23 @@ class Collector extends Agent{
     this.maxEnergyMultiplier = ENERGY_MULTIPLIER_MAX;
     this.minEnergyMultiplier = getEnergyEmptySpeedSetting();
   }
+  handleEnergyExhaustion(){
+    if(this.dead) return;
+    this.dead = true;
+    this.vx = 0;
+    this.vy = 0;
+    this.energy = 0;
+    if(this.visitedCells){
+      this.visitedCells.clear();
+    }
+    this.currentFruitTarget = null;
+    if(this.carry){
+      spawnFruit(this.x, this.y);
+      this.carry = false;
+    }
+    this.fitness -= ENERGY_DEATH_PENALTY;
+    registerTeamFumble(this.teamState, -ENERGY_DEATH_PENALTY);
+  }
   updateEnergyThrottle(){
     if(this.energyMax<=0) return;
     const ratio = clamp(this.getEnergyRatio(), 0, 1);
@@ -3292,12 +3346,17 @@ class Collector extends Agent{
     this.setEnergyMultiplier(multiplier);
   }
   update(){
+    if(this.dead) return;
     const cfg=this.teamState.config;
     const teamId=cfg.id;
     const wasCarrying = this.carry;
     if(this.energyMax>0){
       this.adjustEnergy(-this.energyDecay);
+      if(params.dieOnEnergyLoss && this.energy <= 0){
+        this.handleEnergyExhaustion();
+      }
     }
+    if(this.dead) return;
     this.stepSpeed(cfg.speed);
     this.updateEnergyThrottle();
     const myGoal=this.teamState.goal;
@@ -3351,12 +3410,16 @@ class Collector extends Agent{
       const d=Math.hypot(dx,dy);
       if(d>0 && d<separationRadius){ sx+=dx/(d*d); sy+=dy/(d*d); }
     }
+    const obstacleVec = senseObstacleVector(this.x, this.y);
+    const boundaryVec = senseBoundaryVector(this.x, this.y);
     this.updateSensorVectors({
       target:{ x:tx, y:ty, mode:this.carry ? 'goal' : 'fruit' },
       gradient:{ x:g.gx, y:g.gy, mode:this.carry ? 'home' : 'food' },
-      separation:{ x:sx, y:sy }
+      separation:{ x:sx, y:sy },
+      obstacle:{ x:obstacleVec.x, y:obstacleVec.y, label:'Obstacle' },
+      boundary:{ x:boundaryVec.x, y:boundaryVec.y, label:'Bounds' }
     });
-    const input = [tx,ty, g.gx, g.gy, sx, sy, 1.0];
+    const input = [tx,ty, g.gx, g.gy, sx, sy, obstacleVec.x, obstacleVec.y, boundaryVec.x, boundaryVec.y, 1.0];
     const capture = this.activationScratch;
     const out = forward(this.netRef.net, input, capture);
     const nowTime = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
@@ -3486,6 +3549,49 @@ function rewardCollectorPathProgress(agent, goal){
   agent.lastPathCost = cost;
 }
 
+function senseObstacleVector(x, y){
+  if(!obstacles.length) return { x:0, y:0 };
+  const threshold = Math.max(AGENT_OBSTACLE_THRESHOLD * params.agentScale, 8);
+  let bestStrength = 0;
+  let bestX = 0;
+  let bestY = 0;
+  for(const obstacle of obstacles){
+    const clearance = obstacleClearance(obstacle, x, y);
+    if(!clearance) continue;
+    const dist = Number.isFinite(clearance.distance) ? clearance.distance : Infinity;
+    if(!Number.isFinite(dist)) continue;
+    let strength = 0;
+    if(dist <= 0){
+      strength = 1;
+    } else if(dist < threshold){
+      strength = 1 - (dist / threshold);
+    }
+    strength = clamp(strength, 0, 1);
+    if(strength > bestStrength){
+      const nx = Number.isFinite(clearance.nx) ? clearance.nx : 0;
+      const ny = Number.isFinite(clearance.ny) ? clearance.ny : 0;
+      bestStrength = strength;
+      bestX = nx * strength;
+      bestY = ny * strength;
+    }
+  }
+  return { x: bestX, y: bestY };
+}
+
+function senseBoundaryVector(x, y){
+  const pad = AGENT_BOUNDARY_PADDING * params.agentScale;
+  const innerWidth = Math.max(1, W - pad * 2);
+  const innerHeight = Math.max(1, H - pad * 2);
+  const leftClear = clamp((x - pad) / innerWidth, 0, 1);
+  const rightClear = clamp(((W - pad) - x) / innerWidth, 0, 1);
+  const topClear = clamp((y - pad) / innerHeight, 0, 1);
+  const bottomClear = clamp(((H - pad) - y) / innerHeight, 0, 1);
+  return {
+    x: clamp(rightClear - leftClear, -1, 1),
+    y: clamp(bottomClear - topClear, -1, 1)
+  };
+}
+
 class Blocker extends Agent{
   constructor(x,y,teamState,netRef){
     const cfg=teamState.config;
@@ -3499,6 +3605,7 @@ class Blocker extends Agent{
     this.role = 'blocker';
   }
   update(){
+    if(this.dead) return;
     const cfg = this.teamState.config;
     this.stepSpeed(cfg.speed);
     const mates = this.teamState.agents;
@@ -3537,12 +3644,16 @@ class Blocker extends Agent{
       const d=Math.hypot(dx,dy);
       if(d>0 && d<separationRadius){ sx+=dx/(d*d); sy+=dy/(d*d); }
     }
+    const obstacleVec = senseObstacleVector(this.x, this.y);
+    const boundaryVec = senseBoundaryVector(this.x, this.y);
     this.updateSensorVectors({
       target:{ x:tx, y:ty, mode:closestCarrier ? 'carrier' : 'rival' },
       targetVelocity:{ x:tvx, y:tvy },
-      separation:{ x:sx, y:sy }
+      separation:{ x:sx, y:sy },
+      obstacle:{ x:obstacleVec.x, y:obstacleVec.y, label:'Obstacle' },
+      boundary:{ x:boundaryVec.x, y:boundaryVec.y, label:'Bounds' }
     });
-    const input = [tx, ty, tvx, tvy, sx, sy, 1.0];
+    const input = [tx, ty, tvx, tvy, sx, sy, obstacleVec.x, obstacleVec.y, boundaryVec.x, boundaryVec.y, 1.0];
     const capture = this.activationScratch;
     const out = forward(this.netRef.net, input, capture);
     const nowTime = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
@@ -3585,6 +3696,7 @@ function enforceAgentCollisions(){
   const allAgents = [];
   for(const team of activeTeamStates){
     for(const agent of team.agents){
+      if(agent.dead) continue;
       allAgents.push(agent);
     }
   }
@@ -3640,6 +3752,7 @@ function applyBlockerInteractions(){
   const rivals=[];
   for(const team of activeTeamStates){
     for(const agent of team.agents){
+      if(agent.dead) continue;
       if(agent.role === 'blocker') blockers.push(agent);
       else rivals.push(agent);
     }
@@ -3648,8 +3761,10 @@ function applyBlockerInteractions(){
   const blockRadius = Math.max(BLOCKER_TRIGGER_RADIUS_BASE * params.agentScale, 10);
   const blockRadiusSq = blockRadius * blockRadius;
   for(const blocker of blockers){
+    if(blocker.dead) continue;
     const blockerTeamId = blocker.teamState?.config?.id;
     for(const opponent of rivals){
+      if(opponent.dead) continue;
       if(opponent.team === blockerTeamId) continue;
       const dx = opponent.x - blocker.x;
       const dy = opponent.y - blocker.y;
@@ -3922,6 +4037,8 @@ function getSensorStrokeColor(key, vec, agent){
   }
   if(key==='separation') return 'rgba(244,114,182,0.85)';
   if(key==='targetVelocity') return 'rgba(167,139,250,0.88)';
+  if(key==='obstacle') return 'rgba(248,113,113,0.88)';
+  if(key==='boundary') return 'rgba(96,165,250,0.82)';
   return agent?.teamState?.config?.color || 'rgba(148,163,209,0.7)';
 }
 
@@ -4007,23 +4124,26 @@ function draw(){
   for(const team of activeTeamStates){
     const outline = team.config.outline || '#0f172a';
     for(const a of team.agents){
-      drawAgentSensors(a);
+      const isDead = !!a.dead;
+      if(!isDead){
+        drawAgentSensors(a);
+      }
       ctx.beginPath();
       const agentRadius = Math.max(2.5, AGENT_BASE_RADIUS * params.agentScale);
       ctx.arc(a.x,a.y,agentRadius,0,Math.PI*2);
-      ctx.fillStyle=team.config.color;
+      ctx.fillStyle = isDead ? 'rgba(148,163,209,0.28)' : team.config.color;
       ctx.fill();
       const outlineWidth = Math.max(1.2, 2*params.agentScale);
       ctx.lineWidth=outlineWidth;
-      ctx.strokeStyle=outline;
+      ctx.strokeStyle = isDead ? 'rgba(71,85,105,0.85)' : outline;
       ctx.stroke();
-      if(a.carry){
+      if(!isDead && a.carry){
         const carryOutline = Math.max(1.5, outlineWidth + 0.6*params.agentScale);
         ctx.lineWidth=carryOutline;
         ctx.strokeStyle='#ffff33';
         ctx.stroke();
       }
-      if(a.energyMax>0 && params.showEnergyHalo){
+      if(!isDead && a.energyMax>0 && params.showEnergyHalo){
         const ratio = clamp(a.energy / (a.energyMax||1), 0, 1);
         const ringRadius = agentRadius + Math.max(2.5, 2.2 * params.agentScale);
         ctx.beginPath();
@@ -4032,10 +4152,10 @@ function draw(){
         ctx.strokeStyle = 'rgba(250,204,21,0.85)';
         ctx.stroke();
       }
-      if(!performanceModeActive){
+      if(!performanceModeActive && !isDead){
         drawTrail(a.trail, team.config.color);
       }
-      if(params.showTopHighlight && topAgent && a === topAgent){
+      if(!isDead && params.showTopHighlight && topAgent && a === topAgent){
         drawTopAgentHighlight(a, agentRadius);
       }
     }
@@ -4106,6 +4226,7 @@ function loop(){
   for(const team of activeTeamStates){
     for(const agent of team.agents){
       agent.update();
+      if(agent.dead) continue;
       trackBestBrain(agent, team);
     }
   }
@@ -4435,6 +4556,14 @@ function applyParamsSnapshot(snapshot){
     }
   }
 
+  if(snapshot.dieOnEnergyLoss !== undefined){
+    const toggle = Q('chkEnergyDeath');
+    if(toggle){
+      toggle.checked = !!snapshot.dieOnEnergyLoss;
+      toggle.dispatchEvent(new Event('change', { bubbles:true }));
+    }
+  }
+
   if(typeof snapshot.fruitPlacement === 'string'){
     setFruitPlacement(snapshot.fruitPlacement, false);
   }
@@ -4751,6 +4880,11 @@ if(chkTopHighlight){
 const chkEnergyHalo = Q('chkEnergyHalo');
 if(chkEnergyHalo){
   chkEnergyHalo.addEventListener('change', ()=> readParams());
+}
+
+const chkEnergyDeath = Q('chkEnergyDeath');
+if(chkEnergyDeath){
+  chkEnergyDeath.addEventListener('change', ()=> readParams());
 }
 
 const chkSensorRadar = Q('chkSensorRadar');
