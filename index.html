@@ -532,6 +532,12 @@
 
             <div class="label">Sensor overlay</div>
             <input id="chkSensorRadar" type="checkbox"><div class="val" id="lbSensorRadar">off</div>
+
+            <div class="label">Navigation preset</div>
+            <select id="selNavPreset" class="music-dropdown">
+              <option value="open">Open Field</option>
+              <option value="lab">Labyrinth</option>
+            </select><div class="val" id="lbNavPreset">Open Field</div>
           </div>
           <button id="btnReset" class="btn">Restart</button>
         </div>
@@ -566,6 +572,16 @@ function setRangeValue(id, value){
     el.value = clamped;
   }
   el.dispatchEvent(new Event('input', { bubbles:true }));
+}
+
+function setToggleValue(id, checked){
+  const el = Q(id);
+  if(!el) return;
+  const next = !!checked;
+  if(el.checked !== next){
+    el.checked = next;
+    el.dispatchEvent(new Event('change', { bubbles:true }));
+  }
 }
 
 // === Make panels collapsible ===
@@ -610,6 +626,25 @@ const TEAM_PRESETS = [
 ];
 const TEAM_PRESET_MAP = new Map(TEAM_PRESETS.map((preset)=> [preset.id, preset]));
 
+const NAV_PRESETS = {
+  lab: {
+    name: "Labyrinth",
+    ui: { awarenessBoostPct:160, team:{speed:3.8,smart:3.0,strat:2.6,sep:1.1},
+          agentScalePct:90, energyEmptyPct:60, energyCapacity:180,
+          agentCollisions:false, learn:{steps:9000, mutPct:24, elitePct:12} },
+    nav: { obstacleThreshold:22, boundaryPadding:16, avoidPushGain:0.08, safeNavReward:0.10 }
+  },
+  open: {
+    name: "Open Field",
+    ui: { awarenessBoostPct:110, team:{speed:4.8,smart:2.4,strat:2.2,sep:1.0},
+          agentScalePct:100, energyEmptyPct:45, energyCapacity:120,
+          agentCollisions:true, learn:{steps:3600, mutPct:16, elitePct:20} },
+    nav: { obstacleThreshold:12, boundaryPadding:10, avoidPushGain:0.055, safeNavReward:0.06 }
+  }
+};
+
+const teamControlRefs = new Map();
+
 const OBSTACLE_COLORS = ['#38bdf8', '#f472b6', '#2dd4bf'];
 const LINE_OBSTACLE_COLOR = '#dbe7ff';
 
@@ -630,7 +665,12 @@ const AWARENESS_BOOST_MAX = 2.00;
 const COLLECTOR_ENERGY_DECAY = 0.08;
 const COLLECTOR_ENERGY_PICKUP_BOOST = 80;
 const COLLECTOR_ENERGY_SPEED_MIN_DEFAULT = 0.45;
-const SAFE_NAVIGATION_REWARD = 0.06;
+const NAV = {
+  obstacleThreshold: 12,
+  boundaryPadding: 10,
+  avoidPushGain: 0.055,
+  safeNavReward: 0.06
+};
 const ENERGY_DEATH_PENALTY = 150;
 
 function hexToRgba(hex, alpha){
@@ -658,6 +698,8 @@ const brainPausedEl = Q('brainPausedNotice');
 const brainVizSection = document.querySelector('.brain-viz');
 const brainTeamSelect = Q('brainTeamSelect');
 const performanceBtn = document.getElementById('btnPerformance');
+const navPresetSelect = Q('selNavPreset');
+const navPresetLabel = Q('lbNavPreset');
 let brainCanvasWidth = brainCanvas ? brainCanvas.clientWidth : 0;
 let brainCanvasHeight = brainCanvas ? brainCanvas.clientHeight : 0;
 let brainVizEnabled = true;
@@ -666,8 +708,6 @@ const performanceModePrefs = { topHighlight:null, energyHalo:null, brainViz:null
 const AGENT_BASE_RADIUS = 5.2;
 const AGENT_BASE_PICKUP_RADIUS = 9;
 const AGENT_BASE_SEPARATION_RADIUS = 22;
-const AGENT_OBSTACLE_THRESHOLD = 12;
-const AGENT_BOUNDARY_PADDING = 10;
 const AGENT_TRAIL_WIDTH = 2;
 
 const TOOL_SELECT='select';
@@ -1596,6 +1636,7 @@ function renderTeamControls(){
   const container = Q('teamConfigs');
   if(!container) return;
   container.innerHTML='';
+  teamControlRefs.clear();
   params.teams.forEach((team)=>{
     const card = document.createElement('div');
     card.className='team-config-card';
@@ -1629,6 +1670,7 @@ function renderTeamControls(){
 
     const grid = document.createElement('div');
     grid.className='team-config-grid';
+    const sliderRefs = {};
 
     const makeSlider = (labelText, key, options)=>{
       const label = document.createElement('div');
@@ -1666,6 +1708,13 @@ function renderTeamControls(){
       });
 
       grid.append(label, input, valueEl);
+      sliderRefs[key] = {
+        input,
+        valueEl,
+        toSlider: options.toSlider,
+        fromSlider: options.fromSlider,
+        format: options.format
+      };
     };
 
     makeSlider('Count', 'count', {
@@ -1711,7 +1760,70 @@ function renderTeamControls(){
 
     card.append(grid);
     container.append(card);
+    teamControlRefs.set(team.id, sliderRefs);
   });
+}
+
+function applyPreset(name){
+  const presetKey = NAV_PRESETS[name] ? name : 'open';
+  const preset = NAV_PRESETS[presetKey];
+  if(!preset) return;
+
+  if(navPresetSelect && navPresetSelect.value !== presetKey){
+    navPresetSelect.value = presetKey;
+  }
+  if(navPresetLabel){
+    navPresetLabel.textContent = preset.name || presetKey;
+  }
+
+  const navConfig = preset.nav || {};
+  if(Number.isFinite(navConfig.obstacleThreshold)) NAV.obstacleThreshold = navConfig.obstacleThreshold;
+  if(Number.isFinite(navConfig.boundaryPadding)) NAV.boundaryPadding = navConfig.boundaryPadding;
+  if(Number.isFinite(navConfig.avoidPushGain)) NAV.avoidPushGain = navConfig.avoidPushGain;
+  if(Number.isFinite(navConfig.safeNavReward)) NAV.safeNavReward = navConfig.safeNavReward;
+
+  const ui = preset.ui || {};
+  if(ui.awarenessBoostPct != null) setRangeValue('slAwarenessBoost', ui.awarenessBoostPct);
+  if(ui.agentScalePct != null) setRangeValue('slAgentScale', ui.agentScalePct);
+  if(ui.energyEmptyPct != null) setRangeValue('slEnergyEmptySpeed', ui.energyEmptyPct);
+  if(ui.energyCapacity != null) setRangeValue('slEnergyCapacity', ui.energyCapacity);
+  if(ui.agentCollisions !== undefined) setToggleValue('chkAgentCollisions', ui.agentCollisions);
+
+  const teamSettings = ui.team || {};
+  if(teamSettings && typeof teamSettings === 'object'){
+    const activeTeams = params.teams.filter((team)=> team.active);
+    activeTeams.forEach((team)=>{
+      ['speed','smart','strat','sep'].forEach((key)=>{
+        if(teamSettings[key] == null) return;
+        const value = teamSettings[key];
+        team[key] = value;
+        const refs = teamControlRefs.get(team.id);
+        if(refs && refs[key] && refs[key].input){
+          const ref = refs[key];
+          const sliderValue = typeof ref.toSlider === 'function' ? ref.toSlider(value) : value;
+          if(String(ref.input.value) !== String(sliderValue)){
+            ref.input.value = String(sliderValue);
+          }
+          ref.input.dispatchEvent(new Event('input', { bubbles:true }));
+        }
+      });
+    });
+  }
+
+  const learn = ui.learn || {};
+  if(learn.steps != null) setRangeValue('slGenSteps', learn.steps);
+  if(learn.mutPct != null) setRangeValue('slMut', learn.mutPct);
+  if(learn.elitePct != null) setRangeValue('slElite', learn.elitePct);
+
+  try{
+    if(typeof localStorage !== 'undefined' && localStorage){
+      localStorage.setItem('navPreset', presetKey);
+    }
+  }catch(err){
+    console.warn('Unable to save nav preset preference', err);
+  }
+
+  readParams();
 }
 
 function refreshStats(){
@@ -3325,9 +3437,9 @@ class Agent{
     for(const o of obstacles){
       const clearance = obstacleClearance(o, this.x, this.y);
       if(!clearance) continue;
-      const threshold = AGENT_OBSTACLE_THRESHOLD * params.agentScale;
+      const threshold = NAV.obstacleThreshold * params.agentScale;
       if(clearance.distance < threshold){
-        const push = (threshold - clearance.distance) * 0.055;
+        const push = (threshold - clearance.distance) * NAV.avoidPushGain;
         const nx = Number.isFinite(clearance.nx) ? clearance.nx : 0;
         const ny = Number.isFinite(clearance.ny) ? clearance.ny : 0;
         this.vx += nx * push;
@@ -3366,7 +3478,7 @@ class Agent{
   }
   keepInBounds(){
     let touched=false;
-    const pad = AGENT_BOUNDARY_PADDING * params.agentScale;
+    const pad = NAV.boundaryPadding * params.agentScale;
     if(this.x<pad){ this.x=pad; this.vx=Math.abs(this.vx); touched=true; }
     if(this.x>W-pad){ this.x=W-pad; this.vx=-Math.abs(this.vx); touched=true; }
     if(this.y<pad){ this.y=pad; this.vy=Math.abs(this.vy); touched=true; }
@@ -3546,7 +3658,7 @@ class Collector extends Agent{
     this.avoidObstacles();
     const navStatus = this.integrate();
     if(!navStatus.touched){
-      this.fitness += SAFE_NAVIGATION_REWARD;
+      this.fitness += NAV.safeNavReward;
       if(this.energyMax>0 && Number.isFinite(this.energyDecay) && this.energyDecay>0){
         this.adjustEnergy(this.energyDecay);
       }
@@ -3633,7 +3745,7 @@ function rewardCollectorPathProgress(agent, goal){
 
 function senseObstacleVector(x, y){
   if(!obstacles.length) return { x:0, y:0 };
-  const threshold = Math.max(AGENT_OBSTACLE_THRESHOLD * params.agentScale, 8);
+  const threshold = Math.max(NAV.obstacleThreshold * params.agentScale, 8);
   let bestStrength = 0;
   let bestX = 0;
   let bestY = 0;
@@ -3661,7 +3773,7 @@ function senseObstacleVector(x, y){
 }
 
 function senseBoundaryVector(x, y){
-  const pad = AGENT_BOUNDARY_PADDING * params.agentScale;
+  const pad = NAV.boundaryPadding * params.agentScale;
   const innerWidth = Math.max(1, W - pad * 2);
   const innerHeight = Math.max(1, H - pad * 2);
   const leftClear = clamp((x - pad) / innerWidth, 0, 1);
@@ -3769,7 +3881,7 @@ class Blocker extends Agent{
     this.avoidObstacles();
     const navStatus = this.integrate();
     if(!navStatus.touched){
-      this.fitness += SAFE_NAVIGATION_REWARD;
+      this.fitness += NAV.safeNavReward;
     }
   }
 }
@@ -4988,11 +5100,29 @@ if(chkSensorRadar){
   chkSensorRadar.addEventListener('change', ()=> readParams());
 }
 
+if(navPresetSelect){
+  navPresetSelect.addEventListener('change', (evt)=>{
+    applyPreset(evt.target.value);
+  });
+}
+
 window.addEventListener('beforeunload', clearCurrentObjectUrl);
 
 // Start
 initMusicPanel();
 renderTeamRoster();
+let savedNavPreset = 'open';
+try{
+  if(typeof localStorage !== 'undefined' && localStorage){
+    const stored = localStorage.getItem('navPreset');
+    if(typeof stored === 'string' && stored.trim()){
+      savedNavPreset = stored;
+    }
+  }
+}catch(err){
+  console.warn('Unable to read nav preset preference', err);
+}
+applyPreset(savedNavPreset);
 readParams();
 setup();
 renderBestBrain();
