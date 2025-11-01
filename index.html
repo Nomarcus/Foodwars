@@ -728,6 +728,12 @@ let manualPaletteCursor = 0;
 let dragRadius = 0;
 let activePointerId = null;
 
+// Neural network hidden layer constraints must be defined before params
+// because the default params.learn.hidden value reads NET_HIDDEN.
+const NET_HIDDEN_MIN = 4;
+const NET_HIDDEN_MAX = 96;
+let NET_HIDDEN = 16;
+
 // ===== Parameters =====
 const params = {
   maxFruits: 32,
@@ -2585,9 +2591,6 @@ function makeObstacles(n){
 
 
 const NET_INPUTS = 11;
-const NET_HIDDEN_MIN = 4;
-const NET_HIDDEN_MAX = 96;
-let NET_HIDDEN = 16;
 const NET_OUTPUTS = 4;
 const OUTPUT_NODE_LABELS = ['Drive X', 'Drive Y', 'Speed +', 'Speed −'];
 
