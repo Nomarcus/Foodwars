@@ -1336,6 +1336,7 @@ function getPathCostAt(teamId, x, y){
 
 // Goals – draggable, one per potential team
 const GOAL_RADIUS = 34;
+const GOAL_EDGE_MARGIN = 12;
 function ensureGoalState(teamId){
   let goal = goalStates[teamId];
   if(!goal){
@@ -1344,6 +1345,7 @@ function ensureGoalState(teamId){
     goal = { id:teamId, x: anchor.x * W, y: anchor.y * H, r:GOAL_RADIUS, delivered:0 };
     goalStates[teamId] = goal;
   }
+  clampGoalPosition(goal);
   return goal;
 }
 function resetGoalDelivery(teamId){
@@ -1690,6 +1692,14 @@ function clampObstacleCenter(o, cx, cy){
     x: Math.max(minX, Math.min(maxX, cx)),
     y: Math.max(minY, Math.min(maxY, cy))
   };
+}
+
+function clampGoalPosition(goal){
+  if(!goal) return goal;
+  const margin = Math.max(goal.r + GOAL_EDGE_MARGIN, goal.r + 8);
+  goal.x = clamp(goal.x, margin, W - margin);
+  goal.y = clamp(goal.y, margin, H - margin);
+  return goal;
 }
 
 function keepObstacleInside(o){
@@ -3598,13 +3608,27 @@ function setup(){
     const maxY = (spawn.y?.[1] ?? 0.9) * H;
     const goal = state.goal;
     const agentPadding = Math.max(AGENT_BASE_RADIUS * params.agentScale, 4);
+    let spawnMinX = clamp(minX, agentPadding, W - agentPadding);
+    let spawnMaxX = clamp(maxX, agentPadding, W - agentPadding);
+    let spawnMinY = clamp(minY, agentPadding, H - agentPadding);
+    let spawnMaxY = clamp(maxY, agentPadding, H - agentPadding);
+    if(spawnMinX > spawnMaxX){
+      const center = clamp(goal?.x ?? W/2, agentPadding, W - agentPadding);
+      spawnMinX = Math.max(agentPadding, center - agentPadding * 2);
+      spawnMaxX = Math.min(W - agentPadding, center + agentPadding * 2);
+    }
+    if(spawnMinY > spawnMaxY){
+      const center = clamp(goal?.y ?? H/2, agentPadding, H - agentPadding);
+      spawnMinY = Math.max(agentPadding, center - agentPadding * 2);
+      spawnMaxY = Math.min(H - agentPadding, center + agentPadding * 2);
+    }
     for(let i=0;i<state.config.count;i++){
       const netRef = state.population[i] || { net:makeNet(), fitness:0 };
       if(!state.population[i]) state.population[i] = netRef;
       netRef.fitness = 0;
       const AgentClass = state.config.role === 'blocker' ? Blocker : Collector;
-      let spawnX = rand(minX, maxX);
-      let spawnY = rand(minY, maxY);
+      let spawnX = rand(spawnMinX, spawnMaxX);
+      let spawnY = rand(spawnMinY, spawnMaxY);
       if(goal){
         const maxRadius = Math.max(0, goal.r - agentPadding);
         if(maxRadius === 0){
@@ -3618,7 +3642,12 @@ function setup(){
           spawnY = clamp(goal.y + Math.sin(angle) * radius, agentPadding, H - agentPadding);
         }
       }
-      const agent = new AgentClass(spawnX, spawnY, state, netRef);
+      const agent = new AgentClass(
+        clamp(spawnX, agentPadding, W - agentPadding),
+        clamp(spawnY, agentPadding, H - agentPadding),
+        state,
+        netRef
+      );
       state.agents.push(agent);
     }
   });
