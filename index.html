@@ -521,6 +521,12 @@
             <div class="label">Energy empty speed</div>
             <input id="slEnergyEmptySpeed" type="range" min="10" max="100" value="45" step="5"><div class="val" id="lbEnergyEmptySpeed">45%</div>
 
+            <div class="label">Energy capacity</div>
+            <input id="slEnergyCapacity" type="range" min="0" max="300" value="120" step="10"><div class="val" id="lbEnergyCapacity">120</div>
+
+            <div class="label">Awareness boost</div>
+            <input id="slAwarenessBoost" type="range" min="50" max="200" value="100" step="5"><div class="val" id="lbAwarenessBoost">100%</div>
+
             <div class="label" title="Agents that run out of energy will be removed and penalized.">Energy exhaustion death</div>
             <input id="chkEnergyDeath" type="checkbox"><div class="val" id="lbEnergyDeath">off</div>
 
@@ -616,7 +622,11 @@ const SPEED_FACTOR_MAX = 1.0;
 const SPEED_FACTOR_ADJUST = 0.03;
 const ENERGY_MULTIPLIER_MIN = 0.10;
 const ENERGY_MULTIPLIER_MAX = 1.0;
-const COLLECTOR_ENERGY_MAX = 120;
+const COLLECTOR_ENERGY_CAPACITY_DEFAULT = 120;
+const COLLECTOR_ENERGY_CAPACITY_MIN = 0;
+const COLLECTOR_ENERGY_CAPACITY_MAX = 300;
+const AWARENESS_BOOST_MIN = 0.50;
+const AWARENESS_BOOST_MAX = 2.00;
 const COLLECTOR_ENERGY_DECAY = 0.08;
 const COLLECTOR_ENERGY_PICKUP_BOOST = 80;
 const COLLECTOR_ENERGY_SPEED_MIN_DEFAULT = 0.45;
@@ -681,9 +691,11 @@ const params = {
   agentCollisions: false,
   showTopHighlight: true,
   showEnergyHalo: true,
+  energyCapacity: COLLECTOR_ENERGY_CAPACITY_DEFAULT,
   energyEmptySpeed: COLLECTOR_ENERGY_SPEED_MIN_DEFAULT,
   dieOnEnergyLoss: false,
   showSensorRadar: false,
+  awarenessBoost: 1.0,
   fruitPlacement: 'random',
   teams: TEAM_PRESETS.map((preset, index)=>({
     id:preset.id,
@@ -710,6 +722,53 @@ function getEnergyEmptySpeedSetting(){
   const value = params?.energyEmptySpeed;
   if(!Number.isFinite(value)) return COLLECTOR_ENERGY_SPEED_MIN_DEFAULT;
   return clamp(value, ENERGY_MULTIPLIER_MIN, ENERGY_MULTIPLIER_MAX);
+}
+
+function getCollectorEnergyCapacity(){
+  const value = params?.energyCapacity;
+  if(!Number.isFinite(value)) return COLLECTOR_ENERGY_CAPACITY_DEFAULT;
+  return clamp(value, COLLECTOR_ENERGY_CAPACITY_MIN, COLLECTOR_ENERGY_CAPACITY_MAX);
+}
+
+function applyCollectorEnergyCapacity(){
+  if(!Array.isArray(activeTeamStates) || activeTeamStates.length === 0) return;
+  const capacity = getCollectorEnergyCapacity();
+  for(const team of activeTeamStates){
+    if(!team || !Array.isArray(team.agents)) continue;
+    for(const agent of team.agents){
+      if(!agent || agent.role !== 'collector') continue;
+      const prevMax = Number(agent.energyMax);
+      if(Number.isFinite(prevMax) && Math.abs(prevMax - capacity) < 1e-6){
+        if(typeof agent.updateEnergyThrottle === 'function'){
+          agent.updateEnergyThrottle();
+        }
+        continue;
+      }
+      const prevEnergy = Number(agent.energy);
+      const ratio = prevMax > 0 ? clamp(prevEnergy / prevMax, 0, 1) : 1;
+      agent.enableEnergy(capacity);
+      if(capacity > 0){
+        agent.energy = clamp(capacity * ratio, 0, capacity);
+      } else {
+        agent.energy = 0;
+      }
+      if(typeof agent.updateEnergyThrottle === 'function'){
+        agent.updateEnergyThrottle();
+      }
+    }
+  }
+}
+
+function getAwarenessBoost(){
+  const value = params?.awarenessBoost;
+  if(!Number.isFinite(value)) return 1;
+  return clamp(value, AWARENESS_BOOST_MIN, AWARENESS_BOOST_MAX);
+}
+
+function getEffectiveSmartValue(teamConfig){
+  const baseSmart = Number(teamConfig?.smart);
+  if(!Number.isFinite(baseSmart)) return 0;
+  return baseSmart * getAwarenessBoost();
 }
 
 // Dynamically discovered MP3 playlist
@@ -840,6 +899,28 @@ function readParams(){
     const normalized = clamp(percent / 100, ENERGY_MULTIPLIER_MIN, ENERGY_MULTIPLIER_MAX);
     params.energyEmptySpeed = normalized;
     const label = Q('lbEnergyEmptySpeed');
+    if(label){
+      label.textContent = `${Math.round(percent)}%`;
+    }
+  }
+
+  const energyCapacitySlider = Q('slEnergyCapacity');
+  if(energyCapacitySlider){
+    const capacity = clamp(Number(energyCapacitySlider.value), COLLECTOR_ENERGY_CAPACITY_MIN, COLLECTOR_ENERGY_CAPACITY_MAX);
+    params.energyCapacity = capacity;
+    const label = Q('lbEnergyCapacity');
+    if(label){
+      label.textContent = capacity <= 0 ? 'off' : `${Math.round(capacity)}`;
+    }
+    applyCollectorEnergyCapacity();
+  }
+
+  const awarenessSlider = Q('slAwarenessBoost');
+  if(awarenessSlider){
+    const percent = Number(awarenessSlider.value);
+    const normalized = clamp(percent / 100, AWARENESS_BOOST_MIN, AWARENESS_BOOST_MAX);
+    params.awarenessBoost = normalized;
+    const label = Q('lbAwarenessBoost');
     if(label){
       label.textContent = `${Math.round(percent)}%`;
     }
@@ -3314,7 +3395,7 @@ class Collector extends Agent{
     this.currentFruitTarget = null;
     this.bestFruitDistance = Infinity;
     this.fruitApproachBaseline = 0;
-    this.enableEnergy(COLLECTOR_ENERGY_MAX);
+    this.enableEnergy(getCollectorEnergyCapacity());
     this.energyDecay = COLLECTOR_ENERGY_DECAY;
     this.maxEnergyMultiplier = ENERGY_MULTIPLIER_MAX;
     this.minEnergyMultiplier = getEnergyEmptySpeedSetting();
@@ -3438,8 +3519,9 @@ class Collector extends Agent{
     if(throttleSignal !== 0){
       this.adjustSpeedFactor(throttleSignal * SPEED_FACTOR_ADJUST);
     }
-    this.vx += driveX*(0.45 + 0.15*cfg.smart) + (tx*0.15*cfg.strat);
-    this.vy += driveY*(0.45 + 0.15*cfg.smart) + (ty*0.15*cfg.strat);
+    const smartFactor = getEffectiveSmartValue(cfg);
+    this.vx += driveX*(0.45 + 0.15*smartFactor) + (tx*0.15*cfg.strat);
+    this.vy += driveY*(0.45 + 0.15*smartFactor) + (ty*0.15*cfg.strat);
     const pickupRadius = Math.max(AGENT_BASE_PICKUP_RADIUS * params.agentScale, 6);
     if(!this.carry && tgt && Math.hypot(tgt.x-this.x,tgt.y-this.y)<pickupRadius){
       const i=fruits.indexOf(tgt);
@@ -3672,8 +3754,9 @@ class Blocker extends Agent{
     if(throttleSignal !== 0){
       this.adjustSpeedFactor(throttleSignal * SPEED_FACTOR_ADJUST);
     }
-    this.vx += driveX*(0.50 + 0.18*cfg.smart) + (tx*0.22*cfg.strat) + (tvx*0.12*cfg.smart);
-    this.vy += driveY*(0.50 + 0.18*cfg.smart) + (ty*0.22*cfg.strat) + (tvy*0.12*cfg.smart);
+    const smartFactor = getEffectiveSmartValue(cfg);
+    this.vx += driveX*(0.50 + 0.18*smartFactor) + (tx*0.22*cfg.strat) + (tvx*0.12*smartFactor);
+    this.vy += driveY*(0.50 + 0.18*smartFactor) + (ty*0.22*cfg.strat) + (tvy*0.12*smartFactor);
     if(!target){
       this.applyWander(0.035 + 0.015*cfg.strat);
     }
@@ -4532,6 +4615,14 @@ function applyParamsSnapshot(snapshot){
     const normalized = clamp(snapshot.energyEmptySpeed, ENERGY_MULTIPLIER_MIN, ENERGY_MULTIPLIER_MAX);
     setRangeValue('slEnergyEmptySpeed', Math.round(normalized*100));
   }
+  if(snapshot.energyCapacity != null){
+    const capacity = clamp(snapshot.energyCapacity, COLLECTOR_ENERGY_CAPACITY_MIN, COLLECTOR_ENERGY_CAPACITY_MAX);
+    setRangeValue('slEnergyCapacity', Math.round(capacity));
+  }
+  if(snapshot.awarenessBoost != null){
+    const percent = clamp(snapshot.awarenessBoost, AWARENESS_BOOST_MIN, AWARENESS_BOOST_MAX) * 100;
+    setRangeValue('slAwarenessBoost', Math.round(percent));
+  }
   if(snapshot.agentCollisions !== undefined){
     const toggle = Q('chkAgentCollisions');
     if(toggle){
@@ -4859,6 +4950,11 @@ bindRange('slTournament','lbTournament',(v)=> `×${(v/10).toFixed(1)}`);
 bindRange('slFresh','lbFresh',(v)=> `${v}%`);
 bindRange('slAgentScale','lbAgentScale',(v)=> (v/100).toFixed(2)+'×');
 bindRange('slEnergyEmptySpeed','lbEnergyEmptySpeed',(v)=> `${v}%`);
+bindRange('slEnergyCapacity','lbEnergyCapacity',(v)=> {
+  const numeric = Math.round(Number(v));
+  return numeric <= 0 ? 'off' : `${numeric}`;
+});
+bindRange('slAwarenessBoost','lbAwarenessBoost',(v)=> `${v}%`);
 initFruitPlacementControls();
 Q('btnReset').onclick = ()=> { awaitingManualAdvance=false; forceNextGen=false; simSteps=0; setup(); };
 const btnResetTraining = Q('btnResetTraining');
