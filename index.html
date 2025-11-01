@@ -64,6 +64,7 @@
     .brain-canvas{width:100%; height:220px; border-radius:18px; background:linear-gradient(135deg, rgba(15,23,61,.65), rgba(12,18,44,.92)); border:1px solid rgba(148,163,209,.28)}
     .brain-paused{padding:12px 14px; border-radius:14px; border:1px dashed rgba(148,163,209,.4); background:rgba(15,23,61,.55); font-size:12px; line-height:1.6; color:var(--muted)}
     .brain-legend{flex:0 1 240px; min-width:220px; align-self:stretch; border-radius:18px; border:1px solid rgba(148,163,209,.22); background:linear-gradient(135deg, rgba(10,18,46,.65), rgba(7,12,30,.82)); padding:16px 18px; display:flex; flex-direction:column; gap:14px; box-shadow:inset 0 0 18px rgba(59,130,246,.08)}
+    .brain-legend.brain-legend--under{flex:1 1 100%; min-width:0; width:100%; margin-top:4px}
     .brain-legend-title{font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.08em; color:var(--muted)}
     .brain-legend-list{list-style:none; margin:0; padding:0; display:grid; gap:10px}
     .brain-legend-item{display:flex; align-items:center; gap:10px; font-size:12px; line-height:1.5; color:var(--ink)}
@@ -341,7 +342,7 @@
               Visualization hidden to save performance. Toggle it back on anytime to resume live updates.
             </div>
           </div>
-          <aside class="brain-legend" aria-label="Neural network legend">
+          <aside class="brain-legend brain-legend--under" aria-label="Neural network legend">
             <div class="brain-legend-section">
               <div class="brain-legend-title">Inputs</div>
               <ul class="brain-legend-list">
@@ -513,6 +514,9 @@
             <div class="label">Energy rings</div>
             <input id="chkEnergyHalo" type="checkbox" checked><div class="val" id="lbEnergyHalo">on</div>
 
+            <div class="label">Energy empty speed</div>
+            <input id="slEnergyEmptySpeed" type="range" min="10" max="100" value="45" step="5"><div class="val" id="lbEnergyEmptySpeed">45%</div>
+
             <div class="label">Sensor overlay</div>
             <input id="chkSensorRadar" type="checkbox"><div class="val" id="lbSensorRadar">off</div>
           </div>
@@ -603,12 +607,12 @@ function clamp(value, min, max){
 const SPEED_FACTOR_MIN = 0.35;
 const SPEED_FACTOR_MAX = 1.0;
 const SPEED_FACTOR_ADJUST = 0.03;
-const ENERGY_MULTIPLIER_MIN = 0.35;
+const ENERGY_MULTIPLIER_MIN = 0.10;
 const ENERGY_MULTIPLIER_MAX = 1.0;
 const COLLECTOR_ENERGY_MAX = 120;
 const COLLECTOR_ENERGY_DECAY = 0.08;
 const COLLECTOR_ENERGY_PICKUP_BOOST = 80;
-const COLLECTOR_ENERGY_SPEED_MIN = 0.45;
+const COLLECTOR_ENERGY_SPEED_MIN_DEFAULT = 0.45;
 const SAFE_NAVIGATION_REWARD = 0.06;
 
 function hexToRgba(hex, alpha){
@@ -669,6 +673,7 @@ const params = {
   agentCollisions: false,
   showTopHighlight: true,
   showEnergyHalo: true,
+  energyEmptySpeed: COLLECTOR_ENERGY_SPEED_MIN_DEFAULT,
   showSensorRadar: false,
   fruitPlacement: 'random',
   teams: TEAM_PRESETS.map((preset, index)=>({
@@ -691,6 +696,12 @@ const params = {
   learn: { genSteps:2800, mut:0.16, elite:0.20, mutStrengthW:0.20, mutStrengthB:0.20, crossoverBias:0.50, tournamentFactor:2.0, fresh:0, auto:true }
 };
 let lastObstCount = params.obstacles;
+
+function getEnergyEmptySpeedSetting(){
+  const value = params?.energyEmptySpeed;
+  if(!Number.isFinite(value)) return COLLECTOR_ENERGY_SPEED_MIN_DEFAULT;
+  return clamp(value, ENERGY_MULTIPLIER_MIN, ENERGY_MULTIPLIER_MAX);
+}
 
 // Dynamically discovered MP3 playlist
 let musicTracks = [];
@@ -811,6 +822,17 @@ function readParams(){
     const label = Q('lbEnergyHalo');
     if(label){
       label.textContent = energyHaloToggle.checked ? 'on' : 'off';
+    }
+  }
+
+  const energyEmptySlider = Q('slEnergyEmptySpeed');
+  if(energyEmptySlider){
+    const percent = Number(energyEmptySlider.value);
+    const normalized = clamp(percent / 100, ENERGY_MULTIPLIER_MIN, ENERGY_MULTIPLIER_MAX);
+    params.energyEmptySpeed = normalized;
+    const label = Q('lbEnergyEmptySpeed');
+    if(label){
+      label.textContent = `${Math.round(percent)}%`;
     }
   }
 
@@ -3257,14 +3279,16 @@ class Collector extends Agent{
     this.fruitApproachBaseline = 0;
     this.enableEnergy(COLLECTOR_ENERGY_MAX);
     this.energyDecay = COLLECTOR_ENERGY_DECAY;
-    this.minEnergyMultiplier = COLLECTOR_ENERGY_SPEED_MIN;
     this.maxEnergyMultiplier = ENERGY_MULTIPLIER_MAX;
+    this.minEnergyMultiplier = getEnergyEmptySpeedSetting();
   }
   updateEnergyThrottle(){
     if(this.energyMax<=0) return;
     const ratio = clamp(this.getEnergyRatio(), 0, 1);
-    const maxMultiplier = ENERGY_MULTIPLIER_MAX;
-    const multiplier = COLLECTOR_ENERGY_SPEED_MIN + (maxMultiplier - COLLECTOR_ENERGY_SPEED_MIN) * ratio;
+    const minMultiplier = getEnergyEmptySpeedSetting();
+    const maxMultiplier = Math.max(minMultiplier, this.maxEnergyMultiplier ?? ENERGY_MULTIPLIER_MAX);
+    this.minEnergyMultiplier = minMultiplier;
+    const multiplier = minMultiplier + (maxMultiplier - minMultiplier) * ratio;
     this.setEnergyMultiplier(multiplier);
   }
   update(){
@@ -4383,6 +4407,10 @@ function applyParamsSnapshot(snapshot){
   if(snapshot.obstacles != null) setRangeValue('slObst', snapshot.obstacles);
   if(snapshot.tailLen != null) setRangeValue('slTail', snapshot.tailLen);
   if(snapshot.agentScale != null) setRangeValue('slAgentScale', Math.round(snapshot.agentScale*100));
+  if(snapshot.energyEmptySpeed != null){
+    const normalized = clamp(snapshot.energyEmptySpeed, ENERGY_MULTIPLIER_MIN, ENERGY_MULTIPLIER_MAX);
+    setRangeValue('slEnergyEmptySpeed', Math.round(normalized*100));
+  }
   if(snapshot.agentCollisions !== undefined){
     const toggle = Q('chkAgentCollisions');
     if(toggle){
@@ -4701,6 +4729,7 @@ bindRange('slCrossover','lbCrossover',(v)=> `${v}% A`);
 bindRange('slTournament','lbTournament',(v)=> `×${(v/10).toFixed(1)}`);
 bindRange('slFresh','lbFresh',(v)=> `${v}%`);
 bindRange('slAgentScale','lbAgentScale',(v)=> (v/100).toFixed(2)+'×');
+bindRange('slEnergyEmptySpeed','lbEnergyEmptySpeed',(v)=> `${v}%`);
 initFruitPlacementControls();
 Q('btnReset').onclick = ()=> { awaitingManualAdvance=false; forceNextGen=false; simSteps=0; setup(); };
 const btnResetTraining = Q('btnResetTraining');
