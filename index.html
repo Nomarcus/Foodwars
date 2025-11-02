@@ -1390,6 +1390,11 @@ function updateTeamScoreDisplay(teamId){
   if(!el) return;
   const data = getTeamScoreData(teamId);
   const points = Math.round(data.score || 0);
+  const team = params.teams.find((t)=> t.id === teamId);
+  if(team?.role === 'blocker'){
+    el.textContent = `${data.blocks || 0}`;
+    return;
+  }
   const metrics = [];
   metrics.push(`${data.pickups} caught`);
   metrics.push(`${data.deliveries} delivered`);
