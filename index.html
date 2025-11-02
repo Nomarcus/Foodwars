@@ -202,9 +202,9 @@
   <div class="wrap">
     <!-- Left panel: Learning (NEAT) -->
     <aside class="side" id="left-panel">
-      <div class="panel" id="panel-learn">
-        <div class="panel-head"><div class="h">Learning (NEAT-lite)</div><span class="chev">▾</span></div>
-        <div class="panel-body">
+      <div class="panel collapsed" id="panel-learn">
+        <div class="panel-head" role="button" tabindex="0" aria-expanded="false" aria-controls="panel-learn-body"><div class="h">Learning (NEAT-lite)</div><span class="chev">▾</span></div>
+        <div class="panel-body" id="panel-learn-body">
           <div class="grid">
             <div class="label" title="Number of simulation steps each generation runs before evaluating fitness.">Steps / gen</div>
             <input id="slGenSteps" type="range" min="600" max="100000" value="2800" title="Number of simulation steps each generation runs before evaluating fitness."><div class="val" id="lbGenSteps">2800</div>
@@ -244,9 +244,9 @@
         </div>
       </div>
 
-      <div class="panel" id="panel-toolbox">
-        <div class="panel-head"><div class="h">Obstacle toolbox</div><span class="chev">▾</span></div>
-        <div class="panel-body">
+      <div class="panel collapsed" id="panel-toolbox">
+        <div class="panel-head" role="button" tabindex="0" aria-expanded="false" aria-controls="panel-toolbox-body"><div class="h">Obstacle toolbox</div><span class="chev">▾</span></div>
+        <div class="panel-body" id="panel-toolbox-body">
           <p class="tool-hint">Choose a tool to draw glowing obstacles directly on the field.</p>
           <div class="tool-buttons" role="group" aria-label="Obstacle drawing tools">
             <button class="tool-btn active" data-tool="select" aria-pressed="true">Move</button>
@@ -257,16 +257,16 @@
           </div>
           <button id="btnUndoManual" class="btn" disabled>Undo last manual obstacle</button>
           <button id="btnClearManual" class="btn">Clear manual obstacles</button>
-          <button id="btnGenerateLabyrinth" class="btn">Skapa labyrint</button>
+          <button id="btnGenerateLabyrinth" class="btn">Generate labyrinth</button>
           <button id="btnSaveObstacles" class="btn">Save obstacles (.json)</button>
           <button id="btnLoadObstacles" class="btn">Load obstacles…</button>
           <input type="file" id="inputLoadObstacles" accept="application/json" style="display:none">
         </div>
       </div>
 
-      <div class="panel" id="panel-music">
-        <div class="panel-head"><div class="h">Ambient Sound Lounge</div><span class="chev">▾</span></div>
-        <div class="panel-body">
+      <div class="panel collapsed" id="panel-music">
+        <div class="panel-head" role="button" tabindex="0" aria-expanded="false" aria-controls="panel-music-body"><div class="h">Ambient Sound Lounge</div><span class="chev">▾</span></div>
+        <div class="panel-body" id="panel-music-body">
           <p class="music-lead">Play MP3 files from your audio folder. Add your own tracks to the list!</p>
           <div class="music-select">
             <label class="label" for="selMusic">Curated playlist</label>
@@ -460,9 +460,9 @@
 
     <!-- Right panels: controls and teams -->
     <aside class="side" id="right-panel">
-      <div class="panel" id="panel-global">
-        <div class="panel-head"><div class="h">Global controls</div><span class="chev">▾</span></div>
-        <div class="panel-body">
+      <div class="panel collapsed" id="panel-global">
+        <div class="panel-head" role="button" tabindex="0" aria-expanded="false" aria-controls="panel-global-body"><div class="h">Global controls</div><span class="chev">▾</span></div>
+        <div class="panel-body" id="panel-global-body">
           <div class="grid">
             <div class="label">Fruit (max)</div>
             <input id="slFruits" type="range" min="2" max="1000" value="32"><div class="val" id="lbFruits">32</div>
@@ -550,9 +550,9 @@
         </div>
       </div>
 
-      <div class="panel" id="panel-teams">
-        <div class="panel-head"><div class="h">Team settings</div><span class="chev">▾</span></div>
-        <div class="panel-body">
+      <div class="panel collapsed" id="panel-teams">
+        <div class="panel-head" role="button" tabindex="0" aria-expanded="false" aria-controls="panel-teams-body"><div class="h">Team settings</div><span class="chev">▾</span></div>
+        <div class="panel-body" id="panel-teams-body">
           <div class="sub">Teams</div>
           <div class="team-roster" id="teamRoster"></div>
           <div class="sub" style="margin-top:14px">Attributes per team</div>
@@ -602,10 +602,34 @@ function getNow(){
   const panels = document.querySelectorAll('.panel');
   panels.forEach((p)=>{
     const head = p.querySelector('.panel-head');
-    if(!head) return;
-    head.addEventListener('click', (e)=>{
-      // Ignore clicks on inputs inside header (none for now)
+    const body = p.querySelector('.panel-body');
+    if(!head || !body) return;
+
+    if(!body.id){
+      body.id = `${p.id || 'panel'}-body`;
+    }
+    head.setAttribute('aria-controls', body.id);
+
+    const updateAria = ()=>{
+      const expanded = !p.classList.contains('collapsed');
+      head.setAttribute('aria-expanded', String(expanded));
+    };
+    updateAria();
+
+    const toggle = ()=>{
       p.classList.toggle('collapsed');
+      updateAria();
+    };
+
+    head.addEventListener('click', (e)=>{
+      if(e.target.closest('button, a, input, select, textarea')) return;
+      toggle();
+    });
+    head.addEventListener('keydown', (e)=>{
+      if(e.key === 'Enter' || e.key === ' '){
+        e.preventDefault();
+        toggle();
+      }
     });
   });
 })();
