@@ -257,6 +257,7 @@
           </div>
           <button id="btnUndoManual" class="btn" disabled>Undo last manual obstacle</button>
           <button id="btnClearManual" class="btn">Clear manual obstacles</button>
+          <button id="btnGenerateLabyrinth" class="btn">Skapa labyrint</button>
           <button id="btnSaveObstacles" class="btn">Save obstacles (.json)</button>
           <button id="btnLoadObstacles" class="btn">Load obstacles…</button>
           <input type="file" id="inputLoadObstacles" accept="application/json" style="display:none">
@@ -632,6 +633,7 @@ const TEAM_PRESET_MAP = new Map(TEAM_PRESETS.map((preset)=> [preset.id, preset])
 const NAV_PRESETS = {
   lab: {
     name: "Labyrinth",
+    obstacleGenerator:'labyrinth',
     ui: { awarenessBoostPct:160, team:{speed:3.8,smart:3.0,strat:2.6,sep:1.1},
           agentScalePct:90, energyEmptyPct:60, energyCapacity:180,
           agentCollisions:false, learn:{steps:9000, mutPct:24, elitePct:12} },
@@ -1834,6 +1836,11 @@ function applyPreset(name){
     });
   }
 
+  if(preset.obstacleGenerator === 'labyrinth'){
+    generateLabyrinthObstacles();
+    setRangeValue('slObst', 0);
+  }
+
   const learn = ui.learn || {};
   if(learn.steps != null) setRangeValue('slGenSteps', learn.steps);
   if(learn.hidden != null) setRangeValue('slHidden', learn.hidden);
@@ -2083,6 +2090,26 @@ function buildObstacleFromState(state, preview=false){
 
 function createCircleObstacle(x, y, r, paletteIndex=0, manual=false){
   return { type:'circle', x, y, r, paletteIndex, phase:Math.random()*Math.PI*2, manual };
+}
+
+function createLineObstacle(x1, y1, x2, y2, thickness=14, paletteIndex=0, manual=false, options={}){
+  const persistent = !!options.persistent;
+  const cx = (x1 + x2) / 2;
+  const cy = (y1 + y2) / 2;
+  return {
+    type:'line',
+    x:cx,
+    y:cy,
+    x1,
+    y1,
+    x2,
+    y2,
+    thickness,
+    paletteIndex,
+    phase:Math.random()*Math.PI*2,
+    manual,
+    persistent
+  };
 }
 
 function getManualObstacleCount(){
@@ -2526,10 +2553,10 @@ function goalTooClose(x,y,r,padding=40){
   return false;
 }
 function makeObstacles(n){
-  const manual = obstacles.filter(o=>o.manual);
+  const preserved = obstacles.filter(o=>o.manual || o.persistent);
   obstacles.length = 0;
-  for(const m of manual){
-    obstacles.push(m);
+  for(const kept of preserved){
+    obstacles.push(kept);
   }
   const paletteLen=OBSTACLE_COLORS.length;
   for(let i=0;i<n;i++){
@@ -2588,6 +2615,182 @@ function makeObstacles(n){
   markPathCostDirty();
 }
 
+
+function lineTooCloseToGoals(x1, y1, x2, y2, thickness, goals){
+  const goalStates = Array.isArray(goals) && goals.length ? goals : getAllGoalStates();
+  const buffer = (thickness || 14) * 0.5 + GOAL_RADIUS + 18;
+  for(const goal of goalStates){
+    if(!goal) continue;
+    const seg = distanceToSegment(goal.x, goal.y, x1, y1, x2, y2);
+    const goalRadius = Number.isFinite(goal.r) ? goal.r : GOAL_RADIUS;
+    if(seg.distance <= goalRadius + buffer){
+      return true;
+    }
+  }
+  return false;
+}
+
+function generateLabyrinthObstacles(options={}){
+  const colsRaw = Number.isFinite(options.cols) ? Math.floor(options.cols) : 12;
+  const rowsRaw = Number.isFinite(options.rows) ? Math.floor(options.rows) : 8;
+  const cols = clamp(colsRaw, 4, 28);
+  const rows = clamp(rowsRaw, 4, 24);
+  const marginX = clamp(Number.isFinite(options.marginX) ? options.marginX : 90, 40, W/2);
+  const marginY = clamp(Number.isFinite(options.marginY) ? options.marginY : 80, 40, H/2);
+  const usableWidth = W - marginX * 2;
+  const usableHeight = H - marginY * 2;
+  if(usableWidth <= 0 || usableHeight <= 0) return;
+
+  const cellWidth = usableWidth / cols;
+  const cellHeight = usableHeight / rows;
+  const preserved = obstacles.filter(o=>o.manual);
+  obstacles.length = 0;
+  preserved.forEach((o)=> obstacles.push(o));
+
+  const cells = [];
+  for(let row=0; row<rows; row++){
+    const cellRow = [];
+    for(let col=0; col<cols; col++){
+      cellRow.push({
+        row,
+        col,
+        visited:false,
+        walls:{ top:true, right:true, bottom:true, left:true }
+      });
+    }
+    cells.push(cellRow);
+  }
+
+  const dirs = [
+    { dx:0, dy:-1, wall:'top', opposite:'bottom' },
+    { dx:1, dy:0, wall:'right', opposite:'left' },
+    { dx:0, dy:1, wall:'bottom', opposite:'top' },
+    { dx:-1, dy:0, wall:'left', opposite:'right' }
+  ];
+
+  const startRow = Math.floor(Math.random() * rows);
+  const startCol = Math.floor(Math.random() * cols);
+  const stack = [];
+  const startCell = cells[startRow][startCol];
+  startCell.visited = true;
+  stack.push(startCell);
+
+  while(stack.length){
+    const current = stack[stack.length-1];
+    const candidates = [];
+    for(const dir of dirs){
+      const nx = current.col + dir.dx;
+      const ny = current.row + dir.dy;
+      if(nx < 0 || ny < 0 || nx >= cols || ny >= rows) continue;
+      const neighbor = cells[ny][nx];
+      if(!neighbor.visited){
+        candidates.push({ neighbor, dir });
+      }
+    }
+    if(candidates.length){
+      const pick = candidates[Math.floor(Math.random() * candidates.length)];
+      current.walls[pick.dir.wall] = false;
+      pick.neighbor.walls[pick.dir.opposite] = false;
+      pick.neighbor.visited = true;
+      stack.push(pick.neighbor);
+    } else {
+      stack.pop();
+    }
+  }
+
+  const extraLinks = Math.round(cols * rows * 0.18);
+  for(let i=0; i<extraLinks; i++){
+    const col = Math.floor(Math.random() * cols);
+    const row = Math.floor(Math.random() * rows);
+    const dir = dirs[Math.floor(Math.random() * dirs.length)];
+    const nx = col + dir.dx;
+    const ny = row + dir.dy;
+    if(nx < 0 || ny < 0 || nx >= cols || ny >= rows) continue;
+    const cell = cells[row][col];
+    const neighbor = cells[ny][nx];
+    if(cell.walls[dir.wall]){
+      cell.walls[dir.wall] = false;
+      neighbor.walls[dir.opposite] = false;
+    }
+  }
+
+  const borderCandidates = [];
+  for(let col=0; col<cols; col++){
+    borderCandidates.push({ cell:cells[0][col], wall:'top' });
+    borderCandidates.push({ cell:cells[rows-1][col], wall:'bottom' });
+  }
+  for(let row=1; row<rows-1; row++){
+    borderCandidates.push({ cell:cells[row][0], wall:'left' });
+    borderCandidates.push({ cell:cells[row][cols-1], wall:'right' });
+  }
+  const openings = Math.max(3, Math.round(Math.sqrt(cols * rows) / 2));
+  for(let i=0; i<openings && borderCandidates.length>0; i++){
+    const idx = Math.floor(Math.random() * borderCandidates.length);
+    const entry = borderCandidates.splice(idx, 1)[0];
+    if(entry && entry.cell && entry.cell.walls[entry.wall] !== undefined){
+      entry.cell.walls[entry.wall] = false;
+    }
+  }
+
+  const thickness = clamp(Math.min(cellWidth, cellHeight) * 0.32, 10, 28);
+  const paletteLen = OBSTACLE_COLORS.length || 1;
+  const paletteOffset = obstacles.length % paletteLen;
+  const goals = getAllGoalStates();
+  let segmentIndex = 0;
+
+  const minX = marginX;
+  const maxX = W - marginX;
+  const minY = marginY;
+  const maxY = H - marginY;
+
+  const addSegment = (x1, y1, x2, y2)=>{
+    const dx = x2 - x1;
+    const dy = y2 - y1;
+    const length = Math.hypot(dx, dy);
+    if(length <= 1) return;
+    const expand = thickness * 0.5;
+    const nx = dx / length;
+    const ny = dy / length;
+    let ax = x1 - nx * expand;
+    let ay = y1 - ny * expand;
+    let bx = x2 + nx * expand;
+    let by = y2 + ny * expand;
+    ax = clamp(ax, minX, maxX);
+    bx = clamp(bx, minX, maxX);
+    ay = clamp(ay, minY, maxY);
+    by = clamp(by, minY, maxY);
+    if(lineTooCloseToGoals(ax, ay, bx, by, thickness, goals)) return;
+    const paletteIndex = (paletteOffset + segmentIndex) % paletteLen;
+    const obstacle = createLineObstacle(ax, ay, bx, by, thickness, paletteIndex, false, { persistent:true });
+    obstacles.push(obstacle);
+    segmentIndex++;
+  };
+
+  for(let row=0; row<rows; row++){
+    for(let col=0; col<cols; col++){
+      const cell = cells[row][col];
+      const x0 = marginX + col * cellWidth;
+      const y0 = marginY + row * cellHeight;
+      const x1 = x0 + cellWidth;
+      const y1 = y0 + cellHeight;
+      if(cell.walls.right){
+        addSegment(x1, y0, x1, y1);
+      }
+      if(cell.walls.bottom){
+        addSegment(x0, y1, x1, y1);
+      }
+      if(row === 0 && cell.walls.top){
+        addSegment(x0, y0, x1, y0);
+      }
+      if(col === 0 && cell.walls.left){
+        addSegment(x0, y0, x0, y1);
+      }
+    }
+  }
+
+  markPathCostDirty();
+  syncManualObstacleState();
+}
 
 
 const NET_INPUTS = 11;
@@ -4677,6 +4880,7 @@ function serializeObstacle(obstacle){
   const base = {
     type,
     manual: !!obstacle.manual,
+    persistent: !!obstacle.persistent,
     paletteIndex: sanitizeNumber(obstacle.paletteIndex, 0),
     phase: sanitizeNumber(obstacle.phase, Math.random()*TAU)
   };
@@ -4723,6 +4927,7 @@ function deserializeObstacle(entry){
   if(!entry || typeof entry !== 'object') return null;
   const type = typeof entry.type === 'string' ? entry.type : 'circle';
   const manual = !!entry.manual;
+  const persistent = !!entry.persistent;
   const paletteIndex = normalizePaletteIndex(entry.paletteIndex);
   const phase = sanitizeNumber(entry.phase, Math.random()*TAU);
   switch(type){
@@ -4731,7 +4936,7 @@ function deserializeObstacle(entry){
       const height = Math.max(2, sanitizeNumber(entry.height, 20));
       const x = sanitizeNumber(entry.x, W/2);
       const y = sanitizeNumber(entry.y, H/2);
-      return { type:'rect', x, y, width, height, manual, paletteIndex, phase };
+      return { type:'rect', x, y, width, height, manual, paletteIndex, phase, persistent };
     }
     case 'line':{
       const x1 = sanitizeNumber(entry.x1, sanitizeNumber(entry.x, 0));
@@ -4741,20 +4946,20 @@ function deserializeObstacle(entry){
       const x = sanitizeNumber(entry.x, (x1 + x2) / 2);
       const y = sanitizeNumber(entry.y, (y1 + y2) / 2);
       const thickness = Math.max(2, sanitizeNumber(entry.thickness, 14));
-      return { type:'line', x, y, x1, y1, x2, y2, thickness, manual, paletteIndex, phase };
+      return { type:'line', x, y, x1, y1, x2, y2, thickness, manual, paletteIndex, phase, persistent };
     }
     case 'half':{
       const x = sanitizeNumber(entry.x, W/2);
       const y = sanitizeNumber(entry.y, H/2);
       const r = Math.max(4, sanitizeNumber(entry.r, 24));
       const angle = sanitizeNumber(entry.angle, 0);
-      return { type:'half', x, y, r, angle, manual, paletteIndex, phase };
+      return { type:'half', x, y, r, angle, manual, paletteIndex, phase, persistent };
     }
     default:{
       const x = sanitizeNumber(entry.x, W/2);
       const y = sanitizeNumber(entry.y, H/2);
       const r = Math.max(4, sanitizeNumber(entry.r, 18));
-      return { type:'circle', x, y, r, manual, paletteIndex, phase };
+      return { type:'circle', x, y, r, manual, paletteIndex, phase, persistent };
     }
   }
 }
@@ -5160,6 +5365,14 @@ if(btnClearManual){
     }
     syncManualObstacleState();
     markPathCostDirty();
+  });
+}
+
+const btnGenerateLabyrinth = Q('btnGenerateLabyrinth');
+if(btnGenerateLabyrinth){
+  btnGenerateLabyrinth.addEventListener('click', ()=>{
+    generateLabyrinthObstacles();
+    setRangeValue('slObst', 0);
   });
 }
 
