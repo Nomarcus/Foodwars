@@ -1287,18 +1287,44 @@ const BLOCKER_TRIGGER_RADIUS_BASE = 18;
 const PATH_COST_OBSTACLE_PADDING = 10;
 const PATH_SEGMENT_SAMPLE_STEP = 12;
 const LINE_OF_SIGHT_PADDING = 8;
-const PATH_PROGRESS_REWARD = 0.8;
+const PATH_PROGRESS_REWARD = 0.92;
+const PATH_PROGRESS_CONSOLIDATION_BONUS = 0.45;
+const PATH_CONSOLIDATION_TRAIL_THRESHOLD = 0.75;
+const PATH_CONSOLIDATION_TRAIL_SCALE = 2.2;
 const PATH_PROGRESS_STALL_PENALTY = 0.12;
+const PATH_PROGRESS_REGRESSION_PENALTY = 0.18;
+const PATH_PROGRESS_REGRESSION_DELTA = 0.08;
 const PATH_PROGRESS_STALL_STEPS = 70;
 const PATH_PROGRESS_MIN_DELTA = 0.05;
 const PATH_STUCK_THRESHOLD = 90;
 const PATH_STUCK_PENALTY = 0.25;
-const PATH_EXPLORATION_REWARD = 0.35;
+const PATH_EXPLORATION_REWARD = 0.5;
 const PATH_EXPLORATION_LIMIT = 600;
+const PATH_LOOP_WINDOW = 90;
+const PATH_LOOP_PENALTY = 0.08;
+const PATH_PROGRESS_PRESSURE_WINDOW = 220;
 const FRUIT_APPROACH_REWARD = 0.22;
 const FRUIT_APPROACH_BASELINE_SCALE = 220;
 const FRUIT_APPROACH_MAX_MULTIPLIER = 2.8;
 const FRUIT_APPROACH_MIN_DELTA = 0.4;
+const PHEROMONE_DEPOSIT_BASE = 0.28;
+const PHEROMONE_DEPOSIT_CARRY_BONUS = 1.5;
+const PHEROMONE_DEPOSIT_HOME_SUPPORT = 0.18;
+const PHEROMONE_FRESH_BURST = 1.8;
+const PHEROMONE_FRESH_SPREAD = 0.65;
+const PHEROMONE_SENSOR_SCALE = 2.4;
+const PHEROMONE_FRESH_SENSOR_SCALE = 3.2;
+const PHEROMONE_BASE_KEEP = 0.978;
+const PHEROMONE_MAX_KEEP = 0.992;
+const PHEROMONE_FRESH_KEEP = 0.952;
+const PHEROMONE_FRESH_MAX_KEEP = 0.972;
+const PHEROMONE_SPARSE_KEEP_BONUS = 0.012;
+const PHEROMONE_DIFFUSE_CENTER = 0.52;
+const PHEROMONE_DIFFUSE_NEIGHBOR = 0.08;
+const PHEROMONE_FRESH_DIFFUSE_CENTER = 0.56;
+const PHEROMONE_FRESH_DIFFUSE_NEIGHBOR = 0.05;
+const RAYCAST_MAX_DISTANCE = 160;
+const RAYCAST_STEP = 10;
 
 function getTeamScoreData(teamId){
   if(!teamId) return { score:0, pickups:0, deliveries:0, blocks:0, fumbles:0 };
@@ -1358,7 +1384,8 @@ function makeGrid(){
   params.teams.forEach((team)=>{
     grid[team.id] = {
       food:new Float32Array(GW*GH),
-      home:new Float32Array(GW*GH)
+      home:new Float32Array(GW*GH),
+      fresh:new Float32Array(GW*GH)
     };
   });
   pathCostFields = {};
@@ -1366,13 +1393,50 @@ function makeGrid(){
 }
 const gi=(x,y)=> y*GW + x;
 const clampi=(v,a,b)=> v<a?a:(v>b?b:v);
-function deposit(teamId,type,x,y,amt){
+function deposit(teamId,type,x,y,amt,opts={}){
   const fields = grid?.[teamId];
   if(!fields) return;
   const field = fields[type];
   if(!field) return;
+  const amount = Number(amt);
+  if(!Number.isFinite(amount) || amount === 0) return;
   const cx=clampi((x/CS)|0,0,GW-1), cy=clampi((y/CS)|0,0,GH-1);
-  field[gi(cx,cy)] += amt;
+  const idx = gi(cx,cy);
+  const cap = Number.isFinite(opts.cap) ? opts.cap : null;
+  const apply = (index, delta)=>{
+    if(!Number.isFinite(index) || index<0 || index>=field.length) return;
+    let next = field[index] + delta;
+    if(cap != null){
+      next = Math.min(next, cap);
+    }
+    field[index] = next;
+  };
+  apply(idx, amount);
+  const spread = Math.max(0, Number(opts.spread)||0);
+  const radius = Math.max(0, Math.round(Number.isFinite(opts.radius)?opts.radius:1));
+  if(spread>0 && radius>0){
+    const neighbors=[];
+    for(let dy=-radius; dy<=radius; dy++){
+      for(let dx=-radius; dx<=radius; dx++){
+        if(dx===0 && dy===0) continue;
+        const nx = clampi(cx+dx,0,GW-1);
+        const ny = clampi(cy+dy,0,GH-1);
+        const dist = Math.hypot(dx,dy);
+        if(dist>radius) continue;
+        const weight = dist>0 ? 1/dist : 0;
+        neighbors.push({ index:gi(nx,ny), weight });
+      }
+    }
+    const weightSum = neighbors.reduce((sum,n)=>sum + (Number.isFinite(n.weight)?n.weight:0),0);
+    if(weightSum>0){
+      const spreadTotal = amount * spread;
+      for(const neighbor of neighbors){
+        if(!Number.isFinite(neighbor.weight) || neighbor.weight<=0) continue;
+        const share = spreadTotal * (neighbor.weight/weightSum);
+        apply(neighbor.index, share);
+      }
+    }
+  }
 }
 function senseGrad(teamId,type,x,y){
   const fields = grid?.[teamId];
@@ -1390,30 +1454,103 @@ function senseGrad(teamId,type,x,y){
   }
   return {gx:(bx-cx), gy:(by-cy), val:field[gi(bx,by)]};
 }
+function normalizePheromoneStrength(val, scale=PHEROMONE_SENSOR_SCALE){
+  if(!Number.isFinite(val) || val<=0) return 0;
+  const denom = Math.max(scale, 1e-6);
+  return clamp(val / denom, 0, 1);
+}
+function leaveCollectorTrail(agent){
+  if(!agent || !grid) return;
+  const teamId = agent.team;
+  if(!teamId) return;
+  const energyRatio = agent.getEnergyRatio ? agent.getEnergyRatio() : 1;
+  const energyScale = agent.energyMax > 0 ? clamp(0.7 + 0.6 * energyRatio, 0.35, 1.35) : 1;
+  const base = PHEROMONE_DEPOSIT_BASE * energyScale;
+  const carrying = !!agent.carry;
+  const primaryType = carrying ? 'food' : 'home';
+  const primaryAmount = base * (carrying ? PHEROMONE_DEPOSIT_CARRY_BONUS : 1);
+  const primarySpread = carrying ? 0.45 : 0.32;
+  deposit(teamId, primaryType, agent.x, agent.y, primaryAmount, {
+    spread:primarySpread,
+    radius:1,
+    cap:carrying ? 14 : 10
+  });
+  const supportAmount = base * PHEROMONE_DEPOSIT_HOME_SUPPORT;
+  if(supportAmount>0){
+    const supportType = carrying ? 'home' : 'food';
+    deposit(teamId, supportType, agent.x, agent.y, supportAmount, {
+      spread:0.22,
+      radius:1,
+      cap:8
+    });
+  }
+}
+function markFreshFruitTrail(teamId,x,y){
+  if(!grid || !teamId) return;
+  deposit(teamId, 'fresh', x, y, PHEROMONE_FRESH_BURST, {
+    spread:PHEROMONE_FRESH_SPREAD,
+    radius:1,
+    cap:12
+  });
+  deposit(teamId, 'food', x, y, PHEROMONE_FRESH_BURST * 0.35, {
+    spread:0.5,
+    radius:1,
+    cap:14
+  });
+}
+function computeCarrierStats(){
+  const stats = {};
+  if(!Array.isArray(activeTeamStates)) return stats;
+  for(const teamState of activeTeamStates){
+    if(!teamState || !teamState.config) continue;
+    let carriers = 0;
+    let total = 0;
+    for(const agent of teamState.agents){
+      if(!agent || agent.dead) continue;
+      total++;
+      if(agent.carry) carriers++;
+    }
+    const ratio = total>0 ? carriers/total : 0;
+    stats[teamState.config.id] = { carriers, total, ratio };
+  }
+  return stats;
+}
 function evaporate(){
   if(!grid) return;
-  const keep=0.985;
+  const carrierStats = computeCarrierStats();
   const next={};
   for(const [teamId, fields] of Object.entries(grid)){
-    const dest={ food:new Float32Array(GW*GH), home:new Float32Array(GW*GH) };
-    for(const key of ['food','home']){
+    const dest={ food:new Float32Array(GW*GH), home:new Float32Array(GW*GH), fresh:new Float32Array(GW*GH) };
+    const teamStats = carrierStats[teamId] || { ratio:0 };
+    for(const key of ['food','home','fresh']){
       const src=fields[key];
       const dst=dest[key];
       for(let y=0;y<GH;y++){
         for(let x=0;x<GW;x++){
-          let v=src[gi(x,y)]*keep;
-          let sum=v*0.4;
+          const idx = gi(x,y);
+          const base = src[idx];
+          let keep;
+          if(key==='fresh'){
+            keep = clamp(PHEROMONE_FRESH_KEEP + (1 - clamp(teamStats.ratio,0,1)) * PHEROMONE_SPARSE_KEEP_BONUS, PHEROMONE_FRESH_KEEP, PHEROMONE_FRESH_MAX_KEEP);
+          } else {
+            keep = clamp(PHEROMONE_BASE_KEEP + (1 - clamp(teamStats.ratio,0,1)) * PHEROMONE_SPARSE_KEEP_BONUS, PHEROMONE_BASE_KEEP, PHEROMONE_MAX_KEEP);
+          }
+          let v=base*keep;
+          const centerWeight = key==='fresh' ? PHEROMONE_FRESH_DIFFUSE_CENTER : PHEROMONE_DIFFUSE_CENTER;
+          const neighborWeight = key==='fresh' ? PHEROMONE_FRESH_DIFFUSE_NEIGHBOR : PHEROMONE_DIFFUSE_NEIGHBOR;
+          let sum=v*centerWeight;
           let cnt=0;
           for(let dy=-1;dy<=1;dy++){
             for(let dx=-1;dx<=1;dx++){
               if(dx||dy){
                 const nx=clampi(x+dx,0,GW-1), ny=clampi(y+dy,0,GH-1);
-                sum += src[gi(nx,ny)]*0.075;
-                cnt++;
+                sum += src[gi(nx,ny)]*neighborWeight;
+                cnt+=1;
               }
             }
           }
-          dst[gi(x,y)]= sum/(0.4+0.075*cnt);
+          const divisor = centerWeight + neighborWeight*cnt;
+          dst[idx]= divisor>0 ? (sum/divisor) : v;
         }
       }
     }
@@ -2793,7 +2930,7 @@ function generateLabyrinthObstacles(options={}){
 }
 
 
-const NET_INPUTS = 11;
+const NET_INPUTS = 24;
 const NET_OUTPUTS = 4;
 const OUTPUT_NODE_LABELS = ['Drive X', 'Drive Y', 'Speed +', 'Speed −'];
 
@@ -3841,10 +3978,14 @@ class Collector extends Agent{
     this.lastPathCost = Infinity;
     this.pathProgressTicks = 0;
     this.visitedCells = new Set();
+    this.cellVisitTimestamps = new Map();
     this.stuckPenaltyCooldown = 0;
     this.currentFruitTarget = null;
     this.bestFruitDistance = Infinity;
     this.fruitApproachBaseline = 0;
+    this.previousDrive = { x:0, y:0 };
+    this.heading = { x:1, y:0 };
+    this.lastProgressStep = 0;
     this.enableEnergy(getCollectorEnergyCapacity());
     this.energyDecay = COLLECTOR_ENERGY_DECAY;
     this.maxEnergyMultiplier = ENERGY_MULTIPLIER_MAX;
@@ -3858,6 +3999,9 @@ class Collector extends Agent{
     this.energy = 0;
     if(this.visitedCells){
       this.visitedCells.clear();
+    }
+    if(this.cellVisitTimestamps){
+      this.cellVisitTimestamps.clear();
     }
     this.currentFruitTarget = null;
     if(this.carry){
@@ -3890,6 +4034,8 @@ class Collector extends Agent{
     if(this.dead) return;
     this.stepSpeed(cfg.speed);
     this.updateEnergyThrottle();
+    const prevDriveX = clamp(this.previousDrive?.x ?? 0, -1, 1);
+    const prevDriveY = clamp(this.previousDrive?.y ?? 0, -1, 1);
     const myGoal=this.teamState.goal;
     const tgt = this.carry? myGoal : nearest(fruits, this.x, this.y);
     let tx=0,ty=0, dn=1;
@@ -3931,7 +4077,29 @@ class Collector extends Agent{
       this.fruitApproachBaseline = 0;
     }
     if(tgt){ tx=tgt.x-this.x; ty=tgt.y-this.y; dn=Math.hypot(tx,ty)||1; tx/=dn; ty/=dn; }
-    const g = senseGrad(teamId, this.carry? 'home':'food', this.x, this.y);
+    let hx = this.heading?.x ?? 1;
+    let hy = this.heading?.y ?? 0;
+    const currentSpeed = Math.hypot(this.vx, this.vy);
+    if(currentSpeed > 0.08){
+      hx = this.vx / currentSpeed;
+      hy = this.vy / currentSpeed;
+      this.heading.x = hx;
+      this.heading.y = hy;
+    } else {
+      const norm = Math.hypot(hx, hy) || 1;
+      hx /= norm;
+      hy /= norm;
+      this.heading.x = hx;
+      this.heading.y = hy;
+    }
+    const foodGrad = senseGrad(teamId, 'food', this.x, this.y);
+    const homeGrad = senseGrad(teamId, 'home', this.x, this.y);
+    const freshGrad = senseGrad(teamId, 'fresh', this.x, this.y);
+    const activeGrad = this.carry ? homeGrad : foodGrad;
+    const homeStrength = normalizePheromoneStrength(homeGrad.val, PHEROMONE_SENSOR_SCALE);
+    const foodStrength = normalizePheromoneStrength(foodGrad.val, PHEROMONE_SENSOR_SCALE);
+    const freshStrength = normalizePheromoneStrength(freshGrad.val, PHEROMONE_FRESH_SENSOR_SCALE);
+    const gradientDelta = clamp(homeStrength - foodStrength, -1, 1);
     const mates = this.teamState.agents;
     let sx=0, sy=0;
     const separationRadius = AGENT_BASE_SEPARATION_RADIUS * params.agentScale;
@@ -3943,14 +4111,51 @@ class Collector extends Agent{
     }
     const obstacleVec = senseObstacleVector(this.x, this.y);
     const boundaryVec = senseBoundaryVector(this.x, this.y);
+    const frontClear = raycastClearance(this.x, this.y, hx, hy);
+    const leftDirX = -hy;
+    const leftDirY = hx;
+    const rightDirX = hy;
+    const rightDirY = -hx;
+    const leftClear = raycastClearance(this.x, this.y, leftDirX, leftDirY);
+    const rightClear = raycastClearance(this.x, this.y, rightDirX, rightDirY);
     this.updateSensorVectors({
       target:{ x:tx, y:ty, mode:this.carry ? 'goal' : 'fruit' },
-      gradient:{ x:g.gx, y:g.gy, mode:this.carry ? 'home' : 'food' },
+      gradient:{ x:activeGrad.gx, y:activeGrad.gy, mode:this.carry ? 'home' : 'food' },
+      gradientHome:{ x:homeGrad.gx, y:homeGrad.gy, label:'Home trail' },
+      gradientFood:{ x:foodGrad.gx, y:foodGrad.gy, label:'Food trail' },
+      freshTrail:{ x:freshGrad.gx, y:freshGrad.gy, label:'Fresh' },
       separation:{ x:sx, y:sy },
       obstacle:{ x:obstacleVec.x, y:obstacleVec.y, label:'Obstacle' },
-      boundary:{ x:boundaryVec.x, y:boundaryVec.y, label:'Bounds' }
+      boundary:{ x:boundaryVec.x, y:boundaryVec.y, label:'Bounds' },
+      frontProbe:{ x:hx*frontClear, y:hy*frontClear, label:'Forward ray' },
+      leftProbe:{ x:leftDirX*leftClear, y:leftDirY*leftClear, label:'Left ray' },
+      rightProbe:{ x:rightDirX*rightClear, y:rightDirY*rightClear, label:'Right ray' }
     });
-    const input = [tx,ty, g.gx, g.gy, sx, sy, obstacleVec.x, obstacleVec.y, boundaryVec.x, boundaryVec.y, 1.0];
+    const progressPressure = clamp(this.pathProgressTicks / Math.max(PATH_PROGRESS_STALL_STEPS, 1), 0, 1);
+    const progressMemory = clamp((simSteps - (this.lastProgressStep || 0)) / Math.max(PATH_PROGRESS_PRESSURE_WINDOW, 1), 0, 1);
+    const stuckRatio = clamp(this.stuckT / Math.max(PATH_STUCK_THRESHOLD, 1), 0, 1);
+    const carryFlag = this.carry ? 1 : -1;
+    const input = [
+      tx,ty,
+      activeGrad.gx, activeGrad.gy,
+      homeStrength,
+      foodStrength,
+      gradientDelta,
+      freshStrength,
+      sx, sy,
+      obstacleVec.x, obstacleVec.y,
+      boundaryVec.x, boundaryVec.y,
+      frontClear,
+      leftClear,
+      rightClear,
+      progressPressure,
+      progressMemory,
+      stuckRatio,
+      prevDriveX,
+      prevDriveY,
+      carryFlag,
+      1.0
+    ];
     const capture = this.activationScratch;
     const out = forward(this.netRef.net, input, capture);
     const nowTime = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
@@ -3969,6 +4174,8 @@ class Collector extends Agent{
     if(throttleSignal !== 0){
       this.adjustSpeedFactor(throttleSignal * SPEED_FACTOR_ADJUST);
     }
+    this.previousDrive.x = clamp(driveX, -1, 1);
+    this.previousDrive.y = clamp(driveY, -1, 1);
     const smartFactor = getEffectiveSmartValue(cfg);
     this.vx += driveX*(0.45 + 0.15*smartFactor) + (tx*0.15*cfg.strat);
     this.vy += driveY*(0.45 + 0.15*smartFactor) + (ty*0.15*cfg.strat);
@@ -3977,6 +4184,11 @@ class Collector extends Agent{
       const i=fruits.indexOf(tgt);
       if(i>-1) fruits.splice(i,1);
       this.carry=true;
+      this.lastProgressStep = simSteps;
+      if(this.cellVisitTimestamps){
+        this.cellVisitTimestamps.clear();
+      }
+      markFreshFruitTrail(teamId, this.x, this.y);
       this.fitness += PICKUP_REWARD;
       awardTeamPoints(this.teamState, 'pickup', PICKUP_REWARD);
       if(this.energyMax>0){
@@ -3984,7 +4196,7 @@ class Collector extends Agent{
         this.updateEnergyThrottle();
       }
     }
-    deposit(teamId, this.carry? 'food':'home', this.x, this.y, 0.30);
+    leaveCollectorTrail(this);
     if(this.stuckPenaltyCooldown > 0){
       this.stuckPenaltyCooldown--;
     }
@@ -4020,10 +4232,17 @@ class Collector extends Agent{
       if(wasCarrying && this.visitedCells){
         this.visitedCells.clear();
       }
+      if(wasCarrying && this.cellVisitTimestamps){
+        this.cellVisitTimestamps.clear();
+      }
+      if(wasCarrying){
+        this.lastProgressStep = simSteps;
+      }
     } else if(!wasCarrying){
       this.lastPathCost = Infinity;
       this.pathProgressTicks = 0;
       if(this.visitedCells) this.visitedCells.clear();
+      if(this.cellVisitTimestamps) this.cellVisitTimestamps.clear();
     }
   }
 }
@@ -4039,10 +4258,20 @@ function rewardCollectorPathProgress(agent, goal){
   const cx = clampi((agent.x/CS)|0, 0, GW-1);
   const cy = clampi((agent.y/CS)|0, 0, GH-1);
   const idx = gi(cx, cy);
+  if(agent.cellVisitTimestamps){
+    const lastVisit = agent.cellVisitTimestamps.get(idx);
+    if(Number.isFinite(lastVisit) && (simSteps - lastVisit) < PATH_LOOP_WINDOW){
+      agent.fitness -= PATH_LOOP_PENALTY;
+    }
+    agent.cellVisitTimestamps.set(idx, simSteps);
+  }
   if(agent.visitedCells){
     if(!agent.visitedCells.has(idx)){
       if(agent.visitedCells.size >= PATH_EXPLORATION_LIMIT){
         agent.visitedCells.clear();
+        if(agent.cellVisitTimestamps){
+          agent.cellVisitTimestamps.clear();
+        }
       }
       agent.visitedCells.add(idx);
       agent.fitness += PATH_EXPLORATION_REWARD;
@@ -4070,13 +4299,26 @@ function rewardCollectorPathProgress(agent, goal){
     if(Number.isFinite(reward) && reward > 0){
       agent.fitness += reward;
     }
+    if(agent.carry){
+      const teamFields = grid?.[teamId];
+      const homeTrailRaw = teamFields?.home ? teamFields.home[idx] : 0;
+      const normalized = clamp(homeTrailRaw / Math.max(PATH_CONSOLIDATION_TRAIL_SCALE, 1e-6), 0, 1.2);
+      if(normalized > PATH_CONSOLIDATION_TRAIL_THRESHOLD){
+        const bonus = PATH_PROGRESS_CONSOLIDATION_BONUS * clamp(normalized, 0, 1.2);
+        agent.fitness += bonus;
+      }
+    }
     agent.pathProgressTicks = 0;
+    agent.lastProgressStep = simSteps;
   } else {
     agent.pathProgressTicks = Math.min(agent.pathProgressTicks + 1, PATH_PROGRESS_STALL_STEPS + 20);
     if(agent.pathProgressTicks > PATH_PROGRESS_STALL_STEPS){
       agent.fitness -= PATH_PROGRESS_STALL_PENALTY;
       agent.pathProgressTicks = Math.floor(PATH_PROGRESS_STALL_STEPS * 0.7);
     }
+  }
+  if(delta < -PATH_PROGRESS_REGRESSION_DELTA){
+    agent.fitness -= PATH_PROGRESS_REGRESSION_PENALTY;
   }
   agent.lastPathCost = cost;
 }
@@ -4122,6 +4364,27 @@ function senseBoundaryVector(x, y){
     x: clamp(rightClear - leftClear, -1, 1),
     y: clamp(bottomClear - topClear, -1, 1)
   };
+}
+function raycastClearance(x, y, dirX, dirY, maxDist=RAYCAST_MAX_DISTANCE){
+  if(!Number.isFinite(dirX) || !Number.isFinite(dirY)) return 0;
+  const mag = Math.hypot(dirX, dirY);
+  if(mag <= 1e-6) return 0;
+  const nx = dirX / mag;
+  const ny = dirY / mag;
+  const step = Math.max(2, RAYCAST_STEP * params.agentScale);
+  const padding = Math.max(AGENT_BASE_RADIUS * params.agentScale, 4);
+  let dist = step;
+  let lastSafe = 0;
+  while(dist <= maxDist){
+    const px = x + nx * dist;
+    const py = y + ny * dist;
+    if(px<0 || py<0 || px>W || py>H || pointInsideObstacleWithPadding(px, py, padding)){
+      break;
+    }
+    lastSafe = dist;
+    dist += step;
+  }
+  return clamp(lastSafe / Math.max(maxDist, 1), 0, 1);
 }
 
 class Blocker extends Agent{
