@@ -316,7 +316,7 @@
           <span class="stat-value" id="stat-top">0</span>
         </div>
       </section>
-      <section class="brain-viz" aria-live="polite" aria-label="Best performing neural network">
+      <section class="brain-viz brain-viz--hidden" aria-live="polite" aria-label="Best performing neural network">
         <div class="brain-head">
           <div>
             <div class="brain-title">Neural Network Monitor</div>
@@ -326,8 +326,8 @@
               <select id="brainTeamSelect" class="brain-select">
                 <option value="auto">Auto — top performer</option>
               </select>
-              <button type="button" id="brainToggleBtn" class="brain-toggle" aria-pressed="true">
-                Hide visualization
+              <button type="button" id="brainToggleBtn" class="brain-toggle" aria-pressed="false">
+                Show visualization
               </button>
             </div>
           </div>
@@ -343,8 +343,8 @@
         </div>
         <div class="brain-visual-wrap">
           <div class="brain-canvas-wrap">
-            <canvas id="brainVizCanvas" class="brain-canvas" width="560" height="240" role="img" aria-label="Visualization of the current top neural network"></canvas>
-            <div id="brainPausedNotice" class="brain-paused" hidden>
+            <canvas id="brainVizCanvas" class="brain-canvas" width="560" height="240" role="img" aria-label="Visualization of the current top neural network" hidden></canvas>
+            <div id="brainPausedNotice" class="brain-paused">
               Visualization hidden to save performance. Toggle it back on anytime to resume live updates.
             </div>
           </div>
@@ -710,7 +710,7 @@ const navPresetSelect = Q('selNavPreset');
 const navPresetLabel = Q('lbNavPreset');
 let brainCanvasWidth = brainCanvas ? brainCanvas.clientWidth : 0;
 let brainCanvasHeight = brainCanvas ? brainCanvas.clientHeight : 0;
-let brainVizEnabled = true;
+let brainVizEnabled = false;
 let performanceModeActive = false;
 const performanceModePrefs = { topHighlight:null, energyHalo:null, brainViz:null, sensorRadar:null };
 const AGENT_BASE_RADIUS = 5.2;
@@ -5728,15 +5728,28 @@ window.addEventListener('beforeunload', clearCurrentObjectUrl);
 initMusicPanel();
 renderTeamRoster();
 let savedNavPreset = 'open';
+let storedNavPreset = null;
 try{
   if(typeof localStorage !== 'undefined' && localStorage){
-    const stored = localStorage.getItem('navPreset');
-    if(typeof stored === 'string' && stored.trim()){
-      savedNavPreset = stored;
-    }
+    storedNavPreset = localStorage.getItem('navPreset');
   }
 }catch(err){
   console.warn('Unable to read nav preset preference', err);
+}
+if(typeof storedNavPreset === 'string' && storedNavPreset.trim()){
+  const trimmed = storedNavPreset.trim();
+  if(trimmed === 'lab'){
+    savedNavPreset = 'open';
+    try{
+      if(typeof localStorage !== 'undefined' && localStorage){
+        localStorage.setItem('navPreset', savedNavPreset);
+      }
+    }catch(err){
+      console.warn('Unable to reset nav preset preference', err);
+    }
+  } else {
+    savedNavPreset = trimmed;
+  }
 }
 applyPreset(savedNavPreset);
 readParams();
