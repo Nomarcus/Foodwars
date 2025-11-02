@@ -504,6 +504,9 @@
             <div class="label">Spawn (ms)</div>
             <input id="slSpawn" type="range" min="120" max="15000" value="900"><div class="val" id="lbSpawn">900</div>
 
+            <div class="label">Simulation speed</div>
+            <input id="slSimSpeed" type="range" min="10" max="600" value="100" step="5"><div class="val" id="lbSimSpeed">1.00×</div>
+
             <div class="label">Obstacles</div>
             <input id="slObst" type="range" min="0" max="40" value="0"><div class="val" id="lbObst">0</div>
 
@@ -586,6 +589,12 @@ function setToggleValue(id, checked){
     el.checked = next;
     el.dispatchEvent(new Event('change', { bubbles:true }));
   }
+}
+
+function getNow(){
+  return (typeof performance !== 'undefined' && performance.now)
+    ? performance.now()
+    : Date.now();
 }
 
 // === Make panels collapsible ===
@@ -677,6 +686,11 @@ const NAV = {
   safeNavReward: 0.06
 };
 const ENERGY_DEATH_PENALTY = 150;
+const SIM_SPEED_MIN = 0.10;
+const SIM_SPEED_MAX = 6.00;
+const SIMULATION_STEP_MS = 1000 / 60;
+const MAX_SIM_STEPS_PER_FRAME = 360;
+const MAX_FRAME_DELTA_MS = 250;
 
 function hexToRgba(hex, alpha){
   const h = hex.replace('#','');
@@ -740,6 +754,7 @@ let NET_HIDDEN = 16;
 const params = {
   maxFruits: 32,
   spawnMs: 900,
+  simSpeed: 1.0,
   obstacles: 0,
   tailLen: 24,
   agentScale: 1.00,
@@ -918,6 +933,16 @@ function initAudioElement(){
 function readParams(){
   params.maxFruits = +Q('slFruits').value; Q('lbFruits').textContent=params.maxFruits;
   params.spawnMs = +Q('slSpawn').value; Q('lbSpawn').textContent=params.spawnMs;
+  const simSpeedSlider = Q('slSimSpeed');
+  if(simSpeedSlider){
+    const percent = Number(simSpeedSlider.value);
+    const normalized = clamp(percent / 100, SIM_SPEED_MIN, SIM_SPEED_MAX);
+    params.simSpeed = normalized;
+    const label = Q('lbSimSpeed');
+    if(label){
+      label.textContent = `${normalized.toFixed(2)}×`;
+    }
+  }
   params.obstacles = +Q('slObst').value; Q('lbObst').textContent=params.obstacles; if(params.obstacles !== lastObstCount){ makeObstacles(params.obstacles); lastObstCount = params.obstacles; }
   params.tailLen = +Q('slTail').value; Q('lbTail').textContent=params.tailLen;
   params.agentScale = (+Q('slAgentScale').value)/100; Q('lbAgentScale').textContent=`${params.agentScale.toFixed(2)}×`;
@@ -4594,7 +4619,11 @@ function applyBlockerInteractions(){
 }
 
 // ===== Setup & loop =====
-let lastSpawn=performance.now();
+const initialTimestamp = getNow();
+let simAccumulatorMs = 0;
+let simTimeMs = 0;
+let lastSpawnSimMs = 0;
+let lastFrameTime = initialTimestamp;
 function setup(){
   fruits.length=0;
   activeTeamStates=[];
@@ -4685,7 +4714,9 @@ function setup(){
     }
   });
   markPathCostDirty();
-  lastSpawn=performance.now();
+  lastSpawnSimMs = simTimeMs;
+  simAccumulatorMs = 0;
+  lastFrameTime = getNow();
   refreshStats();
 }
 
@@ -5007,18 +5038,8 @@ function advanceGeneration(){
   awaitingManualAdvance=false;
   setup();
 }
-function loop(){
-  requestAnimationFrame(loop);
-
-  if(awaitingManualAdvance){
-    if(forceNextGen){
-      advanceGeneration();
-    }
-    return;
-  }
-
+function runSimulationStep(){
   updatePathCostsIfNeeded();
-  const now = performance.now();
   for(const team of activeTeamStates){
     for(const agent of team.agents){
       agent.update();
@@ -5029,22 +5050,66 @@ function loop(){
   enforceAgentCollisions();
   applyBlockerInteractions();
   evaporate();
-  if(now - lastSpawn >= params.spawnMs){
+  const spawnInterval = Math.max(1, Number.isFinite(params.spawnMs) ? params.spawnMs : 0);
+  while(simTimeMs - lastSpawnSimMs >= spawnInterval){
     spawnFruit();
-    lastSpawn = now;
-  }
-  draw();
-  refreshStats();
-  if(bestBrainDirty){
-    renderBestBrain();
+    lastSpawnSimMs += spawnInterval;
   }
   simSteps++;
 
   const reachedLimit = simSteps>=params.learn.genSteps;
   if(forceNextGen || (reachedLimit && params.learn.auto)){
     advanceGeneration();
-  }else if(reachedLimit){
+    return;
+  }
+  if(reachedLimit){
     awaitingManualAdvance=true;
+  }
+}
+function loop(){
+  requestAnimationFrame(loop);
+
+  if(awaitingManualAdvance){
+    if(forceNextGen){
+      advanceGeneration();
+    }
+    lastFrameTime = getNow();
+    return;
+  }
+
+  const now = getNow();
+  let frameDelta = now - lastFrameTime;
+  if(!Number.isFinite(frameDelta) || frameDelta < 0){
+    frameDelta = 0;
+  }
+  if(frameDelta > MAX_FRAME_DELTA_MS){
+    frameDelta = MAX_FRAME_DELTA_MS;
+  }
+  lastFrameTime = now;
+
+  const desiredSpeed = Number(params.simSpeed);
+  const speedMultiplier = clamp(Number.isFinite(desiredSpeed) ? desiredSpeed : 1, SIM_SPEED_MIN, SIM_SPEED_MAX);
+  simAccumulatorMs += frameDelta * speedMultiplier;
+
+  let steps = 0;
+  const stepLimit = MAX_SIM_STEPS_PER_FRAME;
+  while(simAccumulatorMs >= SIMULATION_STEP_MS && steps < stepLimit && !awaitingManualAdvance){
+    simAccumulatorMs -= SIMULATION_STEP_MS;
+    simTimeMs += SIMULATION_STEP_MS;
+    runSimulationStep();
+    steps++;
+    if(forceNextGen || awaitingManualAdvance){
+      break;
+    }
+  }
+  if(steps >= stepLimit){
+    simAccumulatorMs = 0;
+  }
+
+  draw();
+  refreshStats();
+  if(bestBrainDirty){
+    renderBestBrain();
   }
 }
 
@@ -5323,6 +5388,10 @@ function applyParamsSnapshot(snapshot){
   if(!snapshot) return;
   if(snapshot.maxFruits != null) setRangeValue('slFruits', snapshot.maxFruits);
   if(snapshot.spawnMs != null) setRangeValue('slSpawn', snapshot.spawnMs);
+  if(snapshot.simSpeed != null){
+    const normalized = clamp(snapshot.simSpeed, SIM_SPEED_MIN, SIM_SPEED_MAX);
+    setRangeValue('slSimSpeed', Math.round(normalized * 100));
+  }
   if(snapshot.obstacles != null) setRangeValue('slObst', snapshot.obstacles);
   if(snapshot.tailLen != null) setRangeValue('slTail', snapshot.tailLen);
   if(snapshot.agentScale != null) setRangeValue('slAgentScale', Math.round(snapshot.agentScale*100));
@@ -5676,6 +5745,7 @@ bindRange('slHidden','lbHidden',(v)=>{
   const count = Math.round(Number(v));
   return `${count} neuron${count===1?'':'s'}`;
 });
+bindRange('slSimSpeed','lbSimSpeed',(v)=> (v/100).toFixed(2)+'×');
 bindRange('slAgentScale','lbAgentScale',(v)=> (v/100).toFixed(2)+'×');
 bindRange('slEnergyEmptySpeed','lbEnergyEmptySpeed',(v)=> `${v}%`);
 bindRange('slEnergyCapacity','lbEnergyCapacity',(v)=> {
