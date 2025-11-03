@@ -1,0 +1,1114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VolleySim – Cooperative NEAT Training</title>
+  <style>
+    :root {
+      --bg1:#050516;
+      --panel:rgba(18,24,56,.82);
+      --ink:#f1f5ff;
+      --muted:#a1a9d8;
+      --accent:#f472b6;
+      --accent-cyan:#38bdf8;
+      --silver:rgba(222,231,255,.55);
+    }
+    *{box-sizing:border-box}
+    body{margin:0; min-height:100vh; display:flex; flex-direction:column; background:radial-gradient(circle at 42% 18%, rgba(87,51,183,.55) 0%, rgba(39,56,121,.78) 40%, var(--bg1) 100%); color:var(--ink); font-family:"Inter",system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;}
+
+    .main-nav{position:sticky; top:0; z-index:100; padding:22px 48px; display:flex; align-items:center; justify-content:space-between; background:linear-gradient(120deg, rgba(15,20,48,.92) 0%, rgba(10,14,34,.75) 60%, rgba(10,14,34,.35) 100%); backdrop-filter:blur(14px); border-bottom:1px solid var(--silver); box-shadow:0 22px 45px rgba(5,9,25,.55)}
+    .brand{display:flex; align-items:center; gap:12px; font-size:22px; font-weight:700; letter-spacing:.02em; color:var(--ink)}
+    .brand-dot{width:14px; height:14px; border-radius:50%; background:linear-gradient(135deg, var(--accent) 0%, #8b5cf6 100%); box-shadow:0 0 18px rgba(244,114,182,.6)}
+    .nav-links{display:flex; align-items:center; gap:12px; flex-wrap:wrap}
+    .pill-link,.pill-button{display:inline-flex; align-items:center; justify-content:center; padding:10px 20px; border-radius:999px; border:1px solid rgba(56,189,248,.45); background:linear-gradient(120deg, rgba(56,189,248,.18), rgba(139,92,246,.18)); color:var(--ink); text-decoration:none; font-size:14px; font-weight:600; letter-spacing:.03em; transition:transform .2s ease, box-shadow .2s ease, filter .2s ease}
+    .pill-link.secondary{border-color:rgba(139,92,246,.45); background:linear-gradient(120deg, rgba(139,92,246,.18), rgba(244,114,182,.18))}
+    .pill-link:hover,.pill-button:hover{transform:translateY(-1px); filter:brightness(1.05); box-shadow:0 16px 32px rgba(56,189,248,.25)}
+    .pill-link:focus-visible,.pill-button:focus-visible{outline:2px solid rgba(56,189,248,.65); outline-offset:3px}
+    .pill-button{cursor:pointer; border-color:rgba(244,114,182,.45); background:linear-gradient(120deg, rgba(244,114,182,.25), rgba(59,130,246,.22))}
+
+    main{flex:1; display:flex; justify-content:center; align-items:flex-start; padding:40px 48px 64px}
+    .wrap{display:flex; width:100%; max-width:2000px; gap:40px; align-items:flex-start; justify-content:center}
+    .field-area{flex:1 1 auto; display:flex; flex-direction:column; align-items:stretch; gap:18px; min-width:0}
+    .playfield-frame{position:relative; padding:18px; border-radius:30px; background:rgba(4,8,26,.85); box-shadow:0 18px 36px rgba(9,14,36,.55); border:1px solid rgba(148,163,209,.22)}
+    canvas{width:100%; height:auto; max-width:1100px; border-radius:24px; background:#04091f; box-shadow:0 0 45px rgba(15,23,61,.65), inset 0 0 22px rgba(118,133,255,.12); border:1px solid var(--silver)}
+
+    .stats-bar{display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:16px; padding:18px 22px; border-radius:18px; background:rgba(11,16,44,.78); border:1px solid var(--silver); box-shadow:0 18px 32px rgba(5,9,25,.45)}
+    .stat-card{display:flex; flex-direction:column; gap:6px}
+    .stat-label{font-size:12px; text-transform:uppercase; letter-spacing:.12em; color:var(--muted)}
+    .stat-value{font-size:26px; font-weight:700; letter-spacing:.02em; color:var(--ink)}
+
+    .side{width:360px; flex:0 1 360px; display:flex; flex-direction:column; gap:20px}
+    .panel{background:var(--panel); border:1px solid var(--silver); padding:22px; border-radius:20px; backdrop-filter:blur(16px); box-shadow:0 18px 45px rgba(5,7,24,.55)}
+    .panel h2{margin:0 0 12px; font-size:18px; letter-spacing:.02em}
+    .panel p{margin:0 0 14px; font-size:13px; line-height:1.6; color:var(--muted)}
+    .control-grid{display:grid; grid-template-columns:1fr auto; gap:12px 10px; align-items:center}
+    .label{font-size:13px; color:var(--muted); letter-spacing:.02em}
+    .val{font-family:ui-monospace,Menlo,Consolas,monospace; font-size:12px; padding:4px 8px; border-radius:8px; background:rgba(10,16,46,.7); border:1px solid var(--silver); color:var(--accent-cyan); box-shadow:inset 0 0 12px rgba(56,189,248,.12)}
+    input[type=range]{width:100%; accent-color:var(--accent-cyan)}
+    .btn{display:block; width:100%; padding:12px 14px; border-radius:12px; border:1px solid rgba(45,212,191,.45); background:linear-gradient(120deg, rgba(45,212,191,.18), rgba(59,130,246,.18)); color:var(--ink); cursor:pointer; text-align:center; margin-top:14px; font-weight:600; letter-spacing:.02em; transition:transform .2s ease, box-shadow .2s ease, filter .2s ease}
+    .btn:hover{filter:brightness(1.08); transform:translateY(-1px); box-shadow:0 20px 36px rgba(45,212,191,.28)}
+
+    .legend{border-radius:18px; border:1px solid rgba(148,163,209,.28); background:rgba(11,16,44,.72); padding:18px; display:grid; gap:10px; font-size:12px; color:var(--muted)}
+    .legend strong{color:var(--ink)}
+
+    @media (max-width:1200px){
+      .wrap{flex-direction:column; align-items:center}
+      .side{width:100%; max-width:720px}
+    }
+    @media (max-width:900px){
+      main{padding:32px 28px 56px}
+    }
+    @media (max-width:768px){
+      .main-nav{flex-direction:column; align-items:flex-start; gap:16px; padding:18px 24px}
+      main{padding:28px 20px 52px}
+      .wrap{gap:28px}
+      .stats-bar{grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:12px; padding:16px 18px}
+      .stat-value{font-size:22px}
+      canvas{width:100%; height:auto}
+    }
+  </style>
+</head>
+<body>
+  <header class="main-nav">
+    <div class="brand"><span class="brand-dot"></span>VolleySim NEAT Lab</div>
+    <nav class="nav-links" aria-label="Primary navigation">
+      <a class="pill-link" href="index.html">Food arena</a>
+      <a class="pill-link secondary" href="volleyball.html" aria-current="page">Volley lab</a>
+      <a class="pill-link" href="learn-neat.html">How NEAT works</a>
+    </nav>
+  </header>
+  <main>
+    <div class="wrap">
+      <aside class="side">
+        <section class="panel" aria-labelledby="controls-heading">
+          <h2 id="controls-heading">Training controls</h2>
+          <p>Adjust the NEAT-lite parameters and restart the session to explore different cooperative behaviours.</p>
+          <div class="control-grid">
+            <label class="label" for="slPopulation">Population size</label>
+            <div class="val" id="lbPopulation">30 genomes</div>
+            <input id="slPopulation" type="range" min="10" max="80" value="30">
+
+            <label class="label" for="slHidden">Initial hidden neurons</label>
+            <div class="val" id="lbHidden">4 nodes</div>
+            <input id="slHidden" type="range" min="0" max="16" value="4">
+
+            <label class="label" for="slMutRate">Mutation %</label>
+            <div class="val" id="lbMutRate">22%</div>
+            <input id="slMutRate" type="range" min="5" max="80" value="22">
+
+            <label class="label" for="slAddConn">Add-connection %</label>
+            <div class="val" id="lbAddConn">8%</div>
+            <input id="slAddConn" type="range" min="1" max="40" value="8">
+
+            <label class="label" for="slAddNode">Add-node %</label>
+            <div class="val" id="lbAddNode">3%</div>
+            <input id="slAddNode" type="range" min="0" max="20" value="3">
+
+            <label class="label" for="slSimSpeed">Sim speed</label>
+            <div class="val" id="lbSimSpeed">2×</div>
+            <input id="slSimSpeed" type="range" min="1" max="12" value="2">
+          </div>
+          <button id="btnRestart" class="btn">Restart training</button>
+        </section>
+        <section class="legend">
+          <strong>Objective</strong>
+          <p>Two cooperative agents learn to keep a glowing ball alive by volleying it over the central net without letting it strike the walls behind them.</p>
+          <p>Fitness rewards long rallies, clean net clears and coordinated touches. A run ends if the ball clips the net or crashes into the back wall.</p>
+        </section>
+      </aside>
+      <div class="field-area">
+        <div class="playfield-frame">
+          <canvas id="court" width="1080" height="620" aria-label="Volley simulation field"></canvas>
+        </div>
+        <section class="stats-bar" aria-live="polite" aria-label="Simulation statistics">
+          <div class="stat-card"><span class="stat-label">Generation</span><span class="stat-value" id="stat-generation">1</span></div>
+          <div class="stat-card"><span class="stat-label">Genome</span><span class="stat-value" id="stat-genome">1 / 1</span></div>
+          <div class="stat-card"><span class="stat-label">Best fitness</span><span class="stat-value" id="stat-best">0</span></div>
+          <div class="stat-card"><span class="stat-label">Crossings</span><span class="stat-value" id="stat-crossings">0</span></div>
+          <div class="stat-card"><span class="stat-label">Species</span><span class="stat-value" id="stat-species">1</span></div>
+        </section>
+      </div>
+    </div>
+  </main>
+
+  <script>
+  // ===== Utility helpers =====
+  const randRange = (min, max)=> Math.random() * (max - min) + min;
+  const clamp = (value, min, max)=> Math.max(min, Math.min(max, value));
+  const TAU = Math.PI * 2;
+
+  const Q = (id)=> document.getElementById(id);
+
+  function bindRange(id, labelId, format){
+    const range = Q(id);
+    const label = Q(labelId);
+    if(!range || !label) return;
+    const fmt = typeof format === 'function' ? format : (v)=> v;
+    const update = ()=>{
+      label.textContent = fmt(Number(range.value));
+      scheduleConfigRefresh();
+    };
+    range.addEventListener('input', update);
+    update();
+  }
+
+  // ===== NEAT-lite implementation =====
+  class NodeGene {
+    constructor(id, type, layer){
+      this.id = id;
+      this.type = type;
+      this.layer = layer;
+    }
+    clone(){
+      return new NodeGene(this.id, this.type, this.layer);
+    }
+  }
+
+  class ConnectionGene {
+    constructor(from, to, weight, enabled, innovation){
+      this.from = from;
+      this.to = to;
+      this.weight = weight;
+      this.enabled = enabled !== false;
+      this.innovation = innovation;
+    }
+    clone(){
+      return new ConnectionGene(this.from, this.to, this.weight, this.enabled, this.innovation);
+    }
+  }
+
+  class InnovationTracker {
+    constructor(){
+      this.next = 1;
+      this.lookup = new Map();
+    }
+    get(from, to){
+      const key = from < to ? `${from}-${to}` : `${to}-${from}`;
+      if(!this.lookup.has(key)){
+        this.lookup.set(key, this.next++);
+      }
+      return this.lookup.get(key);
+    }
+  }
+
+  class Genome {
+    constructor(population, source){
+      this.population = population;
+      this.nodes = new Map();
+      this.connections = [];
+      this.connectionKeys = new Set();
+      this.connectionByInnovation = new Map();
+      this.sortedNodesCache = null;
+      this.incomingCache = null;
+      this.cacheDirty = true;
+      this.fitness = 0;
+      this.adjustedFitness = 0;
+      if(source){
+        source.nodes.forEach((node)=>{
+          this.nodes.set(node.id, node.clone());
+        });
+        source.connections.forEach((conn)=> this._addConnectionGene(conn.clone()));
+      } else {
+        population.baseNodes.forEach((node)=>{
+          this.nodes.set(node.id, node.clone());
+        });
+      }
+    }
+
+    clone(){
+      return new Genome(this.population, this);
+    }
+
+    get outputNodes(){
+      if(!this._outputNodes){
+        this._outputNodes = Array.from(this.nodes.values()).filter((n)=> n.type === 'output').sort((a,b)=> a.layer === b.layer ? a.id - b.id : a.layer - b.layer);
+      }
+      return this._outputNodes;
+    }
+
+    _markDirty(){
+      this.sortedNodesCache = null;
+      this.incomingCache = null;
+      this.cacheDirty = true;
+      this._outputNodes = null;
+    }
+
+    _addConnectionGene(conn){
+      this.connections.push(conn);
+      this.connectionKeys.add(`${conn.from}->${conn.to}`);
+      this.connectionByInnovation.set(conn.innovation, conn);
+      this.cacheDirty = true;
+    }
+
+    addInitialConnections(){
+      const outputs = this.outputNodes;
+      const inputs = Array.from(this.nodes.values()).filter((n)=> n.type === 'input' || n.type === 'bias');
+      for(const inp of inputs){
+        for(const out of outputs){
+          const innovation = this.population.innovationTracker.get(inp.id, out.id);
+          const conn = new ConnectionGene(inp.id, out.id, randRange(-1, 1), true, innovation);
+          this._addConnectionGene(conn);
+        }
+      }
+    }
+
+    getSortedNodes(){
+      if(this.sortedNodesCache){
+        return this.sortedNodesCache;
+      }
+      this.sortedNodesCache = Array.from(this.nodes.values()).sort((a,b)=>{
+        if(a.layer === b.layer) return a.id - b.id;
+        return a.layer - b.layer;
+      });
+      return this.sortedNodesCache;
+    }
+
+    buildIncoming(){
+      if(!this.cacheDirty && this.incomingCache){
+        return this.incomingCache;
+      }
+      const incoming = new Map();
+      for(const conn of this.connections){
+        if(!conn.enabled) continue;
+        if(!incoming.has(conn.to)) incoming.set(conn.to, []);
+        incoming.get(conn.to).push(conn);
+      }
+      this.incomingCache = incoming;
+      this.cacheDirty = false;
+      return incoming;
+    }
+
+    feedForward(inputs){
+      const sorted = this.getSortedNodes();
+      const incoming = this.buildIncoming();
+      const values = new Map();
+      let inputIndex = 0;
+      for(const node of sorted){
+        if(node.type === 'input'){
+          values.set(node.id, inputs[inputIndex++] ?? 0);
+        } else if(node.type === 'bias'){
+          values.set(node.id, 1);
+        } else {
+          const inbound = incoming.get(node.id);
+          let sum = 0;
+          if(inbound){
+            for(const conn of inbound){
+              sum += (values.get(conn.from) ?? 0) * conn.weight;
+            }
+          }
+          const activated = Math.tanh(sum);
+          values.set(node.id, activated);
+        }
+      }
+      const outputs = [];
+      for(const node of this.outputNodes){
+        outputs.push(values.get(node.id) ?? 0);
+      }
+      return outputs;
+    }
+
+    mutateWeights(rate, strength){
+      for(const conn of this.connections){
+        if(Math.random() < rate){
+          conn.weight += randRange(-strength, strength);
+        }
+      }
+      this.cacheDirty = true;
+    }
+
+    hasConnection(from, to){
+      return this.connectionKeys.has(`${from}->${to}`);
+    }
+
+    mutateAddConnection(){
+      const nodes = this.getSortedNodes();
+      let attempts = 0;
+      while(attempts < 32){
+        attempts++;
+        const from = nodes[Math.floor(Math.random() * nodes.length)];
+        const to = nodes[Math.floor(Math.random() * nodes.length)];
+        if(!from || !to) continue;
+        if(from.layer >= to.layer) continue;
+        if(from.type === 'output' && to.type === 'output') continue;
+        if(to.type === 'input' || to.type === 'bias') continue;
+        if(this.hasConnection(from.id, to.id)) continue;
+        const innovation = this.population.innovationTracker.get(from.id, to.id);
+        const conn = new ConnectionGene(from.id, to.id, randRange(-1, 1), true, innovation);
+        this._addConnectionGene(conn);
+        this._markDirty();
+        return true;
+      }
+      return false;
+    }
+
+    mutateAddNode(){
+      const candidates = this.connections.filter((conn)=> conn.enabled);
+      if(!candidates.length) return false;
+      const conn = candidates[Math.floor(Math.random()*candidates.length)];
+      conn.enabled = false;
+      const fromNode = this.nodes.get(conn.from);
+      const toNode = this.nodes.get(conn.to);
+      const newNodeId = this.population.allocateNodeId();
+      const newNode = new NodeGene(newNodeId, 'hidden', (fromNode.layer + toNode.layer) / 2);
+      this.nodes.set(newNodeId, newNode);
+      const innovation1 = this.population.innovationTracker.get(conn.from, newNodeId);
+      const innovation2 = this.population.innovationTracker.get(newNodeId, conn.to);
+      const conn1 = new ConnectionGene(conn.from, newNodeId, 1, true, innovation1);
+      const conn2 = new ConnectionGene(newNodeId, conn.to, conn.weight, true, innovation2);
+      this._addConnectionGene(conn1);
+      this._addConnectionGene(conn2);
+      this._markDirty();
+      return true;
+    }
+
+    crossover(partner){
+      const child = new Genome(this.population);
+      child.nodes.clear();
+      this.nodes.forEach((node)=> child.nodes.set(node.id, node.clone()));
+      partner.nodes.forEach((node)=>{
+        if(!child.nodes.has(node.id)){
+          child.nodes.set(node.id, node.clone());
+        }
+      });
+      const better = this.fitness >= partner.fitness ? this : partner;
+      const other = better === this ? partner : this;
+      const used = new Set();
+      const betterConns = better.connections.slice().sort((a,b)=> a.innovation - b.innovation);
+      for(const conn of betterConns){
+        const match = other.connectionByInnovation.get(conn.innovation);
+        let gene;
+        if(match && Math.random() < 0.5){
+          gene = match.clone();
+        } else {
+          gene = conn.clone();
+        }
+        used.add(gene.innovation);
+        child._addConnectionGene(gene);
+      }
+      child._markDirty();
+      return child;
+    }
+
+    compatibilityDistance(other){
+      const c1 = 1.0, c2 = 1.0, c3 = 0.4;
+      const thisGenes = this.connections.slice().sort((a,b)=> a.innovation - b.innovation);
+      const otherGenes = other.connections.slice().sort((a,b)=> a.innovation - b.innovation);
+      let i=0, j=0;
+      let matching = 0;
+      let weightDiff = 0;
+      let disjoint = 0;
+      let excess = 0;
+      const maxInnovThis = thisGenes.length ? thisGenes[thisGenes.length-1].innovation : 0;
+      const maxInnovOther = otherGenes.length ? otherGenes[otherGenes.length-1].innovation : 0;
+      while(i < thisGenes.length && j < otherGenes.length){
+        const a = thisGenes[i];
+        const b = otherGenes[j];
+        if(a.innovation === b.innovation){
+          matching++;
+          weightDiff += Math.abs(a.weight - b.weight);
+          i++; j++;
+        } else if(a.innovation < b.innovation){
+          disjoint++;
+          i++;
+        } else {
+          disjoint++;
+          j++;
+        }
+      }
+      excess += (thisGenes.length - i) + (otherGenes.length - j);
+      const n = Math.max(thisGenes.length, otherGenes.length, 1);
+      const avgWeight = matching > 0 ? weightDiff / matching : 0;
+      return (c1 * excess) / n + (c2 * disjoint) / n + c3 * avgWeight;
+    }
+
+    mutate(config){
+      this.mutateWeights(config.mutationRate / 100, 0.8);
+      if(Math.random() < config.addConnectionRate / 100){
+        this.mutateAddConnection();
+      }
+      if(Math.random() < config.addNodeRate / 100){
+        this.mutateAddNode();
+      }
+    }
+  }
+
+  class Species {
+    constructor(representative){
+      this.representative = representative.clone();
+      this.members = [];
+      this.bestFitness = -Infinity;
+      this.staleness = 0;
+      this.adjustedSum = 0;
+    }
+  }
+
+  class Population {
+    constructor(config){
+      this.size = config.populationSize;
+      this.inputCount = config.inputCount;
+      this.outputCount = config.outputCount;
+      this.biasCount = 1;
+      this.innovationTracker = new InnovationTracker();
+      this.baseNodes = [];
+      for(let i=0;i<this.inputCount;i++){
+        this.baseNodes.push(new NodeGene(i, 'input', 0));
+      }
+      this.biasNodeId = this.inputCount;
+      this.baseNodes.push(new NodeGene(this.biasNodeId, 'bias', 0));
+      this.outputStart = this.inputCount + this.biasCount;
+      for(let i=0;i<this.outputCount;i++){
+        this.baseNodes.push(new NodeGene(this.outputStart + i, 'output', 1));
+      }
+      this.nextNodeId = this.outputStart + this.outputCount;
+      this.genomes = [];
+      this.species = [];
+      this.compatibilityThreshold = 3.0;
+      for(let i=0;i<this.size;i++){
+        const genome = new Genome(this);
+        genome.addInitialConnections();
+        this.genomes.push(genome);
+      }
+    }
+
+    allocateNodeId(){
+      return this.nextNodeId++;
+    }
+
+    injectHiddenNodes(count){
+      if(count <= 0) return;
+      const inputs = this.baseNodes.filter((node)=> node.type === 'input' || node.type === 'bias');
+      const outputs = this.baseNodes.filter((node)=> node.type === 'output');
+      for(let i=0;i<count;i++){
+        const newNodeId = this.allocateNodeId();
+        const layer = 0.5 + 0.05 * i;
+        const template = new NodeGene(newNodeId, 'hidden', layer);
+        for(const genome of this.genomes){
+          genome.nodes.set(newNodeId, template.clone());
+          genome._markDirty();
+        }
+        for(const genome of this.genomes){
+          for(const inp of inputs){
+            if(genome.hasConnection(inp.id, newNodeId)) continue;
+            const innovation = this.innovationTracker.get(inp.id, newNodeId);
+            genome._addConnectionGene(new ConnectionGene(inp.id, newNodeId, randRange(-1,1), true, innovation));
+          }
+          for(const out of outputs){
+            if(genome.hasConnection(newNodeId, out.id)) continue;
+            const innovation = this.innovationTracker.get(newNodeId, out.id);
+            genome._addConnectionGene(new ConnectionGene(newNodeId, out.id, randRange(-1,1), true, innovation));
+          }
+          genome._markDirty();
+        }
+      }
+    }
+
+    speciate(){
+      for(const species of this.species){
+        species.members.length = 0;
+      }
+      for(const genome of this.genomes){
+        let placed = false;
+        for(const species of this.species){
+          const distance = genome.compatibilityDistance(species.representative);
+          if(distance < this.compatibilityThreshold){
+            species.members.push(genome);
+            placed = true;
+            break;
+          }
+        }
+        if(!placed){
+          const fresh = new Species(genome);
+          fresh.members.push(genome);
+          this.species.push(fresh);
+        }
+      }
+      this.species = this.species.filter((species)=> species.members.length > 0);
+      for(const species of this.species){
+        species.representative = species.members[0].clone();
+      }
+    }
+
+    prepareFitness(){
+      let totalAdjusted = 0;
+      for(const species of this.species){
+        species.members.sort((a,b)=> b.fitness - a.fitness);
+        if(species.members[0].fitness > species.bestFitness){
+          species.bestFitness = species.members[0].fitness;
+          species.staleness = 0;
+        } else {
+          species.staleness++;
+        }
+        let sum = 0;
+        for(const genome of species.members){
+          genome.adjustedFitness = genome.fitness / species.members.length;
+          sum += genome.adjustedFitness;
+        }
+        species.adjustedSum = sum;
+        totalAdjusted += sum;
+      }
+      return totalAdjusted;
+    }
+
+    pickSpeciesByAdjusted(totalAdjusted){
+      if(!this.species.length){
+        return null;
+      }
+      if(totalAdjusted <= 0){
+        return this.species[Math.floor(Math.random()*this.species.length)];
+      }
+      let running = 0;
+      const target = Math.random() * totalAdjusted;
+      for(const species of this.species){
+        running += species.adjustedSum;
+        if(target <= running){
+          return species;
+        }
+      }
+      return this.species[this.species.length-1];
+    }
+
+    pickParent(species){
+      const total = species.members.reduce((acc,g)=> acc + g.fitness, 0);
+      if(total <= 0){
+        return species.members[Math.floor(Math.random()*species.members.length)];
+      }
+      const r = Math.random() * total;
+      let running = 0;
+      for(const genome of species.members){
+        running += genome.fitness;
+        if(r <= running){
+          return genome;
+        }
+      }
+      return species.members[0];
+    }
+
+    evolve(config){
+      this.speciate();
+      const totalAdjusted = this.prepareFitness();
+      const nextGen = [];
+      if(!this.species.length){
+        return;
+      }
+      const bestOverall = this.genomes.slice().sort((a,b)=> b.fitness - a.fitness)[0];
+      nextGen.push(bestOverall.clone());
+      while(nextGen.length < this.size){
+        const species = this.pickSpeciesByAdjusted(totalAdjusted || this.species.length);
+        const parentA = this.pickParent(species);
+        const parentB = this.pickParent(species);
+        let child;
+        if(parentA === parentB || Math.random() < 0.25){
+          child = parentA.clone();
+        } else {
+          child = parentA.crossover(parentB);
+        }
+        child.mutate(config);
+        nextGen.push(child);
+      }
+      this.genomes = nextGen.slice(0, this.size);
+      this.species.forEach((species)=> species.members.length = 0);
+      this.speciate();
+    }
+  }
+  // ===== Simulation =====
+  const canvas = Q('court');
+  const ctx = canvas.getContext('2d');
+
+  const FIELD_WIDTH = canvas.width;
+  const FIELD_HEIGHT = canvas.height;
+  const NET_X = FIELD_WIDTH / 2;
+  const NET_WIDTH = 14;
+  const NET_HEIGHT = 240;
+  const NET_TOP = FIELD_HEIGHT - NET_HEIGHT;
+  const PLAYER_RADIUS = 32;
+  const BALL_RADIUS = 18;
+  const MAX_MOVE_SPEED = 280;
+  const MAX_BALL_SPEED = 520;
+  const GRAVITY = 480;
+  const PLAYER_GROUND_Y = FIELD_HEIGHT - PLAYER_RADIUS - 30;
+  const PLAYER_GRAVITY = 1500;
+  const PLAYER_JUMP_IMPULSE = 620;
+  const PLAYER_FAST_FALL = 1200;
+  const PLAYER_MAX_FALL_SPEED = 900;
+  const PLAYER_MAX_RISE_SPEED = 720;
+  const NET_BOUNCE_DAMPING = 0.75;
+  const SIM_DT = 1/60;
+  const MAX_STEPS_PER_GENOME = 2200;
+  const CROSS_REWARD = 30;
+  const TOUCH_REWARD = 4;
+  const SURVIVAL_REWARD = 0.06;
+
+  const INPUT_COUNT = 13;
+  const OUTPUT_COUNT = 4;
+
+  const config = {
+    populationSize: 30,
+    mutationRate: 22,
+    addConnectionRate: 8,
+    addNodeRate: 3,
+    initialHidden: 4,
+    simSpeed: 2
+  };
+
+  let population = null;
+  let generation = 1;
+  let genomeIndex = 0;
+  let bestFitness = 0;
+  let totalSpecies = 1;
+  let evaluationOrder = [];
+  let currentSession = null;
+  let needsConfigRefresh = false;
+
+  class Player {
+    constructor(x, y, side){
+      this.side = side; // 'left' or 'right'
+      this.reset(x, y);
+    }
+    reset(x, y){
+      const topLimit = NET_TOP - 40;
+      if(this.side === 'left'){
+        this.x = clamp(x, PLAYER_RADIUS + 20, NET_X - NET_WIDTH/2 - PLAYER_RADIUS - 20);
+      } else {
+        this.x = clamp(x, NET_X + NET_WIDTH/2 + PLAYER_RADIUS + 20, FIELD_WIDTH - PLAYER_RADIUS - 20);
+      }
+      this.y = clamp(y, topLimit, PLAYER_GROUND_Y);
+      this.vy = 0;
+      this.grounded = this.y >= PLAYER_GROUND_Y - 1;
+    }
+    update(dxInput, jumpInput, dt){
+      const horizontal = clamp(dxInput ?? 0, -1, 1) * MAX_MOVE_SPEED;
+      this.x += horizontal * dt;
+      if(this.side === 'left'){
+        this.x = clamp(this.x, PLAYER_RADIUS + 20, NET_X - NET_WIDTH/2 - PLAYER_RADIUS - 20);
+      } else {
+        this.x = clamp(this.x, NET_X + NET_WIDTH/2 + PLAYER_RADIUS + 20, FIELD_WIDTH - PLAYER_RADIUS - 20);
+      }
+
+      const topLimit = NET_TOP - 40;
+      const ground = PLAYER_GROUND_Y;
+      const jump = clamp(jumpInput ?? 0, -1, 1);
+      const wasGrounded = this.grounded || (this.y >= ground - 1 && this.vy >= -40);
+      if(wasGrounded){
+        this.y = ground;
+        if(this.vy > 0) this.vy = 0;
+      }
+
+      if(jump > 0.55 && wasGrounded){
+        this.vy = -PLAYER_JUMP_IMPULSE * jump;
+      }
+      if(jump > 0.2 && !wasGrounded){
+        this.vy -= PLAYER_JUMP_IMPULSE * 0.35 * jump * dt;
+      }
+      if(jump < -0.55){
+        this.vy += PLAYER_FAST_FALL * dt * (-jump);
+      }
+
+      this.vy += PLAYER_GRAVITY * dt;
+      this.vy = clamp(this.vy, -PLAYER_MAX_RISE_SPEED, PLAYER_MAX_FALL_SPEED);
+      this.y += this.vy * dt;
+
+      if(this.y < topLimit){
+        this.y = topLimit;
+        if(this.vy < 0) this.vy = 0;
+      }
+      if(this.y > ground){
+        this.y = ground;
+        if(this.vy > 0) this.vy = 0;
+      }
+      this.grounded = this.y >= ground - 1;
+    }
+  }
+
+  class Ball {
+    constructor(){
+      this.reset('left');
+    }
+    reset(side){
+      if(side === 'right'){
+        this.x = NET_X + 120;
+        this.vx = randRange(-220, -160);
+      } else {
+        this.x = NET_X - 120;
+        this.vx = randRange(160, 220);
+      }
+      this.y = NET_TOP - randRange(40, 90);
+      this.vy = randRange(-160, -80);
+      this.lastSide = side;
+    }
+    update(dt){
+      this.vy += GRAVITY * dt;
+      this.x += this.vx * dt;
+      this.y += this.vy * dt;
+      if(this.y - BALL_RADIUS <= 40){
+        this.y = 40 + BALL_RADIUS;
+        this.vy = Math.abs(this.vy) * 0.85;
+      }
+      if(this.vy > MAX_BALL_SPEED) this.vy = MAX_BALL_SPEED;
+      if(this.vy < -MAX_BALL_SPEED) this.vy = -MAX_BALL_SPEED;
+      if(this.vx > MAX_BALL_SPEED) this.vx = MAX_BALL_SPEED;
+      if(this.vx < -MAX_BALL_SPEED) this.vx = -MAX_BALL_SPEED;
+    }
+  }
+
+  class VolleyballSession {
+    constructor(genome){
+      this.genome = genome;
+      this.left = new Player(NET_X - 180, PLAYER_GROUND_Y, 'left');
+      this.right = new Player(NET_X + 180, PLAYER_GROUND_Y, 'right');
+      this.ball = new Ball();
+      this.done = false;
+      this.steps = 0;
+      this.crossings = 0;
+      this.touches = 0;
+      this.fitness = 0;
+      this.spawnSide = Math.random() < 0.5 ? 'left' : 'right';
+      this.ball.reset(this.spawnSide);
+      this.lastTouchSide = this.spawnSide;
+      this.ralliesRemaining = 2;
+    }
+
+    getInputs(){
+      const bx = this.ball.x / FIELD_WIDTH;
+      const by = this.ball.y / FIELD_HEIGHT;
+      const bvx = this.ball.vx / MAX_BALL_SPEED;
+      const bvy = this.ball.vy / MAX_BALL_SPEED;
+      const lx = this.left.x / FIELD_WIDTH;
+      const ly = this.left.y / FIELD_HEIGHT;
+      const rx = this.right.x / FIELD_WIDTH;
+      const ry = this.right.y / FIELD_HEIGHT;
+      const ldx = (this.ball.x - this.left.x) / FIELD_WIDTH;
+      const ldy = (this.ball.y - this.left.y) / FIELD_HEIGHT;
+      const rdx = (this.ball.x - this.right.x) / FIELD_WIDTH;
+      const rdy = (this.ball.y - this.right.y) / FIELD_HEIGHT;
+      const touch = this.lastTouchSide === 'left' ? -1 : 1;
+      return [bx, by, bvx, bvy, lx, ly, rx, ry, ldx, ldy, rdx, rdy, touch];
+    }
+
+    applyOutputs(outputs, dt){
+      const leftDx = outputs[0] ?? 0;
+      const leftDy = outputs[1] ?? 0;
+      const rightDx = outputs[2] ?? 0;
+      const rightDy = outputs[3] ?? 0;
+      this.left.update(leftDx, leftDy, dt);
+      this.right.update(rightDx, rightDy, dt);
+    }
+
+    handlePlayerCollision(player){
+      const dx = this.ball.x - player.x;
+      const dy = this.ball.y - player.y;
+      const distSq = dx*dx + dy*dy;
+      const minDist = PLAYER_RADIUS + BALL_RADIUS - 2;
+      if(distSq >= minDist*minDist) return false;
+      const dist = Math.sqrt(distSq) || 0.0001;
+      const nx = dx / dist;
+      const ny = dy / dist;
+      const speed = Math.max(280, Math.min(MAX_BALL_SPEED, Math.hypot(this.ball.vx, this.ball.vy) * 0.95 + 40));
+      this.ball.vx = nx * speed;
+      this.ball.vy = ny * speed - 80 + player.vy * 0.25;
+      this.ball.x = player.x + nx * (minDist + 1);
+      this.ball.y = player.y + ny * (minDist + 1);
+      this.lastTouchSide = player.side;
+      this.touches++;
+      this.fitness += TOUCH_REWARD;
+      return true;
+    }
+
+    resolveNetCollision(){
+      const netLeft = NET_X - NET_WIDTH/2;
+      const netRight = NET_X + NET_WIDTH/2;
+      const netTop = NET_TOP;
+      const netBottom = NET_TOP + NET_HEIGHT;
+      let closestX = clamp(this.ball.x, netLeft, netRight);
+      let closestY = clamp(this.ball.y, netTop, netBottom);
+      let dx = this.ball.x - closestX;
+      let dy = this.ball.y - closestY;
+      const distSq = dx*dx + dy*dy;
+      if(distSq >= BALL_RADIUS * BALL_RADIUS){
+        return false;
+      }
+      let nx, ny;
+      if(distSq === 0){
+        const distances = [
+          {dist: Math.abs(this.ball.x - netLeft), nx: -1, ny: 0, adjustX: netLeft},
+          {dist: Math.abs(netRight - this.ball.x), nx: 1, ny: 0, adjustX: netRight},
+          {dist: Math.abs(this.ball.y - netTop), nx: 0, ny: -1, adjustY: netTop},
+          {dist: Math.abs(netBottom - this.ball.y), nx: 0, ny: 1, adjustY: netBottom}
+        ].sort((a,b)=> a.dist - b.dist);
+        const closest = distances[0];
+        nx = closest.nx;
+        ny = closest.ny;
+        if(closest.adjustX !== undefined) closestX = closest.adjustX;
+        if(closest.adjustY !== undefined) closestY = closest.adjustY;
+      } else {
+        const dist = Math.sqrt(distSq);
+        nx = dx / dist;
+        ny = dy / dist;
+      }
+      const dot = this.ball.vx * nx + this.ball.vy * ny;
+      this.ball.vx -= 2 * dot * nx;
+      this.ball.vy -= 2 * dot * ny;
+      this.ball.vx *= NET_BOUNCE_DAMPING;
+      this.ball.vy *= NET_BOUNCE_DAMPING;
+      this.ball.x = closestX + nx * (BALL_RADIUS + 0.5);
+      this.ball.y = closestY + ny * (BALL_RADIUS + 0.5);
+      this.ball.vx = clamp(this.ball.vx, -MAX_BALL_SPEED, MAX_BALL_SPEED);
+      this.ball.vy = clamp(this.ball.vy, -MAX_BALL_SPEED, MAX_BALL_SPEED);
+      this.ball.lastSide = this.ball.x < NET_X ? 'left' : 'right';
+      return true;
+    }
+
+    handleCollisions(){
+      this.handlePlayerCollision(this.left);
+      this.handlePlayerCollision(this.right);
+      if(this.ball.x - BALL_RADIUS <= 0 || this.ball.x + BALL_RADIUS >= FIELD_WIDTH){
+        this.done = true;
+        return;
+      }
+      if(this.ball.y + BALL_RADIUS >= FIELD_HEIGHT - 20){
+        this.done = true;
+        return;
+      }
+      this.resolveNetCollision();
+      const side = this.ball.x < NET_X ? 'left' : 'right';
+      if(side !== this.ball.lastSide){
+        if(this.ball.y - BALL_RADIUS <= NET_TOP){
+          this.crossings++;
+          this.fitness += CROSS_REWARD;
+          this.spawnSide = side === 'left' ? 'right' : 'left';
+        } else {
+          this.done = true;
+          return;
+        }
+        this.ball.lastSide = side;
+      }
+    }
+
+    update(dt){
+      if(this.done) return;
+      const outputs = this.genome.feedForward(this.getInputs());
+      this.applyOutputs(outputs, dt);
+      this.ball.update(dt);
+      this.handleCollisions();
+      this.steps++;
+      this.fitness += SURVIVAL_REWARD;
+      if(this.steps >= MAX_STEPS_PER_GENOME){
+        this.done = true;
+      }
+      if(this.done && this.crossings > 0 && this.ralliesRemaining > 0){
+        this.ralliesRemaining--;
+        this.ball.reset(this.spawnSide);
+        this.lastTouchSide = this.spawnSide;
+        this.done = false;
+        this.steps = 0;
+        this.left.reset(NET_X - 180, PLAYER_GROUND_Y);
+        this.right.reset(NET_X + 180, PLAYER_GROUND_Y);
+        this.spawnSide = this.spawnSide === 'left' ? 'right' : 'left';
+      }
+    }
+  }
+  function scheduleConfigRefresh(){
+    needsConfigRefresh = true;
+  }
+
+  function readControls(){
+    config.populationSize = Number(Q('slPopulation').value);
+    config.initialHidden = Number(Q('slHidden').value);
+    config.mutationRate = Number(Q('slMutRate').value);
+    config.addConnectionRate = Number(Q('slAddConn').value);
+    config.addNodeRate = Number(Q('slAddNode').value);
+    config.simSpeed = Number(Q('slSimSpeed').value);
+  }
+
+  function restartTraining(){
+    readControls();
+    population = new Population({
+      populationSize: config.populationSize,
+      inputCount: INPUT_COUNT,
+      outputCount: OUTPUT_COUNT
+    });
+    population.injectHiddenNodes(config.initialHidden);
+    population.speciate();
+    generation = 1;
+    genomeIndex = 0;
+    bestFitness = 0;
+    totalSpecies = population.species.length || 1;
+    evaluationOrder = population.genomes.slice();
+    startCurrentGenome();
+  }
+
+  function startCurrentGenome(){
+    if(!evaluationOrder.length){
+      currentSession = null;
+      return;
+    }
+    const genome = evaluationOrder[genomeIndex];
+    genome.fitness = 0;
+    currentSession = new VolleyballSession(genome);
+    updateStats();
+  }
+
+  function finishGenome(){
+    if(!currentSession) return;
+    const genome = evaluationOrder[genomeIndex];
+    genome.fitness = Math.max(genome.fitness, currentSession.fitness);
+    if(genome.fitness > bestFitness){
+      bestFitness = genome.fitness;
+    }
+    genomeIndex++;
+    if(genomeIndex >= evaluationOrder.length){
+      population.evolve(config);
+      evaluationOrder = population.genomes.slice();
+      genomeIndex = 0;
+      generation++;
+      totalSpecies = population.species.length || 1;
+    }
+    startCurrentGenome();
+  }
+
+  function updateStats(){
+    Q('stat-generation').textContent = generation;
+    Q('stat-genome').textContent = evaluationOrder.length ? `${genomeIndex + 1} / ${evaluationOrder.length}` : '0 / 0';
+    Q('stat-best').textContent = bestFitness.toFixed(1);
+    Q('stat-crossings').textContent = currentSession ? currentSession.crossings : 0;
+    Q('stat-species').textContent = totalSpecies;
+  }
+
+  function drawBackground(){
+    const gradient = ctx.createLinearGradient(0, 0, 0, FIELD_HEIGHT);
+    gradient.addColorStop(0, '#0b1435');
+    gradient.addColorStop(1, '#030817');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, FIELD_WIDTH, FIELD_HEIGHT);
+    ctx.strokeStyle = 'rgba(148,163,209,0.35)';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(20, 20, FIELD_WIDTH-40, FIELD_HEIGHT-40);
+    ctx.fillStyle = 'rgba(14,30,70,0.65)';
+    ctx.fillRect(20, FIELD_HEIGHT-100, FIELD_WIDTH-40, 80);
+  }
+
+  function drawNet(){
+    ctx.save();
+    ctx.fillStyle = 'rgba(56,189,248,0.35)';
+    ctx.fillRect(NET_X - NET_WIDTH/2, NET_TOP, NET_WIDTH, NET_HEIGHT);
+    ctx.strokeStyle = 'rgba(148,163,209,0.55)';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(NET_X - NET_WIDTH/2, NET_TOP, NET_WIDTH, NET_HEIGHT);
+    ctx.restore();
+  }
+
+  function drawPlayer(player, hue, ball){
+    const gradient = ctx.createRadialGradient(player.x, player.y, 6, player.x, player.y, PLAYER_RADIUS);
+    gradient.addColorStop(0, `hsla(${hue},85%,72%,0.95)`);
+    gradient.addColorStop(1, `hsla(${hue},65%,45%,0.35)`);
+
+    const focusAngle = ball ? Math.atan2(ball.y - player.y, ball.x - player.x) : 0;
+    const armSpread = 0.9;
+    const armLength = PLAYER_RADIUS + 26;
+    const handRadius = 7;
+    ctx.save();
+    ctx.lineWidth = 8;
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = `hsla(${hue},85%,72%,0.55)`;
+    ctx.fillStyle = `hsla(${hue},90%,88%,0.35)`;
+    [focusAngle - armSpread, focusAngle + armSpread].forEach((angle)=>{
+      const baseX = player.x + Math.cos(angle) * (PLAYER_RADIUS - 4);
+      const baseY = player.y + Math.sin(angle) * (PLAYER_RADIUS - 4);
+      const elbowX = player.x + Math.cos(angle) * (PLAYER_RADIUS + 8);
+      const elbowY = player.y + Math.sin(angle) * (PLAYER_RADIUS + 8);
+      const handX = player.x + Math.cos(angle) * armLength;
+      const handY = player.y + Math.sin(angle) * armLength;
+      ctx.beginPath();
+      ctx.moveTo(baseX, baseY);
+      ctx.quadraticCurveTo(elbowX, elbowY, handX, handY);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(handX, handY, handRadius, 0, TAU);
+      ctx.fill();
+      ctx.stroke();
+    });
+    ctx.restore();
+
+    ctx.fillStyle = gradient;
+    ctx.beginPath();
+    ctx.arc(player.x, player.y, PLAYER_RADIUS, 0, TAU);
+    ctx.fill();
+    ctx.lineWidth = 6;
+    ctx.strokeStyle = 'rgba(2,6,23,0.6)';
+    ctx.stroke();
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = 'rgba(241,245,255,0.45)';
+    ctx.beginPath();
+    ctx.arc(player.x, player.y, PLAYER_RADIUS - 10, 0, TAU);
+    ctx.stroke();
+  }
+
+  function drawBall(ball){
+    const gradient = ctx.createRadialGradient(ball.x - ball.vx*0.04, ball.y - ball.vy*0.04, 6, ball.x, ball.y, BALL_RADIUS);
+    gradient.addColorStop(0, 'rgba(248,250,252,0.95)');
+    gradient.addColorStop(1, 'rgba(56,189,248,0.45)');
+    ctx.fillStyle = gradient;
+    ctx.beginPath();
+    ctx.arc(ball.x, ball.y, BALL_RADIUS, 0, TAU);
+    ctx.fill();
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = 'rgba(56,189,248,0.65)';
+    ctx.stroke();
+  }
+
+  function drawOverlay(){
+    if(!currentSession) return;
+    ctx.fillStyle = 'rgba(2,6,23,0.65)';
+    ctx.font = '16px "Inter", system-ui';
+    ctx.fillText(`Fitness: ${currentSession.fitness.toFixed(1)}`, 30, 48);
+    ctx.fillText(`Touches: ${currentSession.touches}`, 30, 70);
+    ctx.fillText(`Crossings: ${currentSession.crossings}`, 30, 92);
+  }
+
+  function render(){
+    drawBackground();
+    drawNet();
+    if(currentSession){
+      drawPlayer(currentSession.left, 160, currentSession.ball);
+      drawPlayer(currentSession.right, 320, currentSession.ball);
+      drawBall(currentSession.ball);
+    }
+    drawOverlay();
+  }
+
+  function loop(){
+    requestAnimationFrame(loop);
+    if(needsConfigRefresh){
+      readControls();
+      needsConfigRefresh = false;
+    }
+    if(!currentSession){
+      render();
+      return;
+    }
+    const steps = Math.max(1, Math.floor(config.simSpeed));
+    for(let i=0;i<steps;i++){
+      currentSession.update(SIM_DT);
+      if(currentSession.done){
+        finishGenome();
+        break;
+      }
+    }
+    render();
+    updateStats();
+  }
+
+  bindRange('slPopulation','lbPopulation',(v)=> `${v} genomes`);
+  bindRange('slHidden','lbHidden',(v)=> `${v} node${v===1?'':'s'}`);
+  bindRange('slMutRate','lbMutRate',(v)=> `${v}%`);
+  bindRange('slAddConn','lbAddConn',(v)=> `${v}%`);
+  bindRange('slAddNode','lbAddNode',(v)=> `${v}%`);
+  bindRange('slSimSpeed','lbSimSpeed',(v)=> `${v}×`);
+
+  Q('btnRestart').addEventListener('click', restartTraining);
+
+  restartTraining();
+  loop();
+  </script>
+</body>
+</html>
