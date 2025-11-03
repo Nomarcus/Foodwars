@@ -13,6 +13,8 @@
       --accent:#f472b6;
       --accent-cyan:#38bdf8;
       --silver:rgba(222,231,255,.55);
+      --ok:#34d399;
+      --warn:#f59e0b;
     }
     *{box-sizing:border-box}
     body{margin:0; min-height:100vh; display:flex; flex-direction:column; background:radial-gradient(circle at 42% 18%, rgba(87,51,183,.55) 0%, rgba(39,56,121,.78) 40%, var(--bg1) 100%); color:var(--ink); font-family:"Inter",system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;}
@@ -83,7 +85,7 @@
       <aside class="side">
         <section class="panel" aria-labelledby="controls-heading">
           <h2 id="controls-heading">Training controls</h2>
-          <p>Adjust the NEAT-lite parameters and restart the session to explore different cooperative behaviours.</p>
+          <p>Adjust parameters and restart to explore different cooperative behaviours. Mutation auto-decays slightly every generation.</p>
           <div class="control-grid">
             <label class="label" for="slPopulation">Population size</label>
             <div class="val" id="lbPopulation">30 genomes</div>
@@ -93,7 +95,7 @@
             <div class="val" id="lbHidden">4 nodes</div>
             <input id="slHidden" type="range" min="0" max="16" value="4">
 
-            <label class="label" for="slMutRate">Mutation %</label>
+            <label class="label" for="slMutRate">Mutation % (base)</label>
             <div class="val" id="lbMutRate">22%</div>
             <input id="slMutRate" type="range" min="5" max="80" value="22">
 
@@ -113,8 +115,8 @@
         </section>
         <section class="legend">
           <strong>Objective</strong>
-          <p>Two cooperative agents learn to keep a glowing ball alive by volleying it over the central net without letting it strike the walls behind them.</p>
-          <p>Fitness rewards long rallies, clean net clears and coordinated touches. A run ends if the ball clips the net or crashes into the back wall.</p>
+          <p>Two cooperative agents learn to keep a glowing ball alive by volleying it over the central net. The ball now <span style="color:var(--ok);font-weight:700">bounces off side walls</span> (damped) for longer rallies.</p>
+          <p>Fitness rewards long rallies, clean upward hits, coordinated touches, and safe net clears. Minor penalties apply for net clips and stalling.</p>
         </section>
       </aside>
       <div class="field-area">
@@ -127,6 +129,7 @@
           <div class="stat-card"><span class="stat-label">Best fitness</span><span class="stat-value" id="stat-best">0</span></div>
           <div class="stat-card"><span class="stat-label">Crossings</span><span class="stat-value" id="stat-crossings">0</span></div>
           <div class="stat-card"><span class="stat-label">Species</span><span class="stat-value" id="stat-species">1</span></div>
+          <div class="stat-card"><span class="stat-label">Mut (active)</span><span class="stat-value" id="stat-mutation">0%</span></div>
         </section>
       </div>
     </div>
@@ -153,7 +156,7 @@
     update();
   }
 
-  // ===== NEAT-lite implementation =====
+  // ===== NEAT-lite implementation (with improvements) =====
   class NodeGene {
     constructor(id, type, layer){
       this.id = id;
@@ -251,6 +254,33 @@
           this._addConnectionGene(conn);
         }
       }
+      this.primeOutputBias(); // (8) vertical control bias & sensible starts
+    }
+
+    // (8) Give useful initial priors to vertical outputs
+    primeOutputBias(){
+      const outStart = this.population.outputStart;
+      const OUT_LX = outStart+0, OUT_LY = outStart+1, OUT_RX = outStart+2, OUT_RY = outStart+3;
+      // Input indexes mapping (from getInputs)
+      const IN_BX=0, IN_BY=1, IN_BVX=2, IN_BVY=3, IN_LX=4, IN_LY=5, IN_RX=6, IN_RY=7, IN_LDX=8, IN_LDY=9, IN_RDX=10, IN_RDY=11, IN_TOUCH=12;
+
+      for(const c of this.connections){
+        // Stronger weight from relative vertical error & ball vy to vertical outputs
+        if(c.to === OUT_LY && (c.from === IN_LDY || c.from === IN_BVY || c.from === IN_BY)){
+          c.weight += Math.abs(c.weight) + randRange(0.6, 1.2);
+        }
+        if(c.to === OUT_RY && (c.from === IN_RDY || c.from === IN_BVY || c.from === IN_BY)){
+          c.weight += Math.abs(c.weight) + randRange(0.6, 1.2);
+        }
+        // Helpful bias from horizontal error to horizontal outputs
+        if(c.to === OUT_LX && (c.from === IN_LDX || c.from === IN_BX || c.from === IN_BVX)){
+          c.weight += Math.abs(c.weight) + randRange(0.3, 0.8);
+        }
+        if(c.to === OUT_RX && (c.from === IN_RDX || c.from === IN_BX || c.from === IN_BVX)){
+          c.weight += Math.abs(c.weight) + randRange(0.3, 0.8);
+        }
+      }
+      this._markDirty();
     }
 
     getSortedNodes(){
@@ -362,6 +392,7 @@
       return true;
     }
 
+    // (10) Stabilized crossover: average matching weights
     crossover(partner){
       const child = new Genome(this.population);
       child.nodes.clear();
@@ -373,17 +404,17 @@
       });
       const better = this.fitness >= partner.fitness ? this : partner;
       const other = better === this ? partner : this;
-      const used = new Set();
       const betterConns = better.connections.slice().sort((a,b)=> a.innovation - b.innovation);
       for(const conn of betterConns){
         const match = other.connectionByInnovation.get(conn.innovation);
         let gene;
-        if(match && Math.random() < 0.5){
-          gene = match.clone();
+        if(match){
+          gene = conn.clone();
+          gene.weight = (conn.weight + match.weight) / 2; // averaged
+          gene.enabled = conn.enabled || match.enabled;
         } else {
           gene = conn.clone();
         }
-        used.add(gene.innovation);
         child._addConnectionGene(gene);
       }
       child._markDirty();
@@ -399,8 +430,6 @@
       let weightDiff = 0;
       let disjoint = 0;
       let excess = 0;
-      const maxInnovThis = thisGenes.length ? thisGenes[thisGenes.length-1].innovation : 0;
-      const maxInnovOther = otherGenes.length ? otherGenes[otherGenes.length-1].innovation : 0;
       while(i < thisGenes.length && j < otherGenes.length){
         const a = thisGenes[i];
         const b = otherGenes[j];
@@ -591,6 +620,7 @@
       if(!this.species.length){
         return;
       }
+      // Keep best
       const bestOverall = this.genomes.slice().sort((a,b)=> b.fitness - a.fitness)[0];
       nextGen.push(bestOverall.clone());
       while(nextGen.length < this.size){
@@ -608,15 +638,19 @@
       }
       this.genomes = nextGen.slice(0, this.size);
       this.species.forEach((species)=> species.members.length = 0);
-      this.speciate();
+      this.species.length && this.speciate();
     }
   }
-  // ===== Simulation =====
+
+  // ===== Simulation (with improvements) =====
   const canvas = Q('court');
   const ctx = canvas.getContext('2d');
 
   const FIELD_WIDTH = canvas.width;
   const FIELD_HEIGHT = canvas.height;
+  const BORDER_PAD = 20;
+  const CEILING_Y = 40 + BORDER_PAD; // visual top padding already drawn at 20; ceiling acts at 40
+  const FLOOR_Y = FIELD_HEIGHT - 20;
   const NET_X = FIELD_WIDTH / 2;
   const NET_WIDTH = 14;
   const NET_HEIGHT = 240;
@@ -633,8 +667,11 @@
   const PLAYER_MAX_FALL_SPEED = 900;
   const PLAYER_MAX_RISE_SPEED = 720;
   const NET_BOUNCE_DAMPING = 0.75;
+  const WALL_BOUNCE_DAMPING = 0.82;   // (1) side wall bounce damping
+  const WALL_BOUNCE_REWARD = 1.2;     // (1) tiny reward to encourage recovery plays
+  const NET_CLIP_PENALTY = 1.5;       // (5) small penalty on net clip
   const SIM_DT = 1/60;
-  const MAX_STEPS_PER_GENOME = 2200;
+  const MAX_STEPS_BASE = 2200;        // (6) base, grows by generation
   const CROSS_REWARD = 30;
   const TOUCH_REWARD = 4;
   const SURVIVAL_REWARD = 0.06;
@@ -659,6 +696,7 @@
   let evaluationOrder = [];
   let currentSession = null;
   let needsConfigRefresh = false;
+  let baseMutationAtStart = config.mutationRate;
 
   class Player {
     constructor(x, y, side){
@@ -740,10 +778,12 @@
       this.vy += GRAVITY * dt;
       this.x += this.vx * dt;
       this.y += this.vy * dt;
-      if(this.y - BALL_RADIUS <= 40){
-        this.y = 40 + BALL_RADIUS;
+      // Ceiling bounce (kept)
+      if(this.y - BALL_RADIUS <= CEILING_Y){
+        this.y = CEILING_Y + BALL_RADIUS;
         this.vy = Math.abs(this.vy) * 0.85;
       }
+      // Clamp speeds
       if(this.vy > MAX_BALL_SPEED) this.vy = MAX_BALL_SPEED;
       if(this.vy < -MAX_BALL_SPEED) this.vy = -MAX_BALL_SPEED;
       if(this.vx > MAX_BALL_SPEED) this.vx = MAX_BALL_SPEED;
@@ -766,8 +806,13 @@
       this.ball.reset(this.spawnSide);
       this.lastTouchSide = this.spawnSide;
       this.ralliesRemaining = 2;
+      this.mirrored = Math.random() < 0.5; // (9) mirror randomization
+      this.coordinationTouched = new Set(); // (4) team coordination tracking
+      this.lastBallX = this.ball.x; // (2) anti-idle
+      this.idleTicks = 0;
     }
 
+    // Inputs: [bx,by,bvx,bvy,lx,ly,rx,ry,ldx,ldy,rdx,rdy,touch]
     getInputs(){
       const bx = this.ball.x / FIELD_WIDTH;
       const by = this.ball.y / FIELD_HEIGHT;
@@ -786,12 +831,14 @@
     }
 
     applyOutputs(outputs, dt){
-      const leftDx = outputs[0] ?? 0;
-      const leftDy = outputs[1] ?? 0;
-      const rightDx = outputs[2] ?? 0;
-      const rightDy = outputs[3] ?? 0;
-      this.left.update(leftDx, leftDy, dt);
-      this.right.update(rightDx, rightDy, dt);
+      // (9) mirror: swap control mapping  (Lx,Ly,Rx,Ry)
+      const o = outputs;
+      const Lx = this.mirrored ? (o[2] ?? 0) : (o[0] ?? 0);
+      const Ly = this.mirrored ? (o[3] ?? 0) : (o[1] ?? 0);
+      const Rx = this.mirrored ? (o[0] ?? 0) : (o[2] ?? 0);
+      const Ry = this.mirrored ? (o[1] ?? 0) : (o[3] ?? 0);
+      this.left.update(Lx, Ly, dt);
+      this.right.update(Rx, Ry, dt);
     }
 
     handlePlayerCollision(player){
@@ -808,9 +855,16 @@
       this.ball.vy = ny * speed - 80 + player.vy * 0.25;
       this.ball.x = player.x + nx * (minDist + 1);
       this.ball.y = player.y + ny * (minDist + 1);
+
+      // (3) Angle-based reward: bonus for upward redirection
+      const upward = -ny; // ny up is negative
+      const angleBonus = Math.max(0, upward) * 3.0;
+      this.fitness += TOUCH_REWARD + angleBonus;
+
+      // (4) coordination: track which team touched since last crossing
       this.lastTouchSide = player.side;
+      this.coordinationTouched.add(player.side);
       this.touches++;
-      this.fitness += TOUCH_REWARD;
       return true;
     }
 
@@ -855,28 +909,61 @@
       this.ball.vx = clamp(this.ball.vx, -MAX_BALL_SPEED, MAX_BALL_SPEED);
       this.ball.vy = clamp(this.ball.vy, -MAX_BALL_SPEED, MAX_BALL_SPEED);
       this.ball.lastSide = this.ball.x < NET_X ? 'left' : 'right';
+
+      // (5) small penalty for net clip (but don't end run)
+      this.fitness -= NET_CLIP_PENALTY;
       return true;
+    }
+
+    // (1) Bounce on side walls, not terminate
+    resolveWallBounce(){
+      let bounced = false;
+      const leftWall = BORDER_PAD;
+      const rightWall = FIELD_WIDTH - BORDER_PAD;
+      if(this.ball.x - BALL_RADIUS <= leftWall){
+        this.ball.x = leftWall + BALL_RADIUS;
+        this.ball.vx = Math.abs(this.ball.vx) * WALL_BOUNCE_DAMPING;
+        bounced = true;
+      } else if(this.ball.x + BALL_RADIUS >= rightWall){
+        this.ball.x = rightWall - BALL_RADIUS;
+        this.ball.vx = -Math.abs(this.ball.vx) * WALL_BOUNCE_DAMPING;
+        bounced = true;
+      }
+      if(bounced){
+        this.fitness += WALL_BOUNCE_REWARD; // tiny encouragement to recover
+      }
+      return bounced;
     }
 
     handleCollisions(){
       this.handlePlayerCollision(this.left);
       this.handlePlayerCollision(this.right);
-      if(this.ball.x - BALL_RADIUS <= 0 || this.ball.x + BALL_RADIUS >= FIELD_WIDTH){
+
+      // Floor is still terminal
+      if(this.ball.y + BALL_RADIUS >= FLOOR_Y){
         this.done = true;
         return;
       }
-      if(this.ball.y + BALL_RADIUS >= FIELD_HEIGHT - 20){
-        this.done = true;
-        return;
-      }
+
       this.resolveNetCollision();
+      this.resolveWallBounce();
+
+      // Crossing logic
       const side = this.ball.x < NET_X ? 'left' : 'right';
       if(side !== this.ball.lastSide){
         if(this.ball.y - BALL_RADIUS <= NET_TOP){
           this.crossings++;
           this.fitness += CROSS_REWARD;
+
+          // (4) coordination bonus if both touched during this rally span
+          if(this.coordinationTouched.has('left') && this.coordinationTouched.has('right')){
+            this.fitness += 10;
+          }
+          this.coordinationTouched.clear();
+
           this.spawnSide = side === 'left' ? 'right' : 'left';
         } else {
+          // crossed under the net -> fail
           this.done = true;
           return;
         }
@@ -886,19 +973,42 @@
 
     update(dt){
       if(this.done) return;
+
+      // Dynamic step budget grows with generation (6)
+      const maxSteps = MAX_STEPS_BASE + (generation - 1) * 50;
+
       const outputs = this.genome.feedForward(this.getInputs());
       this.applyOutputs(outputs, dt);
       this.ball.update(dt);
       this.handleCollisions();
       this.steps++;
-      this.fitness += SURVIVAL_REWARD;
-      if(this.steps >= MAX_STEPS_PER_GENOME){
+
+      // Survival + motion-based shaping (2)
+      const speedNorm = Math.min(1, Math.hypot(this.ball.vx, this.ball.vy) / MAX_BALL_SPEED);
+      this.fitness += SURVIVAL_REWARD + 0.02 * speedNorm;
+
+      // Anti-idle penalty if ball x hardly changes for many ticks (2)
+      const dx = Math.abs(this.ball.x - this.lastBallX);
+      if(dx < 0.8){
+        this.idleTicks++;
+        if(this.idleTicks % 60 === 0){ // about each second idle
+          this.fitness -= 2.0;
+        }
+      } else {
+        this.idleTicks = 0;
+      }
+      this.lastBallX = this.ball.x;
+
+      if(this.steps >= maxSteps){
         this.done = true;
       }
+
+      // Allow a limited rally reset if progress was made
       if(this.done && this.crossings > 0 && this.ralliesRemaining > 0){
         this.ralliesRemaining--;
         this.ball.reset(this.spawnSide);
         this.lastTouchSide = this.spawnSide;
+        this.coordinationTouched.clear();
         this.done = false;
         this.steps = 0;
         this.left.reset(NET_X - 180, PLAYER_GROUND_Y);
@@ -907,9 +1017,8 @@
       }
     }
   }
-  function scheduleConfigRefresh(){
-    needsConfigRefresh = true;
-  }
+
+  function scheduleConfigRefresh(){ needsConfigRefresh = true; }
 
   function readControls(){
     config.populationSize = Number(Q('slPopulation').value);
@@ -918,6 +1027,7 @@
     config.addConnectionRate = Number(Q('slAddConn').value);
     config.addNodeRate = Number(Q('slAddNode').value);
     config.simSpeed = Number(Q('slSimSpeed').value);
+    baseMutationAtStart = config.mutationRate;
   }
 
   function restartTraining(){
@@ -935,6 +1045,7 @@
     totalSpecies = population.species.length || 1;
     evaluationOrder = population.genomes.slice();
     startCurrentGenome();
+    updateStats();
   }
 
   function startCurrentGenome(){
@@ -957,6 +1068,10 @@
     }
     genomeIndex++;
     if(genomeIndex >= evaluationOrder.length){
+      // (7) Auto-decay mutation slightly each generation, lower-bounded
+      const decayFactor = 0.98;
+      config.mutationRate = Math.max(6, Math.min(80, config.mutationRate * decayFactor));
+
       population.evolve(config);
       evaluationOrder = population.genomes.slice();
       genomeIndex = 0;
@@ -972,6 +1087,7 @@
     Q('stat-best').textContent = bestFitness.toFixed(1);
     Q('stat-crossings').textContent = currentSession ? currentSession.crossings : 0;
     Q('stat-species').textContent = totalSpecies;
+    Q('stat-mutation').textContent = `${config.mutationRate.toFixed(1)}%`;
   }
 
   function drawBackground(){
@@ -982,9 +1098,9 @@
     ctx.fillRect(0, 0, FIELD_WIDTH, FIELD_HEIGHT);
     ctx.strokeStyle = 'rgba(148,163,209,0.35)';
     ctx.lineWidth = 2;
-    ctx.strokeRect(20, 20, FIELD_WIDTH-40, FIELD_HEIGHT-40);
+    ctx.strokeRect(BORDER_PAD, BORDER_PAD, FIELD_WIDTH-2*BORDER_PAD, FIELD_HEIGHT-2*BORDER_PAD);
     ctx.fillStyle = 'rgba(14,30,70,0.65)';
-    ctx.fillRect(20, FIELD_HEIGHT-100, FIELD_WIDTH-40, 80);
+    ctx.fillRect(BORDER_PAD, FIELD_HEIGHT-100, FIELD_WIDTH-2*BORDER_PAD, 80);
   }
 
   function drawNet(){
@@ -1063,6 +1179,7 @@
     ctx.fillText(`Fitness: ${currentSession.fitness.toFixed(1)}`, 30, 48);
     ctx.fillText(`Touches: ${currentSession.touches}`, 30, 70);
     ctx.fillText(`Crossings: ${currentSession.crossings}`, 30, 92);
+    ctx.fillText(`Mirrored: ${currentSession.mirrored ? 'yes' : 'no'}`, 30, 114);
   }
 
   function render(){
