@@ -1816,7 +1816,11 @@ function renderTeamRoster(){
     const badge=document.createElement('span');
     badge.className='team-badge';
     badge.textContent=team.icon || '●';
-    if(team.badge){
+    if(team.role === 'blocker'){
+      badge.style.background='transparent';
+      badge.style.color=team.color || '#a855f7';
+      badge.style.boxShadow='none';
+    }else if(team.badge){
       badge.style.background=team.badge;
       badge.style.color='#020617';
     }else{
@@ -1874,7 +1878,11 @@ function renderTeamControls(){
     const badge = document.createElement('span');
     badge.className='team-config-badge';
     badge.textContent = team.icon || '●';
-    if(team.badge){
+    if(team.role === 'blocker'){
+      badge.style.background = 'transparent';
+      badge.style.color = team.color || '#a855f7';
+      badge.style.boxShadow = 'none';
+    }else if(team.badge){
       badge.style.background = team.badge;
       badge.style.color = '#020617';
     }else{
@@ -4786,10 +4794,12 @@ function drawGoal(teamState){
   ctx.fillStyle='#fff';
   ctx.textAlign='center';
   ctx.textBaseline='middle';
-  if(teamState.config.role !== 'blocker'){
-    ctx.font='bold 18px ui-sans-serif';
-    ctx.fillText(String(g.delivered), g.x, g.y);
-  }
+  const scoreboard = teamState.scoreboard || getTeamScoreData(teamState.config?.id);
+  const ringValue = teamState.config.role === 'blocker'
+    ? (scoreboard?.blocks ?? 0)
+    : g.delivered;
+  ctx.font='bold 18px ui-sans-serif';
+  ctx.fillText(String(ringValue), g.x, g.y);
 }
 
 function drawObstacleShape(o, time, preview=false){
