@@ -1,1114 +1,1134 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>VolleySim – Cooperative NEAT Training</title>
-  <style>
-    :root {
-      --bg1:#050516;
-      --panel:rgba(18,24,56,.82);
-      --ink:#f1f5ff;
-      --muted:#a1a9d8;
-      --accent:#f472b6;
-      --accent-cyan:#38bdf8;
-      --silver:rgba(222,231,255,.55);
-    }
-    *{box-sizing:border-box}
-    body{margin:0; min-height:100vh; display:flex; flex-direction:column; background:radial-gradient(circle at 42% 18%, rgba(87,51,183,.55) 0%, rgba(39,56,121,.78) 40%, var(--bg1) 100%); color:var(--ink); font-family:"Inter",system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;}
-
-    .main-nav{position:sticky; top:0; z-index:100; padding:22px 48px; display:flex; align-items:center; justify-content:space-between; background:linear-gradient(120deg, rgba(15,20,48,.92) 0%, rgba(10,14,34,.75) 60%, rgba(10,14,34,.35) 100%); backdrop-filter:blur(14px); border-bottom:1px solid var(--silver); box-shadow:0 22px 45px rgba(5,9,25,.55)}
-    .brand{display:flex; align-items:center; gap:12px; font-size:22px; font-weight:700; letter-spacing:.02em; color:var(--ink)}
-    .brand-dot{width:14px; height:14px; border-radius:50%; background:linear-gradient(135deg, var(--accent) 0%, #8b5cf6 100%); box-shadow:0 0 18px rgba(244,114,182,.6)}
-    .nav-links{display:flex; align-items:center; gap:12px; flex-wrap:wrap}
-    .pill-link,.pill-button{display:inline-flex; align-items:center; justify-content:center; padding:10px 20px; border-radius:999px; border:1px solid rgba(56,189,248,.45); background:linear-gradient(120deg, rgba(56,189,248,.18), rgba(139,92,246,.18)); color:var(--ink); text-decoration:none; font-size:14px; font-weight:600; letter-spacing:.03em; transition:transform .2s ease, box-shadow .2s ease, filter .2s ease}
-    .pill-link.secondary{border-color:rgba(139,92,246,.45); background:linear-gradient(120deg, rgba(139,92,246,.18), rgba(244,114,182,.18))}
-    .pill-link:hover,.pill-button:hover{transform:translateY(-1px); filter:brightness(1.05); box-shadow:0 16px 32px rgba(56,189,248,.25)}
-    .pill-link:focus-visible,.pill-button:focus-visible{outline:2px solid rgba(56,189,248,.65); outline-offset:3px}
-    .pill-button{cursor:pointer; border-color:rgba(244,114,182,.45); background:linear-gradient(120deg, rgba(244,114,182,.25), rgba(59,130,246,.22))}
-
-    main{flex:1; display:flex; justify-content:center; align-items:flex-start; padding:40px 48px 64px}
-    .wrap{display:flex; width:100%; max-width:2000px; gap:40px; align-items:flex-start; justify-content:center}
-    .field-area{flex:1 1 auto; display:flex; flex-direction:column; align-items:stretch; gap:18px; min-width:0}
-    .playfield-frame{position:relative; padding:18px; border-radius:30px; background:rgba(4,8,26,.85); box-shadow:0 18px 36px rgba(9,14,36,.55); border:1px solid rgba(148,163,209,.22)}
-    canvas{width:100%; height:auto; max-width:1100px; border-radius:24px; background:#04091f; box-shadow:0 0 45px rgba(15,23,61,.65), inset 0 0 22px rgba(118,133,255,.12); border:1px solid var(--silver)}
-
-    .stats-bar{display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:16px; padding:18px 22px; border-radius:18px; background:rgba(11,16,44,.78); border:1px solid var(--silver); box-shadow:0 18px 32px rgba(5,9,25,.45)}
-    .stat-card{display:flex; flex-direction:column; gap:6px}
-    .stat-label{font-size:12px; text-transform:uppercase; letter-spacing:.12em; color:var(--muted)}
-    .stat-value{font-size:26px; font-weight:700; letter-spacing:.02em; color:var(--ink)}
-
-    .side{width:360px; flex:0 1 360px; display:flex; flex-direction:column; gap:20px}
-    .panel{background:var(--panel); border:1px solid var(--silver); padding:22px; border-radius:20px; backdrop-filter:blur(16px); box-shadow:0 18px 45px rgba(5,7,24,.55)}
-    .panel h2{margin:0 0 12px; font-size:18px; letter-spacing:.02em}
-    .panel p{margin:0 0 14px; font-size:13px; line-height:1.6; color:var(--muted)}
-    .control-grid{display:grid; grid-template-columns:1fr auto; gap:12px 10px; align-items:center}
-    .label{font-size:13px; color:var(--muted); letter-spacing:.02em}
-    .val{font-family:ui-monospace,Menlo,Consolas,monospace; font-size:12px; padding:4px 8px; border-radius:8px; background:rgba(10,16,46,.7); border:1px solid var(--silver); color:var(--accent-cyan); box-shadow:inset 0 0 12px rgba(56,189,248,.12)}
-    input[type=range]{width:100%; accent-color:var(--accent-cyan)}
-    .btn{display:block; width:100%; padding:12px 14px; border-radius:12px; border:1px solid rgba(45,212,191,.45); background:linear-gradient(120deg, rgba(45,212,191,.18), rgba(59,130,246,.18)); color:var(--ink); cursor:pointer; text-align:center; margin-top:14px; font-weight:600; letter-spacing:.02em; transition:transform .2s ease, box-shadow .2s ease, filter .2s ease}
-    .btn:hover{filter:brightness(1.08); transform:translateY(-1px); box-shadow:0 20px 36px rgba(45,212,191,.28)}
-
-    .legend{border-radius:18px; border:1px solid rgba(148,163,209,.28); background:rgba(11,16,44,.72); padding:18px; display:grid; gap:10px; font-size:12px; color:var(--muted)}
-    .legend strong{color:var(--ink)}
-
-    @media (max-width:1200px){
-      .wrap{flex-direction:column; align-items:center}
-      .side{width:100%; max-width:720px}
-    }
-    @media (max-width:900px){
-      main{padding:32px 28px 56px}
-    }
-    @media (max-width:768px){
-      .main-nav{flex-direction:column; align-items:flex-start; gap:16px; padding:18px 24px}
-      main{padding:28px 20px 52px}
-      .wrap{gap:28px}
-      .stats-bar{grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:12px; padding:16px 18px}
-      .stat-value{font-size:22px}
-      canvas{width:100%; height:auto}
-    }
-  </style>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Vollylab Humanoid NEAT Playground</title>
+<style>
+:root {
+  color-scheme: dark;
+  --bg: #0a0f1d;
+  --panel: rgba(16, 26, 52, 0.92);
+  --ink: #f5f8ff;
+  --muted: #9aa7d7;
+  --accent: #7c5cff;
+  --accent-2: #2dd4bf;
+  --warning: #f8aa4b;
+  font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: radial-gradient(circle at 24% 18%, rgba(53, 87, 255, 0.25), rgba(9, 18, 44, 0.95)), linear-gradient(160deg, #0a132b, #050b18 65%);
+  color: var(--ink);
+}
+header {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  background: rgba(4, 10, 32, 0.82);
+  border-bottom: 1px solid rgba(126, 141, 199, 0.35);
+  padding: 20px 40px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  backdrop-filter: blur(12px);
+}
+header h1 { margin: 0; font-size: 20px; letter-spacing: 0.06em; text-transform: uppercase; }
+header nav { display: flex; gap: 16px; align-items: center; }
+header nav a {
+  color: var(--ink);
+  text-decoration: none;
+  font-size: 14px;
+  padding: 8px 18px;
+  border-radius: 999px;
+  border: 1px solid rgba(141, 162, 255, 0.45);
+  background: linear-gradient(120deg, rgba(124, 92, 255, 0.24), rgba(45, 212, 191, 0.2));
+}
+main {
+  flex: 1;
+  display: grid;
+  grid-template-columns: minmax(620px, 1fr) 360px;
+  gap: 28px;
+  padding: 32px 40px 48px;
+}
+#sim-wrapper {
+  position: relative;
+  border-radius: 24px;
+  border: 1px solid rgba(126, 141, 199, 0.4);
+  background: linear-gradient(180deg, rgba(2, 10, 38, 0.85), rgba(3, 10, 28, 0.92));
+  box-shadow: 0 22px 60px rgba(0, 0, 0, 0.35);
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+canvas { border-radius: 18px; width: 100%; height: auto; background: #040b1b; border: 1px solid rgba(120, 143, 210, 0.35); }
+#hud {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 12px;
+}
+.hud-card {
+  background: rgba(10, 18, 46, 0.78);
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(124, 142, 214, 0.35);
+}
+.hud-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--muted); }
+.hud-value { font-size: 20px; font-weight: 700; }
+.aside {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+details.panel {
+  border-radius: 18px;
+  border: 1px solid rgba(116, 132, 204, 0.4);
+  background: var(--panel);
+  padding: 16px 18px 10px;
+  box-shadow: 0 22px 40px rgba(0, 0, 0, 0.28);
+}
+details.panel > summary {
+  cursor: pointer;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  font-size: 15px;
+  list-style: none;
+}
+details.panel[open] > summary { margin-bottom: 12px; }
+summary::-webkit-details-marker { display: none; }
+.control-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 10px;
+}
+.control-row label { font-size: 12px; color: var(--muted); }
+.control-row input[type="number"], .control-row input[type="text"] {
+  width: 90px;
+  border-radius: 10px;
+  border: 1px solid rgba(116, 132, 204, 0.6);
+  padding: 6px 8px;
+  background: rgba(8, 16, 38, 0.82);
+  color: var(--ink);
+}
+.control-row input[type="range"] { width: 100%; accent-color: var(--accent-2); }
+button, .btn {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  border-radius: 12px;
+  border: 1px solid rgba(124, 92, 255, 0.65);
+  background: linear-gradient(120deg, rgba(124, 92, 255, 0.35), rgba(45, 212, 191, 0.25));
+  color: var(--ink);
+  padding: 10px 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+button:hover { transform: translateY(-1px); box-shadow: 0 10px 18px rgba(124, 92, 255, 0.35); }
+#awareness {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+}
+#awareness canvas {
+  background: rgba(5, 12, 32, 0.8);
+  border-radius: 12px;
+  border: 1px solid rgba(116, 132, 204, 0.35);
+}
+#fitness-breakdown {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+}
+.fitness-bar {
+  height: 10px;
+  border-radius: 6px;
+  background: rgba(37, 52, 96, 0.7);
+  position: relative;
+  overflow: hidden;
+}
+.fitness-bar span {
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  border-radius: inherit;
+  background: linear-gradient(120deg, rgba(124, 92, 255, 0.7), rgba(45, 212, 191, 0.7));
+}
+.chart {
+  height: 90px;
+  background: rgba(5, 12, 32, 0.8);
+  border-radius: 12px;
+  border: 1px solid rgba(116, 132, 204, 0.35);
+}
+#play-hint { font-size: 12px; color: var(--muted); line-height: 1.6; }
+@media (max-width: 1200px) {
+  main { grid-template-columns: 1fr; }
+  .aside { order: -1; }
+}
+</style>
 </head>
 <body>
-  <header class="main-nav">
-    <div class="brand"><span class="brand-dot"></span>VolleySim NEAT Lab</div>
-    <nav class="nav-links" aria-label="Primary navigation">
-      <a class="pill-link" href="index.html">Food arena</a>
-      <a class="pill-link secondary" href="volleyball.html" aria-current="page">Volley lab</a>
-      <a class="pill-link" href="learn-neat.html">How NEAT works</a>
-    </nav>
-  </header>
-  <main>
-    <div class="wrap">
-      <aside class="side">
-        <section class="panel" aria-labelledby="controls-heading">
-          <h2 id="controls-heading">Training controls</h2>
-          <p>Adjust the NEAT-lite parameters and restart the session to explore different cooperative behaviours.</p>
-          <div class="control-grid">
-            <label class="label" for="slPopulation">Population size</label>
-            <div class="val" id="lbPopulation">30 genomes</div>
-            <input id="slPopulation" type="range" min="10" max="80" value="30">
-
-            <label class="label" for="slHidden">Initial hidden neurons</label>
-            <div class="val" id="lbHidden">4 nodes</div>
-            <input id="slHidden" type="range" min="0" max="16" value="4">
-
-            <label class="label" for="slMutRate">Mutation %</label>
-            <div class="val" id="lbMutRate">22%</div>
-            <input id="slMutRate" type="range" min="5" max="80" value="22">
-
-            <label class="label" for="slAddConn">Add-connection %</label>
-            <div class="val" id="lbAddConn">8%</div>
-            <input id="slAddConn" type="range" min="1" max="40" value="8">
-
-            <label class="label" for="slAddNode">Add-node %</label>
-            <div class="val" id="lbAddNode">3%</div>
-            <input id="slAddNode" type="range" min="0" max="20" value="3">
-
-            <label class="label" for="slSimSpeed">Sim speed</label>
-            <div class="val" id="lbSimSpeed">2×</div>
-            <input id="slSimSpeed" type="range" min="1" max="12" value="2">
-          </div>
-          <button id="btnRestart" class="btn">Restart training</button>
-        </section>
-        <section class="legend">
-          <strong>Objective</strong>
-          <p>Two cooperative agents learn to keep a glowing ball alive by volleying it over the central net without letting it strike the walls behind them.</p>
-          <p>Fitness rewards long rallies, clean net clears and coordinated touches. A run ends if the ball clips the net or crashes into the back wall.</p>
-        </section>
-      </aside>
-      <div class="field-area">
-        <div class="playfield-frame">
-          <canvas id="court" width="1080" height="620" aria-label="Volley simulation field"></canvas>
-        </div>
-        <section class="stats-bar" aria-live="polite" aria-label="Simulation statistics">
-          <div class="stat-card"><span class="stat-label">Generation</span><span class="stat-value" id="stat-generation">1</span></div>
-          <div class="stat-card"><span class="stat-label">Genome</span><span class="stat-value" id="stat-genome">1 / 1</span></div>
-          <div class="stat-card"><span class="stat-label">Best fitness</span><span class="stat-value" id="stat-best">0</span></div>
-          <div class="stat-card"><span class="stat-label">Crossings</span><span class="stat-value" id="stat-crossings">0</span></div>
-          <div class="stat-card"><span class="stat-label">Species</span><span class="stat-value" id="stat-species">1</span></div>
-        </section>
+<header>
+  <h1>Vollylab Humanoid NEAT Playground</h1>
+  <nav>
+    <a href="index.html">Arena</a>
+    <a href="volleyball.html" aria-current="page">Vollylab</a>
+    <a href="learn-neat.html">Learn NEAT</a>
+  </nav>
+</header>
+<main>
+  <section id="sim-wrapper" aria-label="simulation">
+    <div style="display:flex; gap:12px; align-items:center; justify-content:space-between;">
+      <div style="display:flex; gap:8px; align-items:center;">
+        <button id="btnPlayMode">Switch to Train</button>
+        <button id="btnStart">Start</button>
+        <button id="btnReset">Reset Population</button>
+        <button id="btnSave">Save Best</button>
+        <button id="btnLoad">Load Genome</button>
       </div>
+      <div id="mode-indicator" style="font-size:13px; color:var(--muted);">Mode: Play</div>
     </div>
-  </main>
+    <canvas id="sim-canvas" width="960" height="540" aria-label="simulation canvas"></canvas>
+    <div id="hud">
+      <div class="hud-card"><div class="hud-label">Generation</div><div class="hud-value" id="hud-generation">0</div></div>
+      <div class="hud-card"><div class="hud-label">Best fitness</div><div class="hud-value" id="hud-best">0</div></div>
+      <div class="hud-card"><div class="hud-label">Average fitness</div><div class="hud-value" id="hud-avg">0</div></div>
+      <div class="hud-card"><div class="hud-label">Alive</div><div class="hud-value" id="hud-alive">1</div></div>
+      <div class="hud-card"><div class="hud-label">Success rate</div><div class="hud-value" id="hud-success">0%</div></div>
+    </div>
+  </section>
+  <aside class="aside" aria-label="controls">
+    <details class="panel" open>
+      <summary>Settings</summary>
+      <div class="control-row"><label for="gravityInput">Gravity</label><input id="gravityInput" type="number" step="0.1" value="18"></div>
+      <div class="control-row"><label for="timeScaleInput">Time scale</label><input id="timeScaleInput" type="number" step="0.1" value="1"></div>
+      <div class="control-row"><label for="rayCountInput">Ray count</label><input id="rayCountInput" type="number" min="4" max="32" value="16"></div>
+      <div class="control-row"><label for="fovInput">Radar FOV</label><input id="fovInput" type="number" min="30" max="240" value="160"></div>
+      <div class="control-row"><label>PD kp</label><input id="kpInput" type="number" step="0.1" value="28"></div>
+      <div class="control-row"><label>PD kd</label><input id="kdInput" type="number" step="0.1" value="6"></div>
+      <div class="control-row"><label>Torque limit</label><input id="torqueInput" type="number" step="0.1" value="60"></div>
+      <div class="control-row"><label>Episode length (s)</label><input id="episodeInput" type="number" min="5" value="22"></div>
+      <p id="play-hint">Play mode: shoulders/hips with <kbd>WASD</kbd>, knees/elbows with <kbd>Arrow keys</kbd>, lean with <kbd>Q/E</kbd>, crouch/extend with <kbd>Z/X</kbd>. Hold <kbd>Space</kbd> for quick reset.</p>
+    </details>
+    <details class="panel" open>
+      <summary>NEAT training</summary>
+      <div class="control-row"><label>Population size</label><input id="popInput" type="number" min="4" value="24"></div>
+      <div class="control-row"><label>Mutation rate</label><input id="mutInput" type="number" step="0.01" value="0.18"></div>
+      <div class="control-row"><label>Crossover rate</label><input id="crossInput" type="number" step="0.01" value="0.6"></div>
+      <div class="control-row"><label>Elitism</label><input id="eliteInput" type="number" min="0" value="2"></div>
+      <div class="control-row"><label>Hidden nodes</label><input id="hiddenInput" type="number" min="0" value="6"></div>
+      <div class="control-row"><label>Activation</label><input id="activationInput" type="text" value="tanh"></div>
+      <div class="control-row"><label>Species distance</label><input id="distanceInput" type="number" step="0.1" value="3.4"></div>
+      <div class="control-row"><label>Stagnation limit</label><input id="stagnationInput" type="number" min="5" value="12"></div>
+      <div class="control-row"><label>Curriculum</label><input id="curriculumInput" type="number" min="0" value="0"></div>
+    </details>
+    <details class="panel" open>
+      <summary>Sensors</summary>
+      <div id="awareness">
+        <canvas id="radar-canvas" width="260" height="160"></canvas>
+        <canvas id="heatmap-canvas" width="260" height="90"></canvas>
+        <div id="awareness-text" style="font-size:12px; color:var(--muted);"></div>
+      </div>
+    </details>
+    <details class="panel" open>
+      <summary>Telemetry</summary>
+      <div id="fitness-breakdown"></div>
+      <canvas id="fitness-chart" class="chart" width="260" height="90"></canvas>
+      <canvas id="speed-chart" class="chart" width="260" height="90"></canvas>
+      <canvas id="arm-chart" class="chart" width="260" height="90"></canvas>
+    </details>
+  </aside>
+</main>
+<script>
+// ===== Utilities =====
+const TAU = Math.PI * 2;
+function rand(seed) {
+  const x = Math.sin(seed) * 10000;
+  return x - Math.floor(x);
+}
+class RNG {
+  constructor(seed = 1337) { this.seed = seed; }
+  next() { this.seed = (this.seed * 1664525 + 1013904223) % 4294967296; return this.seed / 4294967296; }
+  pick(list) { return list[Math.floor(this.next() * list.length)]; }
+}
+function clamp(v, min, max) { return v < min ? min : v > max ? max : v; }
+function lerp(a, b, t) { return a + (b - a) * t; }
+function softsign(x) { return x / (1 + Math.abs(x)); }
+function activation(name, x) {
+  switch (name) {
+    case 'relu': return x > 0 ? x : 0;
+    case 'sigmoid': return 1 / (1 + Math.exp(-x));
+    case 'tanh': default: return Math.tanh(x);
+  }
+}
+function drawRoundedRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
 
-  <script>
-  // ===== Utility helpers =====
-  const randRange = (min, max)=> Math.random() * (max - min) + min;
-  const clamp = (value, min, max)=> Math.max(min, Math.min(max, value));
-  const TAU = Math.PI * 2;
+// ===== Physics =====
+const JOINTS = [
+  { name: 'hipL', parent: 'torso', child: 'thighL', min: -1.6, max: 1.2 },
+  { name: 'hipR', parent: 'torso', child: 'thighR', min: -1.6, max: 1.2 },
+  { name: 'kneeL', parent: 'thighL', child: 'shinL', min: -0.1, max: 2.4 },
+  { name: 'kneeR', parent: 'thighR', child: 'shinR', min: -0.1, max: 2.4 },
+  { name: 'shoulderL', parent: 'torso', child: 'upperArmL', min: -1.6, max: 1.6 },
+  { name: 'shoulderR', parent: 'torso', child: 'upperArmR', min: -1.6, max: 1.6 },
+  { name: 'elbowL', parent: 'upperArmL', child: 'foreArmL', min: -0.1, max: 2.2 },
+  { name: 'elbowR', parent: 'upperArmR', child: 'foreArmR', min: -0.1, max: 2.2 },
+  { name: 'neck', parent: 'torso', child: 'head', min: -0.6, max: 0.6 }
+];
+const BODY_PARTS = {
+  torso: { length: 30, mass: 18 },
+  head: { length: 14, mass: 4 },
+  thighL: { length: 28, mass: 8 },
+  shinL: { length: 26, mass: 7 },
+  thighR: { length: 28, mass: 8 },
+  shinR: { length: 26, mass: 7 },
+  upperArmL: { length: 22, mass: 5 },
+  foreArmL: { length: 20, mass: 4 },
+  upperArmR: { length: 22, mass: 5 },
+  foreArmR: { length: 20, mass: 4 }
+};
+const DEFAULT_PD = { kp: 28, kd: 6 };
 
-  const Q = (id)=> document.getElementById(id);
+class Joint {
+  constructor(data) {
+    this.name = data.name;
+    this.parent = data.parent;
+    this.child = data.child;
+    this.min = data.min;
+    this.max = data.max;
+    this.angle = clamp(0, this.min, this.max);
+    this.angleVel = 0;
+    this.target = 0;
+  }
+  update(dt, kp, kd, torqueLimit) {
+    const error = clamp(this.target, this.min, this.max) - this.angle;
+    const torque = clamp(kp * error - kd * this.angleVel, -torqueLimit, torqueLimit);
+    this.angleVel += torque * dt * 0.4;
+    this.angle += this.angleVel * dt;
+    if (this.angle < this.min) { this.angle = this.min; this.angleVel *= -0.3; }
+    if (this.angle > this.max) { this.angle = this.max; this.angleVel *= -0.3; }
+  }
+}
 
-  function bindRange(id, labelId, format){
-    const range = Q(id);
-    const label = Q(labelId);
-    if(!range || !label) return;
-    const fmt = typeof format === 'function' ? format : (v)=> v;
-    const update = ()=>{
-      label.textContent = fmt(Number(range.value));
-      scheduleConfigRefresh();
+class Humanoid {
+  constructor(settings, rng = new RNG()) {
+    this.settings = settings;
+    this.rng = rng;
+    this.reset();
+  }
+  reset() {
+    this.torsoPos = { x: 120, y: 240 };
+    this.torsoVel = { x: 0, y: 0 };
+    this.torsoAngle = 0.05;
+    this.torsoAngVel = 0;
+    this.time = 0;
+    this.alive = true;
+    this.contact = { left: false, right: false };
+    this.joints = new Map();
+    JOINTS.forEach(cfg => {
+      const joint = new Joint(cfg);
+      joint.angle = clamp((this.rng.next() - 0.5) * 0.2, joint.min, joint.max);
+      joint.target = joint.angle;
+      this.joints.set(cfg.name, joint);
+    });
+  }
+  /** Returns joint by name. */
+  joint(name) { return this.joints.get(name); }
+  /** Computes world coordinates for all segments. */
+  computeSkeleton() {
+    const points = {};
+    const torso = BODY_PARTS.torso;
+    const base = { x: this.torsoPos.x, y: this.torsoPos.y };
+    const torsoEnd = {
+      x: base.x + Math.sin(this.torsoAngle) * torso.length,
+      y: base.y - Math.cos(this.torsoAngle) * torso.length
     };
-    range.addEventListener('input', update);
-    update();
+    points.torsoStart = base;
+    points.torsoEnd = torsoEnd;
+    const attach = (parentEnd, parentAngle, jointName, lengthName) => {
+      const joint = this.joint(jointName);
+      if (!joint) return { start: parentEnd, end: parentEnd };
+      const angle = parentAngle + joint.angle;
+      const part = BODY_PARTS[lengthName];
+      const end = {
+        x: parentEnd.x + Math.sin(angle) * part.length,
+        y: parentEnd.y - Math.cos(angle) * part.length
+      };
+      return { start: parentEnd, end, angle };
+    };
+    const hipL = attach(base, this.torsoAngle + 0.12, 'hipL', 'thighL');
+    const hipR = attach(base, this.torsoAngle - 0.12, 'hipR', 'thighR');
+    const kneeL = attach(hipL.end, hipL.angle, 'kneeL', 'shinL');
+    const kneeR = attach(hipR.end, hipR.angle, 'kneeR', 'shinR');
+    const shoulderL = attach(torsoEnd, this.torsoAngle + 0.05, 'shoulderL', 'upperArmL');
+    const shoulderR = attach(torsoEnd, this.torsoAngle - 0.05, 'shoulderR', 'upperArmR');
+    const elbowL = attach(shoulderL.end, shoulderL.angle, 'elbowL', 'foreArmL');
+    const elbowR = attach(shoulderR.end, shoulderR.angle, 'elbowR', 'foreArmR');
+    const neck = attach(torsoEnd, this.torsoAngle, 'neck', 'head');
+    points.hipL = hipL; points.hipR = hipR;
+    points.kneeL = kneeL; points.kneeR = kneeR;
+    points.shoulderL = shoulderL; points.shoulderR = shoulderR;
+    points.elbowL = elbowL; points.elbowR = elbowR;
+    points.neck = neck;
+    return points;
   }
-
-  // ===== NEAT-lite implementation =====
-  class NodeGene {
-    constructor(id, type, layer){
-      this.id = id;
-      this.type = type;
-      this.layer = layer;
-    }
-    clone(){
-      return new NodeGene(this.id, this.type, this.layer);
-    }
-  }
-
-  class ConnectionGene {
-    constructor(from, to, weight, enabled, innovation){
-      this.from = from;
-      this.to = to;
-      this.weight = weight;
-      this.enabled = enabled !== false;
-      this.innovation = innovation;
-    }
-    clone(){
-      return new ConnectionGene(this.from, this.to, this.weight, this.enabled, this.innovation);
-    }
-  }
-
-  class InnovationTracker {
-    constructor(){
-      this.next = 1;
-      this.lookup = new Map();
-    }
-    get(from, to){
-      const key = from < to ? `${from}-${to}` : `${to}-${from}`;
-      if(!this.lookup.has(key)){
-        this.lookup.set(key, this.next++);
+  /** Step physics forward */
+  step(dt, env) {
+    if (!this.alive) return;
+    this.time += dt;
+    const g = this.settings.gravity;
+    this.torsoVel.y += g * dt;
+    this.torsoPos.x += this.torsoVel.x * dt * this.settings.timeScale;
+    this.torsoPos.y += this.torsoVel.y * dt * this.settings.timeScale;
+    this.torsoAngle += this.torsoAngVel * dt * this.settings.timeScale;
+    this.torsoAngVel *= 0.99;
+    const skeleton = this.computeSkeleton();
+    const feet = [
+      { name: 'left', part: skeleton.kneeL.end },
+      { name: 'right', part: skeleton.kneeR.end }
+    ];
+    this.contact.left = false;
+    this.contact.right = false;
+    feet.forEach((foot, idx) => {
+      if (foot.part.y >= env.ground) {
+        const penetration = foot.part.y - env.ground;
+        this.torsoPos.y -= penetration * 0.5;
+        this.torsoVel.y = -this.torsoVel.y * 0.2;
+        const friction = clamp(env.friction * (idx === 0 ? -1 : 1), -env.maxSpeed, env.maxSpeed);
+        this.torsoVel.x += friction * dt;
+        if (idx === 0) this.contact.left = true; else this.contact.right = true;
       }
-      return this.lookup.get(key);
+    });
+    if (this.torsoPos.y > env.ground + 40) this.alive = false;
+    this.joints.forEach(j => j.update(dt * this.settings.timeScale, this.settings.kp, this.settings.kd, this.settings.torqueLimit));
+  }
+}
+
+// ===== Sensors =====
+class SensorSuite {
+  constructor(rayCount, fov) {
+    this.rayCount = rayCount;
+    this.fov = fov * Math.PI / 180;
+    this.values = new Float32Array(rayCount + 16);
+  }
+  resize(rayCount, fovDeg) {
+    this.rayCount = rayCount;
+    this.fov = fovDeg * Math.PI / 180;
+    this.values = new Float32Array(rayCount + 16);
+  }
+  sample(humanoid, env) {
+    const skeleton = humanoid.computeSkeleton();
+    const torsoPos = humanoid.torsoPos;
+    const rays = [];
+    const startAngle = humanoid.torsoAngle - this.fov / 2;
+    for (let i = 0; i < this.rayCount; i++) {
+      const angle = startAngle + (this.fov * i) / (this.rayCount - 1);
+      const end = {
+        x: torsoPos.x + Math.cos(angle) * env.rayLength,
+        y: torsoPos.y + Math.sin(angle) * env.rayLength
+      };
+      let dist = env.rayLength;
+      if (angle > Math.PI / 2) {
+        const t = (env.ground - torsoPos.y) / Math.sin(angle);
+        if (t > 0 && t < dist) dist = t;
+      }
+      const button = env.button;
+      const toButton = { x: button.x - torsoPos.x, y: button.y - torsoPos.y };
+      const proj = Math.cos(angle) * toButton.x + Math.sin(angle) * toButton.y;
+      if (proj > 0) {
+        const orth = Math.abs(-Math.sin(angle) * toButton.x + Math.cos(angle) * toButton.y);
+        if (orth < button.radius + 6 && proj < dist) dist = proj;
+      }
+      rays.push({ angle, dist });
+      this.values[i] = 1 - dist / env.rayLength;
+    }
+    let idx = this.rayCount;
+    const joints = JOINTS.map(j => humanoid.joint(j.name));
+    joints.forEach(j => {
+      this.values[idx++] = (j.angle - j.min) / (j.max - j.min);
+      this.values[idx++] = softsign(j.angleVel * 0.2);
+    });
+    this.values[idx++] = softsign(humanoid.torsoVel.x * 0.05);
+    this.values[idx++] = softsign(humanoid.torsoVel.y * 0.05);
+    this.values[idx++] = (humanoid.torsoAngle + Math.PI / 2) / Math.PI;
+    this.values[idx++] = humanoid.contact.left ? 1 : 0;
+    this.values[idx++] = humanoid.contact.right ? 1 : 0;
+    const hands = [humanoid.computeSkeleton().elbowL.end, humanoid.computeSkeleton().elbowR.end];
+    hands.forEach(hand => {
+      const dx = env.button.x - hand.x;
+      const dy = env.button.y - hand.y;
+      const d = Math.hypot(dx, dy);
+      this.values[idx++] = 1 - clamp(d / env.button.range, 0, 1);
+    });
+    return rays;
+  }
+}
+
+// ===== NEAT =====
+let innovationCounter = 0;
+class ConnectionGene {
+  constructor(from, to, weight, enabled = true, innovation = innovationCounter++) {
+    this.from = from;
+    this.to = to;
+    this.weight = weight;
+    this.enabled = enabled;
+    this.innovation = innovation;
+  }
+  copy() { const c = new ConnectionGene(this.from, this.to, this.weight, this.enabled, this.innovation); return c; }
+}
+class NodeGene {
+  constructor(id, type) {
+    this.id = id;
+    this.type = type; // input, hidden, output
+    this.bias = 0;
+  }
+  copy() { const n = new NodeGene(this.id, this.type); n.bias = this.bias; return n; }
+}
+class Genome {
+  constructor() {
+    this.nodes = new Map();
+    this.connections = [];
+    this.fitness = 0;
+    this.adjustedFitness = 0;
+  }
+  copy() {
+    const g = new Genome();
+    this.nodes.forEach(node => g.nodes.set(node.id, node.copy()));
+    this.connections.forEach(c => g.connections.push(c.copy()));
+    g.fitness = this.fitness;
+    g.adjustedFitness = this.adjustedFitness;
+    return g;
+  }
+  mutateWeights(rate = 0.8, power = 0.2, rng) {
+    this.connections.forEach(conn => {
+      if (rng.next() < rate) {
+        if (rng.next() < 0.1) conn.weight = (rng.next() * 2 - 1) * 2.5;
+        else conn.weight += (rng.next() * 2 - 1) * power;
+      }
+    });
+    this.nodes.forEach(node => {
+      if (rng.next() < rate * 0.5) node.bias += (rng.next() * 2 - 1) * power;
+    });
+  }
+  mutateAddConnection(rng) {
+    const nodes = Array.from(this.nodes.values());
+    for (let i = 0; i < 10; i++) {
+      const a = nodes[Math.floor(rng.next() * nodes.length)];
+      const b = nodes[Math.floor(rng.next() * nodes.length)];
+      if (a.type === 'output' && b.type !== 'output') continue;
+      if (a.id === b.id) continue;
+      if (this.connections.some(c => c.from === a.id && c.to === b.id)) continue;
+      this.connections.push(new ConnectionGene(a.id, b.id, (rng.next() * 2 - 1) * 1.5));
+      return;
     }
   }
-
-  class Genome {
-    constructor(population, source){
-      this.population = population;
-      this.nodes = new Map();
-      this.connections = [];
-      this.connectionKeys = new Set();
-      this.connectionByInnovation = new Map();
-      this.sortedNodesCache = null;
-      this.incomingCache = null;
-      this.cacheDirty = true;
-      this.fitness = 0;
-      this.adjustedFitness = 0;
-      if(source){
-        source.nodes.forEach((node)=>{
-          this.nodes.set(node.id, node.clone());
+  mutateAddNode(rng) {
+    const enabledConnections = this.connections.filter(c => c.enabled);
+    if (!enabledConnections.length) return;
+    const conn = rng.pick(enabledConnections);
+    conn.enabled = false;
+    const newId = `h${this.nodes.size}`;
+    const node = new NodeGene(newId, 'hidden');
+    node.bias = 0;
+    this.nodes.set(newId, node);
+    this.connections.push(new ConnectionGene(conn.from, newId, 1));
+    this.connections.push(new ConnectionGene(newId, conn.to, conn.weight));
+  }
+  buildNetwork(activationName) {
+    const order = Array.from(this.nodes.values()).sort((a, b) => a.type.localeCompare(b.type));
+    const nodeValues = new Map();
+    const enabledConnections = () => this.connections.filter(c => c.enabled);
+    const connections = enabledConnections();
+    return {
+      activate(inputs) {
+        order.forEach(node => {
+          if (node.type === 'input') nodeValues.set(node.id, inputs[node.id] ?? 0);
+          else nodeValues.set(node.id, node.bias);
         });
-        source.connections.forEach((conn)=> this._addConnectionGene(conn.clone()));
-      } else {
-        population.baseNodes.forEach((node)=>{
-          this.nodes.set(node.id, node.clone());
+        connections.forEach(conn => {
+          const fromVal = nodeValues.get(conn.from) ?? 0;
+          const toVal = nodeValues.get(conn.to) ?? 0;
+          nodeValues.set(conn.to, toVal + fromVal * conn.weight);
         });
+        const outputs = {};
+        order.forEach(node => {
+          if (node.type !== 'input') {
+            const val = activation(activationName, nodeValues.get(node.id));
+            nodeValues.set(node.id, val);
+          }
+          if (node.type === 'output') outputs[node.id] = nodeValues.get(node.id);
+        });
+        return outputs;
+      },
+      nodes: this.nodes,
+      connections: connections
+    };
+  }
+}
+
+class Species {
+  constructor(representative) {
+    this.representative = representative.copy();
+    this.members = [];
+    this.bestFitness = 0;
+    this.stagnation = 0;
+  }
+  compatibility(genome, c1 = 1, c2 = 1, c3 = 0.4) {
+    const innov = new Map();
+    this.representative.connections.forEach(c => innov.set(c.innovation, c));
+    let excess = 0, disjoint = 0, weightDiff = 0, matches = 0;
+    genome.connections.forEach(c => {
+      const mate = innov.get(c.innovation);
+      if (mate) { weightDiff += Math.abs(mate.weight - c.weight); matches++; }
+      else disjoint++;
+    });
+    const n = Math.max(genome.connections.length, this.representative.connections.length);
+    const N = n < 20 ? 1 : n;
+    const avgDiff = matches ? weightDiff / matches : 0;
+    return c1 * excess / N + c2 * disjoint / N + c3 * avgDiff;
+  }
+  add(genome) { this.members.push(genome); }
+  reset(representative) {
+    this.representative = representative.copy();
+    this.members = [];
+  }
+}
+
+class Population {
+  constructor(config, rng = new RNG()) {
+    this.config = config;
+    this.rng = rng;
+    this.species = [];
+    this.generation = 0;
+    this.bestGenome = null;
+    this.history = [];
+    this.initPopulation();
+  }
+  initPopulation() {
+    this.genomes = [];
+    innovationCounter = 0;
+    for (let i = 0; i < this.config.populationSize; i++) {
+      const genome = new Genome();
+      for (let n = 0; n < this.config.inputCount; n++) {
+        genome.nodes.set(`in${n}`, new NodeGene(`in${n}`, 'input'));
       }
-    }
-
-    clone(){
-      return new Genome(this.population, this);
-    }
-
-    get outputNodes(){
-      if(!this._outputNodes){
-        this._outputNodes = Array.from(this.nodes.values()).filter((n)=> n.type === 'output').sort((a,b)=> a.layer === b.layer ? a.id - b.id : a.layer - b.layer);
+      for (let o = 0; o < this.config.outputCount; o++) {
+        genome.nodes.set(`out${o}`, new NodeGene(`out${o}`, 'output'));
       }
-      return this._outputNodes;
-    }
-
-    _markDirty(){
-      this.sortedNodesCache = null;
-      this.incomingCache = null;
-      this.cacheDirty = true;
-      this._outputNodes = null;
-    }
-
-    _addConnectionGene(conn){
-      this.connections.push(conn);
-      this.connectionKeys.add(`${conn.from}->${conn.to}`);
-      this.connectionByInnovation.set(conn.innovation, conn);
-      this.cacheDirty = true;
-    }
-
-    addInitialConnections(){
-      const outputs = this.outputNodes;
-      const inputs = Array.from(this.nodes.values()).filter((n)=> n.type === 'input' || n.type === 'bias');
-      for(const inp of inputs){
-        for(const out of outputs){
-          const innovation = this.population.innovationTracker.get(inp.id, out.id);
-          const conn = new ConnectionGene(inp.id, out.id, randRange(-1, 1), true, innovation);
-          this._addConnectionGene(conn);
-        }
+      for (let h = 0; h < this.config.initialHidden; h++) {
+        const node = new NodeGene(`h${h}`, 'hidden');
+        node.bias = (this.rng.next() * 2 - 1) * 0.2;
+        genome.nodes.set(node.id, node);
       }
-    }
-
-    getSortedNodes(){
-      if(this.sortedNodesCache){
-        return this.sortedNodesCache;
-      }
-      this.sortedNodesCache = Array.from(this.nodes.values()).sort((a,b)=>{
-        if(a.layer === b.layer) return a.id - b.id;
-        return a.layer - b.layer;
+      const inputNodes = Array.from({ length: this.config.inputCount }, (_, idx) => `in${idx}`);
+      const outputNodes = Array.from({ length: this.config.outputCount }, (_, idx) => `out${idx}`);
+      inputNodes.forEach(i => {
+        outputNodes.forEach(o => {
+          if (this.rng.next() < 0.2) genome.connections.push(new ConnectionGene(i, o, (this.rng.next() * 2 - 1) * 0.5));
+        });
       });
-      return this.sortedNodesCache;
-    }
-
-    buildIncoming(){
-      if(!this.cacheDirty && this.incomingCache){
-        return this.incomingCache;
-      }
-      const incoming = new Map();
-      for(const conn of this.connections){
-        if(!conn.enabled) continue;
-        if(!incoming.has(conn.to)) incoming.set(conn.to, []);
-        incoming.get(conn.to).push(conn);
-      }
-      this.incomingCache = incoming;
-      this.cacheDirty = false;
-      return incoming;
-    }
-
-    feedForward(inputs){
-      const sorted = this.getSortedNodes();
-      const incoming = this.buildIncoming();
-      const values = new Map();
-      let inputIndex = 0;
-      for(const node of sorted){
-        if(node.type === 'input'){
-          values.set(node.id, inputs[inputIndex++] ?? 0);
-        } else if(node.type === 'bias'){
-          values.set(node.id, 1);
-        } else {
-          const inbound = incoming.get(node.id);
-          let sum = 0;
-          if(inbound){
-            for(const conn of inbound){
-              sum += (values.get(conn.from) ?? 0) * conn.weight;
-            }
-          }
-          const activated = Math.tanh(sum);
-          values.set(node.id, activated);
-        }
-      }
-      const outputs = [];
-      for(const node of this.outputNodes){
-        outputs.push(values.get(node.id) ?? 0);
-      }
-      return outputs;
-    }
-
-    mutateWeights(rate, strength){
-      for(const conn of this.connections){
-        if(Math.random() < rate){
-          conn.weight += randRange(-strength, strength);
-        }
-      }
-      this.cacheDirty = true;
-    }
-
-    hasConnection(from, to){
-      return this.connectionKeys.has(`${from}->${to}`);
-    }
-
-    mutateAddConnection(){
-      const nodes = this.getSortedNodes();
-      let attempts = 0;
-      while(attempts < 32){
-        attempts++;
-        const from = nodes[Math.floor(Math.random() * nodes.length)];
-        const to = nodes[Math.floor(Math.random() * nodes.length)];
-        if(!from || !to) continue;
-        if(from.layer >= to.layer) continue;
-        if(from.type === 'output' && to.type === 'output') continue;
-        if(to.type === 'input' || to.type === 'bias') continue;
-        if(this.hasConnection(from.id, to.id)) continue;
-        const innovation = this.population.innovationTracker.get(from.id, to.id);
-        const conn = new ConnectionGene(from.id, to.id, randRange(-1, 1), true, innovation);
-        this._addConnectionGene(conn);
-        this._markDirty();
-        return true;
-      }
-      return false;
-    }
-
-    mutateAddNode(){
-      const candidates = this.connections.filter((conn)=> conn.enabled);
-      if(!candidates.length) return false;
-      const conn = candidates[Math.floor(Math.random()*candidates.length)];
-      conn.enabled = false;
-      const fromNode = this.nodes.get(conn.from);
-      const toNode = this.nodes.get(conn.to);
-      const newNodeId = this.population.allocateNodeId();
-      const newNode = new NodeGene(newNodeId, 'hidden', (fromNode.layer + toNode.layer) / 2);
-      this.nodes.set(newNodeId, newNode);
-      const innovation1 = this.population.innovationTracker.get(conn.from, newNodeId);
-      const innovation2 = this.population.innovationTracker.get(newNodeId, conn.to);
-      const conn1 = new ConnectionGene(conn.from, newNodeId, 1, true, innovation1);
-      const conn2 = new ConnectionGene(newNodeId, conn.to, conn.weight, true, innovation2);
-      this._addConnectionGene(conn1);
-      this._addConnectionGene(conn2);
-      this._markDirty();
-      return true;
-    }
-
-    crossover(partner){
-      const child = new Genome(this.population);
-      child.nodes.clear();
-      this.nodes.forEach((node)=> child.nodes.set(node.id, node.clone()));
-      partner.nodes.forEach((node)=>{
-        if(!child.nodes.has(node.id)){
-          child.nodes.set(node.id, node.clone());
-        }
-      });
-      const better = this.fitness >= partner.fitness ? this : partner;
-      const other = better === this ? partner : this;
-      const used = new Set();
-      const betterConns = better.connections.slice().sort((a,b)=> a.innovation - b.innovation);
-      for(const conn of betterConns){
-        const match = other.connectionByInnovation.get(conn.innovation);
-        let gene;
-        if(match && Math.random() < 0.5){
-          gene = match.clone();
-        } else {
-          gene = conn.clone();
-        }
-        used.add(gene.innovation);
-        child._addConnectionGene(gene);
-      }
-      child._markDirty();
-      return child;
-    }
-
-    compatibilityDistance(other){
-      const c1 = 1.0, c2 = 1.0, c3 = 0.4;
-      const thisGenes = this.connections.slice().sort((a,b)=> a.innovation - b.innovation);
-      const otherGenes = other.connections.slice().sort((a,b)=> a.innovation - b.innovation);
-      let i=0, j=0;
-      let matching = 0;
-      let weightDiff = 0;
-      let disjoint = 0;
-      let excess = 0;
-      const maxInnovThis = thisGenes.length ? thisGenes[thisGenes.length-1].innovation : 0;
-      const maxInnovOther = otherGenes.length ? otherGenes[otherGenes.length-1].innovation : 0;
-      while(i < thisGenes.length && j < otherGenes.length){
-        const a = thisGenes[i];
-        const b = otherGenes[j];
-        if(a.innovation === b.innovation){
-          matching++;
-          weightDiff += Math.abs(a.weight - b.weight);
-          i++; j++;
-        } else if(a.innovation < b.innovation){
-          disjoint++;
-          i++;
-        } else {
-          disjoint++;
-          j++;
-        }
-      }
-      excess += (thisGenes.length - i) + (otherGenes.length - j);
-      const n = Math.max(thisGenes.length, otherGenes.length, 1);
-      const avgWeight = matching > 0 ? weightDiff / matching : 0;
-      return (c1 * excess) / n + (c2 * disjoint) / n + c3 * avgWeight;
-    }
-
-    mutate(config){
-      this.mutateWeights(config.mutationRate / 100, 0.8);
-      if(Math.random() < config.addConnectionRate / 100){
-        this.mutateAddConnection();
-      }
-      if(Math.random() < config.addNodeRate / 100){
-        this.mutateAddNode();
-      }
+      this.genomes.push(genome);
     }
   }
-
-  class Species {
-    constructor(representative){
-      this.representative = representative.clone();
-      this.members = [];
-      this.bestFitness = -Infinity;
-      this.staleness = 0;
-      this.adjustedSum = 0;
-    }
+  speciate() {
+    this.species.forEach(sp => sp.members = []);
+    this.genomes.forEach(genome => {
+      let found = false;
+      for (const sp of this.species) {
+        if (sp.compatibility(genome, 1, 1, this.config.compatibilityWeight) < this.config.speciesDistance) {
+          sp.add(genome);
+          found = true;
+          break;
+        }
+      }
+      if (!found) {
+        const sp = new Species(genome);
+        sp.add(genome);
+        this.species.push(sp);
+      }
+    });
+    this.species = this.species.filter(sp => sp.members.length);
   }
-
-  class Population {
-    constructor(config){
-      this.size = config.populationSize;
-      this.inputCount = config.inputCount;
-      this.outputCount = config.outputCount;
-      this.biasCount = 1;
-      this.innovationTracker = new InnovationTracker();
-      this.baseNodes = [];
-      for(let i=0;i<this.inputCount;i++){
-        this.baseNodes.push(new NodeGene(i, 'input', 0));
-      }
-      this.biasNodeId = this.inputCount;
-      this.baseNodes.push(new NodeGene(this.biasNodeId, 'bias', 0));
-      this.outputStart = this.inputCount + this.biasCount;
-      for(let i=0;i<this.outputCount;i++){
-        this.baseNodes.push(new NodeGene(this.outputStart + i, 'output', 1));
-      }
-      this.nextNodeId = this.outputStart + this.outputCount;
-      this.genomes = [];
-      this.species = [];
-      this.compatibilityThreshold = 3.0;
-      for(let i=0;i<this.size;i++){
-        const genome = new Genome(this);
-        genome.addInitialConnections();
-        this.genomes.push(genome);
-      }
+  evaluate(evalFn) {
+    this.genomes.forEach(genome => genome.fitness = evalFn(genome));
+    this.genomes.sort((a, b) => b.fitness - a.fitness);
+    if (!this.bestGenome || this.genomes[0].fitness > this.bestGenome.fitness) {
+      this.bestGenome = this.genomes[0].copy();
     }
-
-    allocateNodeId(){
-      return this.nextNodeId++;
-    }
-
-    injectHiddenNodes(count){
-      if(count <= 0) return;
-      const inputs = this.baseNodes.filter((node)=> node.type === 'input' || node.type === 'bias');
-      const outputs = this.baseNodes.filter((node)=> node.type === 'output');
-      for(let i=0;i<count;i++){
-        const newNodeId = this.allocateNodeId();
-        const layer = 0.5 + 0.05 * i;
-        const template = new NodeGene(newNodeId, 'hidden', layer);
-        for(const genome of this.genomes){
-          genome.nodes.set(newNodeId, template.clone());
-          genome._markDirty();
-        }
-        for(const genome of this.genomes){
-          for(const inp of inputs){
-            if(genome.hasConnection(inp.id, newNodeId)) continue;
-            const innovation = this.innovationTracker.get(inp.id, newNodeId);
-            genome._addConnectionGene(new ConnectionGene(inp.id, newNodeId, randRange(-1,1), true, innovation));
-          }
-          for(const out of outputs){
-            if(genome.hasConnection(newNodeId, out.id)) continue;
-            const innovation = this.innovationTracker.get(newNodeId, out.id);
-            genome._addConnectionGene(new ConnectionGene(newNodeId, out.id, randRange(-1,1), true, innovation));
-          }
-          genome._markDirty();
-        }
-      }
-    }
-
-    speciate(){
-      for(const species of this.species){
-        species.members.length = 0;
-      }
-      for(const genome of this.genomes){
-        let placed = false;
-        for(const species of this.species){
-          const distance = genome.compatibilityDistance(species.representative);
-          if(distance < this.compatibilityThreshold){
-            species.members.push(genome);
-            placed = true;
-            break;
-          }
-        }
-        if(!placed){
-          const fresh = new Species(genome);
-          fresh.members.push(genome);
-          this.species.push(fresh);
-        }
-      }
-      this.species = this.species.filter((species)=> species.members.length > 0);
-      for(const species of this.species){
-        species.representative = species.members[0].clone();
-      }
-    }
-
-    prepareFitness(){
-      let totalAdjusted = 0;
-      for(const species of this.species){
-        species.members.sort((a,b)=> b.fitness - a.fitness);
-        if(species.members[0].fitness > species.bestFitness){
-          species.bestFitness = species.members[0].fitness;
-          species.staleness = 0;
-        } else {
-          species.staleness++;
-        }
-        let sum = 0;
-        for(const genome of species.members){
-          genome.adjustedFitness = genome.fitness / species.members.length;
-          sum += genome.adjustedFitness;
-        }
-        species.adjustedSum = sum;
-        totalAdjusted += sum;
-      }
-      return totalAdjusted;
-    }
-
-    pickSpeciesByAdjusted(totalAdjusted){
-      if(!this.species.length){
-        return null;
-      }
-      if(totalAdjusted <= 0){
-        return this.species[Math.floor(Math.random()*this.species.length)];
-      }
-      let running = 0;
-      const target = Math.random() * totalAdjusted;
-      for(const species of this.species){
-        running += species.adjustedSum;
-        if(target <= running){
-          return species;
-        }
-      }
-      return this.species[this.species.length-1];
-    }
-
-    pickParent(species){
-      const total = species.members.reduce((acc,g)=> acc + g.fitness, 0);
-      if(total <= 0){
-        return species.members[Math.floor(Math.random()*species.members.length)];
-      }
-      const r = Math.random() * total;
-      let running = 0;
-      for(const genome of species.members){
-        running += genome.fitness;
-        if(r <= running){
-          return genome;
-        }
-      }
-      return species.members[0];
-    }
-
-    evolve(config){
-      this.speciate();
-      const totalAdjusted = this.prepareFitness();
-      const nextGen = [];
-      if(!this.species.length){
-        return;
-      }
-      const bestOverall = this.genomes.slice().sort((a,b)=> b.fitness - a.fitness)[0];
-      nextGen.push(bestOverall.clone());
-      while(nextGen.length < this.size){
-        const species = this.pickSpeciesByAdjusted(totalAdjusted || this.species.length);
-        const parentA = this.pickParent(species);
-        const parentB = this.pickParent(species);
-        let child;
-        if(parentA === parentB || Math.random() < 0.25){
-          child = parentA.clone();
-        } else {
-          child = parentA.crossover(parentB);
-        }
-        child.mutate(config);
-        nextGen.push(child);
-      }
-      this.genomes = nextGen.slice(0, this.size);
-      this.species.forEach((species)=> species.members.length = 0);
-      this.speciate();
-    }
+    const avg = this.genomes.reduce((s, g) => s + g.fitness, 0) / this.genomes.length;
+    this.history.push({ generation: this.generation, best: this.genomes[0].fitness, avg });
+    if (this.history.length > 100) this.history.shift();
   }
-  // ===== Simulation =====
-  const canvas = Q('court');
-  const ctx = canvas.getContext('2d');
+  reproduce() {
+    this.speciate();
+    const totalFitness = this.genomes.reduce((s, g) => s + g.fitness, 0) + 1e-6;
+    const children = [];
+    this.genomes.sort((a, b) => b.fitness - a.fitness);
+    const elite = Math.min(this.config.elitism, this.genomes.length);
+    for (let i = 0; i < elite; i++) children.push(this.genomes[i].copy());
+    while (children.length < this.config.populationSize) {
+      const parentA = this.roulette(totalFitness);
+      const parentB = this.roulette(totalFitness);
+      let child = this.crossover(parentA, parentB);
+      if (this.rng.next() < this.config.mutationRate) child.mutateWeights(0.9, 0.3, this.rng);
+      if (this.rng.next() < this.config.mutationAddConn) child.mutateAddConnection(this.rng);
+      if (this.rng.next() < this.config.mutationAddNode) child.mutateAddNode(this.rng);
+      children.push(child);
+    }
+    this.genomes = children;
+    this.generation++;
+  }
+  roulette(totalFitness) {
+    let slice = this.rng.next() * totalFitness;
+    for (const g of this.genomes) {
+      slice -= Math.max(g.fitness, 0);
+      if (slice <= 0) return g;
+    }
+    return this.genomes[this.genomes.length - 1];
+  }
+  crossover(a, b) {
+    const child = new Genome();
+    a.nodes.forEach(node => child.nodes.set(node.id, node.copy()));
+    const genes = new Map();
+    a.connections.forEach(c => genes.set(c.innovation, c));
+    b.connections.forEach(c => {
+      const gene = genes.get(c.innovation);
+      if (gene && this.rng.next() < 0.5) genes.set(c.innovation, c);
+      else if (!gene) genes.set(c.innovation, c);
+    });
+    genes.forEach(gene => child.connections.push(gene.copy()));
+    return child;
+  }
+}
 
-  const FIELD_WIDTH = canvas.width;
-  const FIELD_HEIGHT = canvas.height;
-  const NET_X = FIELD_WIDTH / 2;
-  const NET_WIDTH = 14;
-  const NET_HEIGHT = 240;
-  const NET_TOP = FIELD_HEIGHT - NET_HEIGHT;
-  const PLAYER_RADIUS = 32;
-  const BALL_RADIUS = 18;
-  const MAX_MOVE_SPEED = 280;
-  const MAX_BALL_SPEED = 520;
-  const GRAVITY = 480;
-  const PLAYER_GROUND_Y = FIELD_HEIGHT - PLAYER_RADIUS - 30;
-  const PLAYER_GRAVITY = 1500;
-  const PLAYER_JUMP_IMPULSE = 620;
-  const PLAYER_FAST_FALL = 1200;
-  const PLAYER_MAX_FALL_SPEED = 900;
-  const PLAYER_MAX_RISE_SPEED = 720;
-  const NET_BOUNCE_DAMPING = 0.75;
-  const SIM_DT = 1/60;
-  const MAX_STEPS_PER_GENOME = 2200;
-  const CROSS_REWARD = 30;
-  const TOUCH_REWARD = 4;
-  const SURVIVAL_REWARD = 0.06;
+// ===== Controller / Simulation =====
+const settings = {
+  gravity: 18,
+  timeScale: 1,
+  kp: DEFAULT_PD.kp,
+  kd: DEFAULT_PD.kd,
+  torqueLimit: 60,
+  episodeLength: 22,
+  rayCount: 16,
+  fov: 160
+};
+const simCanvas = document.getElementById('sim-canvas');
+const ctx = simCanvas.getContext('2d');
+const radarCtx = document.getElementById('radar-canvas').getContext('2d');
+const heatCtx = document.getElementById('heatmap-canvas').getContext('2d');
+const fitnessChartCtx = document.getElementById('fitness-chart').getContext('2d');
+const speedChartCtx = document.getElementById('speed-chart').getContext('2d');
+const armChartCtx = document.getElementById('arm-chart').getContext('2d');
+const hud = {
+  gen: document.getElementById('hud-generation'),
+  best: document.getElementById('hud-best'),
+  avg: document.getElementById('hud-avg'),
+  alive: document.getElementById('hud-alive'),
+  success: document.getElementById('hud-success')
+};
+const awarenessText = document.getElementById('awareness-text');
+const breakdownEl = document.getElementById('fitness-breakdown');
+let population = null;
+let humanoids = [];
+let currentMode = 'play';
+let bestScore = 0;
+let curriculumLevel = 0;
+const env = {
+  ground: 420,
+  friction: 26,
+  maxSpeed: 180,
+  rayLength: 220,
+  button: { x: 520, y: 220, radius: 14, pressed: false, range: 140 },
+  object: { x: 520, y: 260 }
+};
+const sensorSuite = new SensorSuite(settings.rayCount, settings.fov);
+const keyState = new Set();
+let episodeTimer = 0;
+let stepCount = 0;
+let fitnessBreakdown = { walk: 0, upright: 0, arm: 0, smooth: 0, survival: 0 };
+let telemetryHistory = { fitness: [], speed: [], arm: [] };
+const rng = new RNG(12345);
 
-  const INPUT_COUNT = 13;
-  const OUTPUT_COUNT = 4;
+function initPopulation() {
+  population = new Population({
+    populationSize: Number(document.getElementById('popInput').value) || 24,
+    mutationRate: Number(document.getElementById('mutInput').value) || 0.18,
+    mutationAddConn: 0.12,
+    mutationAddNode: 0.05,
+    crossoverRate: Number(document.getElementById('crossInput').value) || 0.6,
+    elitism: Number(document.getElementById('eliteInput').value) || 2,
+    inputCount: sensorSuite.values.length,
+    outputCount: JOINTS.length + 1,
+    initialHidden: Number(document.getElementById('hiddenInput').value) || 6,
+    compatibilityWeight: 0.4,
+    speciesDistance: Number(document.getElementById('distanceInput').value) || 3.4
+  }, rng);
+  resetEpisode();
+}
 
-  const config = {
-    populationSize: 30,
-    mutationRate: 22,
-    addConnectionRate: 8,
-    addNodeRate: 3,
-    initialHidden: 4,
-    simSpeed: 2
+function resetEpisode() {
+  humanoids = [];
+  episodeTimer = 0;
+  stepCount = 0;
+  env.button.pressed = false;
+  const popSize = currentMode === 'train' ? population.genomes.length : 1;
+  for (let i = 0; i < popSize; i++) {
+    const agent = new Humanoid(settings, new RNG(rng.next() * 999999));
+    agent.torsoPos.x += i * 10;
+    humanoids.push(agent);
+  }
+}
+
+function updateSettingsFromUI() {
+  settings.gravity = Number(document.getElementById('gravityInput').value) || 18;
+  settings.timeScale = Number(document.getElementById('timeScaleInput').value) || 1;
+  settings.rayCount = clamp(Number(document.getElementById('rayCountInput').value) || 16, 4, 32);
+  settings.fov = Number(document.getElementById('fovInput').value) || 160;
+  settings.kp = Number(document.getElementById('kpInput').value) || DEFAULT_PD.kp;
+  settings.kd = Number(document.getElementById('kdInput').value) || DEFAULT_PD.kd;
+  settings.torqueLimit = Number(document.getElementById('torqueInput').value) || 60;
+  settings.episodeLength = Number(document.getElementById('episodeInput').value) || 22;
+  sensorSuite.resize(settings.rayCount, settings.fov);
+  if (population) initPopulation();
+}
+
+function evaluateGenome(genome) {
+  const network = genome.buildNetwork(document.getElementById('activationInput').value || 'tanh');
+  const agent = new Humanoid(settings, new RNG(rng.next() * 999999));
+  let reward = 0;
+  let smoothPenalty = 0;
+  let success = 0;
+  let steps = 0;
+  env.button.pressed = false;
+  const weights = { walk: 1.4, upright: 0.7, arm: 1.2, smooth: 0.4, survival: 0.2 };
+  while (steps < settings.episodeLength * 60 && agent.alive) {
+    const rays = sensorSuite.sample(agent, env);
+    const inputs = {};
+    sensorSuite.values.forEach((v, idx) => inputs[`in${idx}`] = v);
+    const outputs = network.activate(inputs);
+    let torqueCost = 0;
+    JOINTS.forEach((joint, idx) => {
+      const o = outputs[`out${idx}`] ?? 0;
+      const target = lerp(joint.min, joint.max, (o + 1) / 2);
+      const j = agent.joint(joint.name);
+      torqueCost += Math.abs(target - j.target);
+      j.target = target;
+    });
+    const leanTarget = outputs[`out${JOINTS.length}`] ?? 0;
+    agent.torsoAngVel += clamp(leanTarget, -1, 1) * 0.12;
+    agent.step(1 / 60, env);
+    const skeleton = agent.computeSkeleton();
+    const walkScore = agent.torsoPos.x * 0.01;
+    const upright = 1 - Math.abs(agent.torsoAngle) / (Math.PI / 2);
+    const leftHand = skeleton.elbowL.end;
+    const rightHand = skeleton.elbowR.end;
+    const buttonDist = Math.min(Math.hypot(env.button.x - leftHand.x, env.button.y - leftHand.y), Math.hypot(env.button.x - rightHand.x, env.button.y - rightHand.y));
+    if (buttonDist < env.button.radius + 8) { env.button.pressed = true; success += 1; }
+    const armScore = 1 - clamp(buttonDist / env.button.range, 0, 1);
+    smoothPenalty += torqueCost;
+    reward += walkScore * weights.walk + upright * weights.upright + armScore * weights.arm + weights.survival;
+    steps++;
+    if (!agent.alive) reward -= 20;
+  }
+  const smoothness = Math.exp(-smoothPenalty / (steps + 1));
+  reward += smoothness * 20 * 0.4;
+  genome.fitness = reward;
+  genome.meta = { successRate: success / (steps + 1), smoothness, survivalSteps: steps };
+  return reward;
+}
+
+function runGeneration() {
+  population.evaluate(evaluateGenome);
+  hud.gen.textContent = population.generation;
+  hud.best.textContent = population.genomes[0].fitness.toFixed(1);
+  const avg = population.genomes.reduce((s, g) => s + g.fitness, 0) / population.genomes.length;
+  hud.avg.textContent = avg.toFixed(1);
+  hud.alive.textContent = population.genomes.length;
+  const bestMeta = population.genomes[0].meta || { successRate: 0 };
+  hud.success.textContent = `${(bestMeta.successRate * 100).toFixed(0)}%`;
+  bestScore = Math.max(bestScore, population.genomes[0].fitness);
+  const weights = { walk: 1.4, upright: 0.7, arm: 1.2, smooth: 0.4, survival: 0.2 };
+  fitnessBreakdown = {
+    walk: weights.walk,
+    upright: weights.upright,
+    arm: weights.arm,
+    smooth: weights.smooth,
+    survival: weights.survival
   };
+  updateBreakdown();
+  telemetryHistory.fitness.push({ best: population.genomes[0].fitness, avg });
+  if (telemetryHistory.fitness.length > 120) telemetryHistory.fitness.shift();
+  telemetryHistory.speed.push({ value: population.genomes[0].meta?.survivalSteps || 0 });
+  if (telemetryHistory.speed.length > 120) telemetryHistory.speed.shift();
+  telemetryHistory.arm.push({ value: population.genomes[0].meta?.successRate || 0 });
+  if (telemetryHistory.arm.length > 120) telemetryHistory.arm.shift();
+  drawCharts();
+  population.reproduce();
+  resetEpisode();
+}
 
-  let population = null;
-  let generation = 1;
-  let genomeIndex = 0;
-  let bestFitness = 0;
-  let totalSpecies = 1;
-  let evaluationOrder = [];
-  let currentSession = null;
-  let needsConfigRefresh = false;
+function updateBreakdown() {
+  breakdownEl.innerHTML = '';
+  Object.entries(fitnessBreakdown).forEach(([name, value]) => {
+    const wrapper = document.createElement('div');
+    wrapper.style.fontSize = '12px';
+    wrapper.style.color = 'var(--muted)';
+    wrapper.textContent = `${name.toUpperCase()} (${value})`;
+    const bar = document.createElement('div');
+    bar.className = 'fitness-bar';
+    const fill = document.createElement('span');
+    fill.style.width = `${clamp(value / 2, 0, 1) * 100}%`;
+    bar.appendChild(fill);
+    breakdownEl.appendChild(wrapper);
+    breakdownEl.appendChild(bar);
+  });
+}
 
-  class Player {
-    constructor(x, y, side){
-      this.side = side; // 'left' or 'right'
-      this.reset(x, y);
-    }
-    reset(x, y){
-      const topLimit = NET_TOP - 40;
-      if(this.side === 'left'){
-        this.x = clamp(x, PLAYER_RADIUS + 20, NET_X - NET_WIDTH/2 - PLAYER_RADIUS - 20);
-      } else {
-        this.x = clamp(x, NET_X + NET_WIDTH/2 + PLAYER_RADIUS + 20, FIELD_WIDTH - PLAYER_RADIUS - 20);
-      }
-      this.y = clamp(y, topLimit, PLAYER_GROUND_Y);
-      this.vy = 0;
-      this.grounded = this.y >= PLAYER_GROUND_Y - 1;
-    }
-    update(dxInput, jumpInput, dt){
-      const horizontal = clamp(dxInput ?? 0, -1, 1) * MAX_MOVE_SPEED;
-      this.x += horizontal * dt;
-      if(this.side === 'left'){
-        this.x = clamp(this.x, PLAYER_RADIUS + 20, NET_X - NET_WIDTH/2 - PLAYER_RADIUS - 20);
-      } else {
-        this.x = clamp(this.x, NET_X + NET_WIDTH/2 + PLAYER_RADIUS + 20, FIELD_WIDTH - PLAYER_RADIUS - 20);
-      }
+function drawCharts() {
+  drawChart(fitnessChartCtx, telemetryHistory.fitness, ['best', 'avg'], ['#7c5cff', '#2dd4bf']);
+  drawChart(speedChartCtx, telemetryHistory.speed, ['value'], ['#f8aa4b']);
+  drawChart(armChartCtx, telemetryHistory.arm, ['value'], ['#2dd4bf']);
+}
 
-      const topLimit = NET_TOP - 40;
-      const ground = PLAYER_GROUND_Y;
-      const jump = clamp(jumpInput ?? 0, -1, 1);
-      const wasGrounded = this.grounded || (this.y >= ground - 1 && this.vy >= -40);
-      if(wasGrounded){
-        this.y = ground;
-        if(this.vy > 0) this.vy = 0;
-      }
-
-      if(jump > 0.55 && wasGrounded){
-        this.vy = -PLAYER_JUMP_IMPULSE * jump;
-      }
-      if(jump > 0.2 && !wasGrounded){
-        this.vy -= PLAYER_JUMP_IMPULSE * 0.35 * jump * dt;
-      }
-      if(jump < -0.55){
-        this.vy += PLAYER_FAST_FALL * dt * (-jump);
-      }
-
-      this.vy += PLAYER_GRAVITY * dt;
-      this.vy = clamp(this.vy, -PLAYER_MAX_RISE_SPEED, PLAYER_MAX_FALL_SPEED);
-      this.y += this.vy * dt;
-
-      if(this.y < topLimit){
-        this.y = topLimit;
-        if(this.vy < 0) this.vy = 0;
-      }
-      if(this.y > ground){
-        this.y = ground;
-        if(this.vy > 0) this.vy = 0;
-      }
-      this.grounded = this.y >= ground - 1;
-    }
-  }
-
-  class Ball {
-    constructor(){
-      this.reset('left');
-    }
-    reset(side){
-      if(side === 'right'){
-        this.x = NET_X + 120;
-        this.vx = randRange(-220, -160);
-      } else {
-        this.x = NET_X - 120;
-        this.vx = randRange(160, 220);
-      }
-      this.y = NET_TOP - randRange(40, 90);
-      this.vy = randRange(-160, -80);
-      this.lastSide = side;
-    }
-    update(dt){
-      this.vy += GRAVITY * dt;
-      this.x += this.vx * dt;
-      this.y += this.vy * dt;
-      if(this.y - BALL_RADIUS <= 40){
-        this.y = 40 + BALL_RADIUS;
-        this.vy = Math.abs(this.vy) * 0.85;
-      }
-      if(this.vy > MAX_BALL_SPEED) this.vy = MAX_BALL_SPEED;
-      if(this.vy < -MAX_BALL_SPEED) this.vy = -MAX_BALL_SPEED;
-      if(this.vx > MAX_BALL_SPEED) this.vx = MAX_BALL_SPEED;
-      if(this.vx < -MAX_BALL_SPEED) this.vx = -MAX_BALL_SPEED;
-    }
-  }
-
-  class VolleyballSession {
-    constructor(genome){
-      this.genome = genome;
-      this.left = new Player(NET_X - 180, PLAYER_GROUND_Y, 'left');
-      this.right = new Player(NET_X + 180, PLAYER_GROUND_Y, 'right');
-      this.ball = new Ball();
-      this.done = false;
-      this.steps = 0;
-      this.crossings = 0;
-      this.touches = 0;
-      this.fitness = 0;
-      this.spawnSide = Math.random() < 0.5 ? 'left' : 'right';
-      this.ball.reset(this.spawnSide);
-      this.lastTouchSide = this.spawnSide;
-      this.ralliesRemaining = 2;
-    }
-
-    getInputs(){
-      const bx = this.ball.x / FIELD_WIDTH;
-      const by = this.ball.y / FIELD_HEIGHT;
-      const bvx = this.ball.vx / MAX_BALL_SPEED;
-      const bvy = this.ball.vy / MAX_BALL_SPEED;
-      const lx = this.left.x / FIELD_WIDTH;
-      const ly = this.left.y / FIELD_HEIGHT;
-      const rx = this.right.x / FIELD_WIDTH;
-      const ry = this.right.y / FIELD_HEIGHT;
-      const ldx = (this.ball.x - this.left.x) / FIELD_WIDTH;
-      const ldy = (this.ball.y - this.left.y) / FIELD_HEIGHT;
-      const rdx = (this.ball.x - this.right.x) / FIELD_WIDTH;
-      const rdy = (this.ball.y - this.right.y) / FIELD_HEIGHT;
-      const touch = this.lastTouchSide === 'left' ? -1 : 1;
-      return [bx, by, bvx, bvy, lx, ly, rx, ry, ldx, ldy, rdx, rdy, touch];
-    }
-
-    applyOutputs(outputs, dt){
-      const leftDx = outputs[0] ?? 0;
-      const leftDy = outputs[1] ?? 0;
-      const rightDx = outputs[2] ?? 0;
-      const rightDy = outputs[3] ?? 0;
-      this.left.update(leftDx, leftDy, dt);
-      this.right.update(rightDx, rightDy, dt);
-    }
-
-    handlePlayerCollision(player){
-      const dx = this.ball.x - player.x;
-      const dy = this.ball.y - player.y;
-      const distSq = dx*dx + dy*dy;
-      const minDist = PLAYER_RADIUS + BALL_RADIUS - 2;
-      if(distSq >= minDist*minDist) return false;
-      const dist = Math.sqrt(distSq) || 0.0001;
-      const nx = dx / dist;
-      const ny = dy / dist;
-      const speed = Math.max(280, Math.min(MAX_BALL_SPEED, Math.hypot(this.ball.vx, this.ball.vy) * 0.95 + 40));
-      this.ball.vx = nx * speed;
-      this.ball.vy = ny * speed - 80 + player.vy * 0.25;
-      this.ball.x = player.x + nx * (minDist + 1);
-      this.ball.y = player.y + ny * (minDist + 1);
-      this.lastTouchSide = player.side;
-      this.touches++;
-      this.fitness += TOUCH_REWARD;
-      return true;
-    }
-
-    resolveNetCollision(){
-      const netLeft = NET_X - NET_WIDTH/2;
-      const netRight = NET_X + NET_WIDTH/2;
-      const netTop = NET_TOP;
-      const netBottom = NET_TOP + NET_HEIGHT;
-      let closestX = clamp(this.ball.x, netLeft, netRight);
-      let closestY = clamp(this.ball.y, netTop, netBottom);
-      let dx = this.ball.x - closestX;
-      let dy = this.ball.y - closestY;
-      const distSq = dx*dx + dy*dy;
-      if(distSq >= BALL_RADIUS * BALL_RADIUS){
-        return false;
-      }
-      let nx, ny;
-      if(distSq === 0){
-        const distances = [
-          {dist: Math.abs(this.ball.x - netLeft), nx: -1, ny: 0, adjustX: netLeft},
-          {dist: Math.abs(netRight - this.ball.x), nx: 1, ny: 0, adjustX: netRight},
-          {dist: Math.abs(this.ball.y - netTop), nx: 0, ny: -1, adjustY: netTop},
-          {dist: Math.abs(netBottom - this.ball.y), nx: 0, ny: 1, adjustY: netBottom}
-        ].sort((a,b)=> a.dist - b.dist);
-        const closest = distances[0];
-        nx = closest.nx;
-        ny = closest.ny;
-        if(closest.adjustX !== undefined) closestX = closest.adjustX;
-        if(closest.adjustY !== undefined) closestY = closest.adjustY;
-      } else {
-        const dist = Math.sqrt(distSq);
-        nx = dx / dist;
-        ny = dy / dist;
-      }
-      const dot = this.ball.vx * nx + this.ball.vy * ny;
-      this.ball.vx -= 2 * dot * nx;
-      this.ball.vy -= 2 * dot * ny;
-      this.ball.vx *= NET_BOUNCE_DAMPING;
-      this.ball.vy *= NET_BOUNCE_DAMPING;
-      this.ball.x = closestX + nx * (BALL_RADIUS + 0.5);
-      this.ball.y = closestY + ny * (BALL_RADIUS + 0.5);
-      this.ball.vx = clamp(this.ball.vx, -MAX_BALL_SPEED, MAX_BALL_SPEED);
-      this.ball.vy = clamp(this.ball.vy, -MAX_BALL_SPEED, MAX_BALL_SPEED);
-      this.ball.lastSide = this.ball.x < NET_X ? 'left' : 'right';
-      return true;
-    }
-
-    handleCollisions(){
-      this.handlePlayerCollision(this.left);
-      this.handlePlayerCollision(this.right);
-      if(this.ball.x - BALL_RADIUS <= 0 || this.ball.x + BALL_RADIUS >= FIELD_WIDTH){
-        this.done = true;
-        return;
-      }
-      if(this.ball.y + BALL_RADIUS >= FIELD_HEIGHT - 20){
-        this.done = true;
-        return;
-      }
-      this.resolveNetCollision();
-      const side = this.ball.x < NET_X ? 'left' : 'right';
-      if(side !== this.ball.lastSide){
-        if(this.ball.y - BALL_RADIUS <= NET_TOP){
-          this.crossings++;
-          this.fitness += CROSS_REWARD;
-          this.spawnSide = side === 'left' ? 'right' : 'left';
-        } else {
-          this.done = true;
-          return;
-        }
-        this.ball.lastSide = side;
-      }
-    }
-
-    update(dt){
-      if(this.done) return;
-      const outputs = this.genome.feedForward(this.getInputs());
-      this.applyOutputs(outputs, dt);
-      this.ball.update(dt);
-      this.handleCollisions();
-      this.steps++;
-      this.fitness += SURVIVAL_REWARD;
-      if(this.steps >= MAX_STEPS_PER_GENOME){
-        this.done = true;
-      }
-      if(this.done && this.crossings > 0 && this.ralliesRemaining > 0){
-        this.ralliesRemaining--;
-        this.ball.reset(this.spawnSide);
-        this.lastTouchSide = this.spawnSide;
-        this.done = false;
-        this.steps = 0;
-        this.left.reset(NET_X - 180, PLAYER_GROUND_Y);
-        this.right.reset(NET_X + 180, PLAYER_GROUND_Y);
-        this.spawnSide = this.spawnSide === 'left' ? 'right' : 'left';
-      }
-    }
-  }
-  function scheduleConfigRefresh(){
-    needsConfigRefresh = true;
-  }
-
-  function readControls(){
-    config.populationSize = Number(Q('slPopulation').value);
-    config.initialHidden = Number(Q('slHidden').value);
-    config.mutationRate = Number(Q('slMutRate').value);
-    config.addConnectionRate = Number(Q('slAddConn').value);
-    config.addNodeRate = Number(Q('slAddNode').value);
-    config.simSpeed = Number(Q('slSimSpeed').value);
-  }
-
-  function restartTraining(){
-    readControls();
-    population = new Population({
-      populationSize: config.populationSize,
-      inputCount: INPUT_COUNT,
-      outputCount: OUTPUT_COUNT
+function drawChart(ctxChart, data, keys, colors) {
+  ctxChart.clearRect(0, 0, ctxChart.canvas.width, ctxChart.canvas.height);
+  if (!data.length) return;
+  const max = Math.max(...data.map(d => Math.max(...keys.map(k => d[k])))) || 1;
+  data.forEach((d, idx) => {
+    keys.forEach((key, ki) => {
+      const v = d[key];
+      const x = (idx / (data.length - 1 || 1)) * ctxChart.canvas.width;
+      const y = ctxChart.canvas.height - (v / max) * ctxChart.canvas.height;
+      ctxChart.fillStyle = colors[ki];
+      ctxChart.fillRect(x, y, 2, ctxChart.canvas.height - y);
     });
-    population.injectHiddenNodes(config.initialHidden);
-    population.speciate();
-    generation = 1;
-    genomeIndex = 0;
-    bestFitness = 0;
-    totalSpecies = population.species.length || 1;
-    evaluationOrder = population.genomes.slice();
-    startCurrentGenome();
-  }
+  });
+}
 
-  function startCurrentGenome(){
-    if(!evaluationOrder.length){
-      currentSession = null;
-      return;
+function simulateStep() {
+  ctx.clearRect(0, 0, simCanvas.width, simCanvas.height);
+  ctx.save();
+  ctx.fillStyle = '#071226';
+  ctx.fillRect(0, env.ground, simCanvas.width, simCanvas.height - env.ground);
+  ctx.fillStyle = 'rgba(124,92,255,0.25)';
+  ctx.fillRect(0, env.ground, simCanvas.width, 20);
+  ctx.fillStyle = env.button.pressed ? '#2dd4bf' : '#f5f8ff';
+  ctx.beginPath();
+  ctx.arc(env.button.x, env.button.y, env.button.radius, 0, TAU);
+  ctx.fill();
+  const dt = 1 / 60;
+  humanoids.forEach((agent, idx) => {
+    const rays = sensorSuite.sample(agent, env);
+    if (currentMode === 'train') {
+      const genome = population.genomes[idx];
+      if (!genome.network) genome.network = genome.buildNetwork(document.getElementById('activationInput').value || 'tanh');
+      const inputs = {};
+      sensorSuite.values.forEach((v, i) => inputs[`in${i}`] = v);
+      const outputs = genome.network.activate(inputs);
+      JOINTS.forEach((joint, jdx) => {
+        const out = outputs[`out${jdx}`] ?? 0;
+        const target = lerp(joint.min, joint.max, (out + 1) / 2);
+        agent.joint(joint.name).target = target;
+      });
+      const lean = outputs[`out${JOINTS.length}`] ?? 0;
+      agent.torsoAngVel += clamp(lean, -1, 1) * 0.12;
+    } else {
+      applyManualControls(agent);
     }
-    const genome = evaluationOrder[genomeIndex];
-    genome.fitness = 0;
-    currentSession = new VolleyballSession(genome);
-    updateStats();
+    agent.step(dt, env);
+    drawHumanoid(agent, rays);
+  });
+  ctx.restore();
+  drawAwareness();
+  stepCount++;
+  episodeTimer += dt;
+  if (currentMode === 'train' && episodeTimer > settings.episodeLength) {
+    runGeneration();
   }
+  requestAnimationFrame(simulateStep);
+}
 
-  function finishGenome(){
-    if(!currentSession) return;
-    const genome = evaluationOrder[genomeIndex];
-    genome.fitness = Math.max(genome.fitness, currentSession.fitness);
-    if(genome.fitness > bestFitness){
-      bestFitness = genome.fitness;
-    }
-    genomeIndex++;
-    if(genomeIndex >= evaluationOrder.length){
-      population.evolve(config);
-      evaluationOrder = population.genomes.slice();
-      genomeIndex = 0;
-      generation++;
-      totalSpecies = population.species.length || 1;
-    }
-    startCurrentGenome();
-  }
-
-  function updateStats(){
-    Q('stat-generation').textContent = generation;
-    Q('stat-genome').textContent = evaluationOrder.length ? `${genomeIndex + 1} / ${evaluationOrder.length}` : '0 / 0';
-    Q('stat-best').textContent = bestFitness.toFixed(1);
-    Q('stat-crossings').textContent = currentSession ? currentSession.crossings : 0;
-    Q('stat-species').textContent = totalSpecies;
-  }
-
-  function drawBackground(){
-    const gradient = ctx.createLinearGradient(0, 0, 0, FIELD_HEIGHT);
-    gradient.addColorStop(0, '#0b1435');
-    gradient.addColorStop(1, '#030817');
-    ctx.fillStyle = gradient;
-    ctx.fillRect(0, 0, FIELD_WIDTH, FIELD_HEIGHT);
-    ctx.strokeStyle = 'rgba(148,163,209,0.35)';
-    ctx.lineWidth = 2;
-    ctx.strokeRect(20, 20, FIELD_WIDTH-40, FIELD_HEIGHT-40);
-    ctx.fillStyle = 'rgba(14,30,70,0.65)';
-    ctx.fillRect(20, FIELD_HEIGHT-100, FIELD_WIDTH-40, 80);
-  }
-
-  function drawNet(){
-    ctx.save();
-    ctx.fillStyle = 'rgba(56,189,248,0.35)';
-    ctx.fillRect(NET_X - NET_WIDTH/2, NET_TOP, NET_WIDTH, NET_HEIGHT);
-    ctx.strokeStyle = 'rgba(148,163,209,0.55)';
-    ctx.lineWidth = 2;
-    ctx.strokeRect(NET_X - NET_WIDTH/2, NET_TOP, NET_WIDTH, NET_HEIGHT);
-    ctx.restore();
-  }
-
-  function drawPlayer(player, hue, ball){
-    const gradient = ctx.createRadialGradient(player.x, player.y, 6, player.x, player.y, PLAYER_RADIUS);
-    gradient.addColorStop(0, `hsla(${hue},85%,72%,0.95)`);
-    gradient.addColorStop(1, `hsla(${hue},65%,45%,0.35)`);
-
-    const focusAngle = ball ? Math.atan2(ball.y - player.y, ball.x - player.x) : 0;
-    const armSpread = 0.9;
-    const armLength = PLAYER_RADIUS + 26;
-    const handRadius = 7;
-    ctx.save();
-    ctx.lineWidth = 8;
-    ctx.lineCap = 'round';
-    ctx.strokeStyle = `hsla(${hue},85%,72%,0.55)`;
-    ctx.fillStyle = `hsla(${hue},90%,88%,0.35)`;
-    [focusAngle - armSpread, focusAngle + armSpread].forEach((angle)=>{
-      const baseX = player.x + Math.cos(angle) * (PLAYER_RADIUS - 4);
-      const baseY = player.y + Math.sin(angle) * (PLAYER_RADIUS - 4);
-      const elbowX = player.x + Math.cos(angle) * (PLAYER_RADIUS + 8);
-      const elbowY = player.y + Math.sin(angle) * (PLAYER_RADIUS + 8);
-      const handX = player.x + Math.cos(angle) * armLength;
-      const handY = player.y + Math.sin(angle) * armLength;
-      ctx.beginPath();
-      ctx.moveTo(baseX, baseY);
-      ctx.quadraticCurveTo(elbowX, elbowY, handX, handY);
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.arc(handX, handY, handRadius, 0, TAU);
-      ctx.fill();
-      ctx.stroke();
-    });
-    ctx.restore();
-
-    ctx.fillStyle = gradient;
+function drawHumanoid(agent, rays) {
+  const skeleton = agent.computeSkeleton();
+  ctx.strokeStyle = 'rgba(44,64,104,0.5)';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  rays.forEach(ray => {
+    const x = agent.torsoPos.x + Math.cos(ray.angle) * ray.dist;
+    const y = agent.torsoPos.y + Math.sin(ray.angle) * ray.dist;
+    ctx.moveTo(agent.torsoPos.x, agent.torsoPos.y);
+    ctx.lineTo(x, y);
+  });
+  ctx.stroke();
+  const bones = [
+    [skeleton.torsoStart, skeleton.torsoEnd],
+    [skeleton.hipL.start, skeleton.hipL.end],
+    [skeleton.kneeL.start, skeleton.kneeL.end],
+    [skeleton.hipR.start, skeleton.hipR.end],
+    [skeleton.kneeR.start, skeleton.kneeR.end],
+    [skeleton.shoulderL.start, skeleton.shoulderL.end],
+    [skeleton.elbowL.start, skeleton.elbowL.end],
+    [skeleton.shoulderR.start, skeleton.shoulderR.end],
+    [skeleton.elbowR.start, skeleton.elbowR.end],
+    [skeleton.neck.start, skeleton.neck.end]
+  ];
+  ctx.lineWidth = 6;
+  ctx.lineCap = 'round';
+  bones.forEach((bone, idx) => {
+    ctx.strokeStyle = idx < 4 ? '#7c5cff' : idx < 6 ? '#2dd4bf' : '#f8aa4b';
     ctx.beginPath();
-    ctx.arc(player.x, player.y, PLAYER_RADIUS, 0, TAU);
-    ctx.fill();
-    ctx.lineWidth = 6;
-    ctx.strokeStyle = 'rgba(2,6,23,0.6)';
+    ctx.moveTo(bone[0].x, bone[0].y);
+    ctx.lineTo(bone[1].x, bone[1].y);
     ctx.stroke();
-    ctx.lineWidth = 3;
-    ctx.strokeStyle = 'rgba(241,245,255,0.45)';
-    ctx.beginPath();
-    ctx.arc(player.x, player.y, PLAYER_RADIUS - 10, 0, TAU);
-    ctx.stroke();
+  });
+  ctx.fillStyle = '#f5f8ff';
+  ctx.beginPath();
+  ctx.arc(skeleton.neck.end.x, skeleton.neck.end.y, 10, 0, TAU);
+  ctx.fill();
+}
+
+function drawAwareness() {
+  radarCtx.clearRect(0, 0, radarCtx.canvas.width, radarCtx.canvas.height);
+  const rays = sensorSuite.rayCount;
+  radarCtx.save();
+  radarCtx.translate(radarCtx.canvas.width / 2, radarCtx.canvas.height - 10);
+  radarCtx.fillStyle = 'rgba(124,92,255,0.2)';
+  radarCtx.beginPath();
+  radarCtx.moveTo(0, 0);
+  for (let i = 0; i < rays; i++) {
+    const val = sensorSuite.values[i];
+    const angle = (-settings.fov / 2 + (settings.fov * i) / (rays - 1)) * Math.PI / 180;
+    const radius = val * 120;
+    radarCtx.lineTo(Math.cos(angle) * radius, Math.sin(angle) * radius);
   }
+  radarCtx.closePath();
+  radarCtx.fill();
+  radarCtx.restore();
+  heatCtx.clearRect(0, 0, heatCtx.canvas.width, heatCtx.canvas.height);
+  const values = sensorSuite.values;
+  const cellWidth = heatCtx.canvas.width / values.length;
+  values.forEach((v, idx) => {
+    const h = clamp(v, 0, 1) * heatCtx.canvas.height;
+    heatCtx.fillStyle = `hsl(${lerp(220, 140, clamp(v, 0, 1))}, 70%, 60%)`;
+    heatCtx.fillRect(idx * cellWidth, heatCtx.canvas.height - h, cellWidth - 1, h);
+  });
+  const agent = humanoids[0];
+  if (!agent) return;
+  const skeleton = agent.computeSkeleton();
+  const button = env.button;
+  const dx = button.x - agent.torsoPos.x;
+  const direction = dx > 0 ? 'right' : 'left';
+  const distance = Math.abs(dx / 100).toFixed(2);
+  const leaning = agent.torsoAngle > 0.2 ? 'leaning forward' : agent.torsoAngle < -0.2 ? 'leaning back' : 'upright';
+  const hand = Math.min(Math.hypot(button.x - skeleton.elbowL.end.x, button.y - skeleton.elbowL.end.y), Math.hypot(button.x - skeleton.elbowR.end.x, button.y - skeleton.elbowR.end.y));
+  const handState = hand < button.radius + 12 ? 'extend hand now' : 'reach out';
+  awarenessText.textContent = `Target ${distance}m ${direction}; ${leaning}; ${handState}; step ${(agent.contact.right ? 'right' : agent.contact.left ? 'left' : 'lightly')}.`;
+}
 
-  function drawBall(ball){
-    const gradient = ctx.createRadialGradient(ball.x - ball.vx*0.04, ball.y - ball.vy*0.04, 6, ball.x, ball.y, BALL_RADIUS);
-    gradient.addColorStop(0, 'rgba(248,250,252,0.95)');
-    gradient.addColorStop(1, 'rgba(56,189,248,0.45)');
-    ctx.fillStyle = gradient;
-    ctx.beginPath();
-    ctx.arc(ball.x, ball.y, BALL_RADIUS, 0, TAU);
-    ctx.fill();
-    ctx.lineWidth = 2;
-    ctx.strokeStyle = 'rgba(56,189,248,0.65)';
-    ctx.stroke();
+function applyManualControls(agent) {
+  const hipSpeed = 0.02;
+  const kneeSpeed = 0.02;
+  const shoulderSpeed = 0.02;
+  const elbowSpeed = 0.02;
+  if (keyState.has('KeyW')) agent.joint('shoulderL').target += shoulderSpeed;
+  if (keyState.has('KeyS')) agent.joint('shoulderL').target -= shoulderSpeed;
+  if (keyState.has('KeyA')) agent.joint('hipL').target += hipSpeed;
+  if (keyState.has('KeyD')) agent.joint('hipL').target -= hipSpeed;
+  if (keyState.has('ArrowUp')) agent.joint('shoulderR').target += shoulderSpeed;
+  if (keyState.has('ArrowDown')) agent.joint('shoulderR').target -= shoulderSpeed;
+  if (keyState.has('ArrowLeft')) agent.joint('hipR').target += hipSpeed;
+  if (keyState.has('ArrowRight')) agent.joint('hipR').target -= hipSpeed;
+  if (keyState.has('KeyQ')) agent.torsoAngVel -= 0.04;
+  if (keyState.has('KeyE')) agent.torsoAngVel += 0.04;
+  if (keyState.has('KeyZ')) { agent.joint('kneeL').target += kneeSpeed; agent.joint('kneeR').target += kneeSpeed; }
+  if (keyState.has('KeyX')) { agent.joint('kneeL').target -= kneeSpeed; agent.joint('kneeR').target -= kneeSpeed; }
+  if (keyState.has('ShiftLeft')) { agent.joint('elbowL').target += elbowSpeed; agent.joint('elbowR').target += elbowSpeed; }
+  if (keyState.has('Space')) agent.reset();
+  JOINTS.forEach(joint => {
+    const j = agent.joint(joint.name);
+    j.target = clamp(j.target, joint.min, joint.max);
+  });
+}
+
+function toggleMode() {
+  currentMode = currentMode === 'play' ? 'train' : 'play';
+  document.getElementById('mode-indicator').textContent = `Mode: ${currentMode === 'play' ? 'Play' : 'Train'}`;
+  document.getElementById('btnPlayMode').textContent = currentMode === 'play' ? 'Switch to Train' : 'Switch to Play';
+  if (currentMode === 'train' && !population) {
+    initPopulation();
   }
+  resetEpisode();
+}
 
-  function drawOverlay(){
-    if(!currentSession) return;
-    ctx.fillStyle = 'rgba(2,6,23,0.65)';
-    ctx.font = '16px "Inter", system-ui';
-    ctx.fillText(`Fitness: ${currentSession.fitness.toFixed(1)}`, 30, 48);
-    ctx.fillText(`Touches: ${currentSession.touches}`, 30, 70);
-    ctx.fillText(`Crossings: ${currentSession.crossings}`, 30, 92);
-  }
+function attachEvents() {
+  document.getElementById('btnPlayMode').addEventListener('click', toggleMode);
+  document.getElementById('btnStart').addEventListener('click', () => {
+    updateSettingsFromUI();
+    if (currentMode === 'train') initPopulation();
+    resetEpisode();
+  });
+  document.getElementById('btnReset').addEventListener('click', () => {
+    initPopulation();
+  });
+  document.getElementById('btnSave').addEventListener('click', () => {
+    if (population && population.bestGenome) localStorage.setItem('vollylab_best', JSON.stringify(serializeGenome(population.bestGenome)));
+  });
+  document.getElementById('btnLoad').addEventListener('click', () => {
+    const raw = localStorage.getItem('vollylab_best');
+    if (!raw) return;
+    const data = JSON.parse(raw);
+    population.bestGenome = deserializeGenome(data);
+    population.genomes[0] = population.bestGenome.copy();
+  });
+  ['gravityInput','timeScaleInput','rayCountInput','fovInput','kpInput','kdInput','torqueInput','episodeInput'].forEach(id => {
+    document.getElementById(id).addEventListener('change', updateSettingsFromUI);
+  });
+  document.getElementById('curriculumInput').addEventListener('change', e => {
+    curriculumLevel = Number(e.target.value) || 0;
+  });
+  window.addEventListener('keydown', e => { keyState.add(e.code); });
+  window.addEventListener('keyup', e => { keyState.delete(e.code); });
+}
 
-  function render(){
-    drawBackground();
-    drawNet();
-    if(currentSession){
-      drawPlayer(currentSession.left, 160, currentSession.ball);
-      drawPlayer(currentSession.right, 320, currentSession.ball);
-      drawBall(currentSession.ball);
-    }
-    drawOverlay();
-  }
+function serializeGenome(genome) {
+  return {
+    nodes: Array.from(genome.nodes.values()).map(n => ({ id: n.id, type: n.type, bias: n.bias })),
+    connections: genome.connections.map(c => ({ from: c.from, to: c.to, weight: c.weight, enabled: c.enabled, innovation: c.innovation })),
+    fitness: genome.fitness
+  };
+}
+function deserializeGenome(data) {
+  const genome = new Genome();
+  data.nodes.forEach(n => { const node = new NodeGene(n.id, n.type); node.bias = n.bias; genome.nodes.set(node.id, node); });
+  data.connections.forEach(c => genome.connections.push(new ConnectionGene(c.from, c.to, c.weight, c.enabled, c.innovation)));
+  genome.fitness = data.fitness || 0;
+  return genome;
+}
 
-  function loop(){
-    requestAnimationFrame(loop);
-    if(needsConfigRefresh){
-      readControls();
-      needsConfigRefresh = false;
-    }
-    if(!currentSession){
-      render();
-      return;
-    }
-    const steps = Math.max(1, Math.floor(config.simSpeed));
-    for(let i=0;i<steps;i++){
-      currentSession.update(SIM_DT);
-      if(currentSession.done){
-        finishGenome();
-        break;
-      }
-    }
-    render();
-    updateStats();
-  }
+function start() {
+  attachEvents();
+  updateSettingsFromUI();
+  resetEpisode();
+  requestAnimationFrame(simulateStep);
+}
 
-  bindRange('slPopulation','lbPopulation',(v)=> `${v} genomes`);
-  bindRange('slHidden','lbHidden',(v)=> `${v} node${v===1?'':'s'}`);
-  bindRange('slMutRate','lbMutRate',(v)=> `${v}%`);
-  bindRange('slAddConn','lbAddConn',(v)=> `${v}%`);
-  bindRange('slAddNode','lbAddNode',(v)=> `${v}%`);
-  bindRange('slSimSpeed','lbSimSpeed',(v)=> `${v}×`);
-
-  Q('btnRestart').addEventListener('click', restartTraining);
-
-  restartTraining();
-  loop();
-  </script>
+start();
+</script>
 </body>
 </html>
