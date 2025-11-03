@@ -626,6 +626,13 @@
   const MAX_MOVE_SPEED = 280;
   const MAX_BALL_SPEED = 520;
   const GRAVITY = 480;
+  const PLAYER_GROUND_Y = FIELD_HEIGHT - PLAYER_RADIUS - 30;
+  const PLAYER_GRAVITY = 1500;
+  const PLAYER_JUMP_IMPULSE = 620;
+  const PLAYER_FAST_FALL = 1200;
+  const PLAYER_MAX_FALL_SPEED = 900;
+  const PLAYER_MAX_RISE_SPEED = 720;
+  const NET_BOUNCE_DAMPING = 0.75;
   const SIM_DT = 1/60;
   const MAX_STEPS_PER_GENOME = 2200;
   const CROSS_REWARD = 30;
@@ -655,20 +662,61 @@
 
   class Player {
     constructor(x, y, side){
-      this.x = x;
-      this.y = y;
       this.side = side; // 'left' or 'right'
+      this.reset(x, y);
     }
-    update(dx, dy, dt){
-      this.x += clamp(dx, -MAX_MOVE_SPEED, MAX_MOVE_SPEED) * dt;
-      this.y += clamp(dy, -MAX_MOVE_SPEED, MAX_MOVE_SPEED) * dt;
+    reset(x, y){
+      const topLimit = NET_TOP - 40;
+      if(this.side === 'left'){
+        this.x = clamp(x, PLAYER_RADIUS + 20, NET_X - NET_WIDTH/2 - PLAYER_RADIUS - 20);
+      } else {
+        this.x = clamp(x, NET_X + NET_WIDTH/2 + PLAYER_RADIUS + 20, FIELD_WIDTH - PLAYER_RADIUS - 20);
+      }
+      this.y = clamp(y, topLimit, PLAYER_GROUND_Y);
+      this.vy = 0;
+      this.grounded = this.y >= PLAYER_GROUND_Y - 1;
+    }
+    update(dxInput, jumpInput, dt){
+      const horizontal = clamp(dxInput ?? 0, -1, 1) * MAX_MOVE_SPEED;
+      this.x += horizontal * dt;
       if(this.side === 'left'){
         this.x = clamp(this.x, PLAYER_RADIUS + 20, NET_X - NET_WIDTH/2 - PLAYER_RADIUS - 20);
       } else {
         this.x = clamp(this.x, NET_X + NET_WIDTH/2 + PLAYER_RADIUS + 20, FIELD_WIDTH - PLAYER_RADIUS - 20);
       }
+
       const topLimit = NET_TOP - 40;
-      this.y = clamp(this.y, topLimit, FIELD_HEIGHT - PLAYER_RADIUS - 30);
+      const ground = PLAYER_GROUND_Y;
+      const jump = clamp(jumpInput ?? 0, -1, 1);
+      const wasGrounded = this.grounded || (this.y >= ground - 1 && this.vy >= -40);
+      if(wasGrounded){
+        this.y = ground;
+        if(this.vy > 0) this.vy = 0;
+      }
+
+      if(jump > 0.55 && wasGrounded){
+        this.vy = -PLAYER_JUMP_IMPULSE * jump;
+      }
+      if(jump > 0.2 && !wasGrounded){
+        this.vy -= PLAYER_JUMP_IMPULSE * 0.35 * jump * dt;
+      }
+      if(jump < -0.55){
+        this.vy += PLAYER_FAST_FALL * dt * (-jump);
+      }
+
+      this.vy += PLAYER_GRAVITY * dt;
+      this.vy = clamp(this.vy, -PLAYER_MAX_RISE_SPEED, PLAYER_MAX_FALL_SPEED);
+      this.y += this.vy * dt;
+
+      if(this.y < topLimit){
+        this.y = topLimit;
+        if(this.vy < 0) this.vy = 0;
+      }
+      if(this.y > ground){
+        this.y = ground;
+        if(this.vy > 0) this.vy = 0;
+      }
+      this.grounded = this.y >= ground - 1;
     }
   }
 
@@ -706,8 +754,8 @@
   class VolleyballSession {
     constructor(genome){
       this.genome = genome;
-      this.left = new Player(NET_X - 180, FIELD_HEIGHT - 120, 'left');
-      this.right = new Player(NET_X + 180, FIELD_HEIGHT - 120, 'right');
+      this.left = new Player(NET_X - 180, PLAYER_GROUND_Y, 'left');
+      this.right = new Player(NET_X + 180, PLAYER_GROUND_Y, 'right');
       this.ball = new Ball();
       this.done = false;
       this.steps = 0;
@@ -742,8 +790,8 @@
       const leftDy = outputs[1] ?? 0;
       const rightDx = outputs[2] ?? 0;
       const rightDy = outputs[3] ?? 0;
-      this.left.update(leftDx * MAX_MOVE_SPEED, leftDy * MAX_MOVE_SPEED, dt);
-      this.right.update(rightDx * MAX_MOVE_SPEED, rightDy * MAX_MOVE_SPEED, dt);
+      this.left.update(leftDx, leftDy, dt);
+      this.right.update(rightDx, rightDy, dt);
     }
 
     handlePlayerCollision(player){
@@ -757,12 +805,56 @@
       const ny = dy / dist;
       const speed = Math.max(280, Math.min(MAX_BALL_SPEED, Math.hypot(this.ball.vx, this.ball.vy) * 0.95 + 40));
       this.ball.vx = nx * speed;
-      this.ball.vy = ny * speed - 80;
+      this.ball.vy = ny * speed - 80 + player.vy * 0.25;
       this.ball.x = player.x + nx * (minDist + 1);
       this.ball.y = player.y + ny * (minDist + 1);
       this.lastTouchSide = player.side;
       this.touches++;
       this.fitness += TOUCH_REWARD;
+      return true;
+    }
+
+    resolveNetCollision(){
+      const netLeft = NET_X - NET_WIDTH/2;
+      const netRight = NET_X + NET_WIDTH/2;
+      const netTop = NET_TOP;
+      const netBottom = NET_TOP + NET_HEIGHT;
+      let closestX = clamp(this.ball.x, netLeft, netRight);
+      let closestY = clamp(this.ball.y, netTop, netBottom);
+      let dx = this.ball.x - closestX;
+      let dy = this.ball.y - closestY;
+      const distSq = dx*dx + dy*dy;
+      if(distSq >= BALL_RADIUS * BALL_RADIUS){
+        return false;
+      }
+      let nx, ny;
+      if(distSq === 0){
+        const distances = [
+          {dist: Math.abs(this.ball.x - netLeft), nx: -1, ny: 0, adjustX: netLeft},
+          {dist: Math.abs(netRight - this.ball.x), nx: 1, ny: 0, adjustX: netRight},
+          {dist: Math.abs(this.ball.y - netTop), nx: 0, ny: -1, adjustY: netTop},
+          {dist: Math.abs(netBottom - this.ball.y), nx: 0, ny: 1, adjustY: netBottom}
+        ].sort((a,b)=> a.dist - b.dist);
+        const closest = distances[0];
+        nx = closest.nx;
+        ny = closest.ny;
+        if(closest.adjustX !== undefined) closestX = closest.adjustX;
+        if(closest.adjustY !== undefined) closestY = closest.adjustY;
+      } else {
+        const dist = Math.sqrt(distSq);
+        nx = dx / dist;
+        ny = dy / dist;
+      }
+      const dot = this.ball.vx * nx + this.ball.vy * ny;
+      this.ball.vx -= 2 * dot * nx;
+      this.ball.vy -= 2 * dot * ny;
+      this.ball.vx *= NET_BOUNCE_DAMPING;
+      this.ball.vy *= NET_BOUNCE_DAMPING;
+      this.ball.x = closestX + nx * (BALL_RADIUS + 0.5);
+      this.ball.y = closestY + ny * (BALL_RADIUS + 0.5);
+      this.ball.vx = clamp(this.ball.vx, -MAX_BALL_SPEED, MAX_BALL_SPEED);
+      this.ball.vy = clamp(this.ball.vy, -MAX_BALL_SPEED, MAX_BALL_SPEED);
+      this.ball.lastSide = this.ball.x < NET_X ? 'left' : 'right';
       return true;
     }
 
@@ -777,10 +869,7 @@
         this.done = true;
         return;
       }
-      if(this.ball.x > NET_X - NET_WIDTH/2 && this.ball.x < NET_X + NET_WIDTH/2 && this.ball.y + BALL_RADIUS > NET_TOP){
-        this.done = true;
-        return;
-      }
+      this.resolveNetCollision();
       const side = this.ball.x < NET_X ? 'left' : 'right';
       if(side !== this.ball.lastSide){
         if(this.ball.y - BALL_RADIUS <= NET_TOP){
@@ -812,10 +901,8 @@
         this.lastTouchSide = this.spawnSide;
         this.done = false;
         this.steps = 0;
-        this.left.x = NET_X - 180;
-        this.left.y = FIELD_HEIGHT - 120;
-        this.right.x = NET_X + 180;
-        this.right.y = FIELD_HEIGHT - 120;
+        this.left.reset(NET_X - 180, PLAYER_GROUND_Y);
+        this.right.reset(NET_X + 180, PLAYER_GROUND_Y);
         this.spawnSide = this.spawnSide === 'left' ? 'right' : 'left';
       }
     }
@@ -910,10 +997,38 @@
     ctx.restore();
   }
 
-  function drawPlayer(player, hue){
+  function drawPlayer(player, hue, ball){
     const gradient = ctx.createRadialGradient(player.x, player.y, 6, player.x, player.y, PLAYER_RADIUS);
     gradient.addColorStop(0, `hsla(${hue},85%,72%,0.95)`);
     gradient.addColorStop(1, `hsla(${hue},65%,45%,0.35)`);
+
+    const focusAngle = ball ? Math.atan2(ball.y - player.y, ball.x - player.x) : 0;
+    const armSpread = 0.9;
+    const armLength = PLAYER_RADIUS + 26;
+    const handRadius = 7;
+    ctx.save();
+    ctx.lineWidth = 8;
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = `hsla(${hue},85%,72%,0.55)`;
+    ctx.fillStyle = `hsla(${hue},90%,88%,0.35)`;
+    [focusAngle - armSpread, focusAngle + armSpread].forEach((angle)=>{
+      const baseX = player.x + Math.cos(angle) * (PLAYER_RADIUS - 4);
+      const baseY = player.y + Math.sin(angle) * (PLAYER_RADIUS - 4);
+      const elbowX = player.x + Math.cos(angle) * (PLAYER_RADIUS + 8);
+      const elbowY = player.y + Math.sin(angle) * (PLAYER_RADIUS + 8);
+      const handX = player.x + Math.cos(angle) * armLength;
+      const handY = player.y + Math.sin(angle) * armLength;
+      ctx.beginPath();
+      ctx.moveTo(baseX, baseY);
+      ctx.quadraticCurveTo(elbowX, elbowY, handX, handY);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(handX, handY, handRadius, 0, TAU);
+      ctx.fill();
+      ctx.stroke();
+    });
+    ctx.restore();
+
     ctx.fillStyle = gradient;
     ctx.beginPath();
     ctx.arc(player.x, player.y, PLAYER_RADIUS, 0, TAU);
@@ -954,8 +1069,8 @@
     drawBackground();
     drawNet();
     if(currentSession){
-      drawPlayer(currentSession.left, 160);
-      drawPlayer(currentSession.right, 320);
+      drawPlayer(currentSession.left, 160, currentSession.ball);
+      drawPlayer(currentSession.right, 320, currentSession.ball);
       drawBall(currentSession.ball);
     }
     drawOverlay();
