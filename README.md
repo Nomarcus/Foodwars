@@ -3,7 +3,7 @@
 Foodwars is a simple front-end HTML project — a browser-based game or interactive demo built with plain HTML (and optionally CSS/JS included in the repo). This repository currently contains only HTML files.
 
 ## Features
-- Single-page or multi-page HTML-based experience
+- Single-page or multi-page HTML-based experience, including the new cooperative VolleySim experiment (`volleyball.html`)
 - No build tools required
 - Ready to open and play in any modern browser
 
