@@ -1268,6 +1268,7 @@ const goalStates = {};
 const bestFitnessByTeam = {};
 const teamScoreBook = new Map();
 const teamScoreDisplays = new Map();
+const teamBadgeDisplays = new Map();
 
 function updateFruitPlacementUI(mode){
   const options = document.querySelectorAll('.fruit-placement-options input[name="fruitPlacement"]');
@@ -1386,15 +1387,19 @@ function getTeamScoreData(teamId){
 }
 
 function updateTeamScoreDisplay(teamId){
-  const el = teamScoreDisplays.get(teamId);
-  if(!el) return;
   const data = getTeamScoreData(teamId);
   const points = Math.round(data.score || 0);
   const team = params.teams.find((t)=> t.id === teamId);
-  if(team?.role === 'blocker'){
-    el.textContent = `${data.blocks || 0}`;
-    return;
+  const badge = teamBadgeDisplays.get(teamId);
+  if(badge){
+    if(team?.role === 'blocker'){
+      badge.textContent = `${data.blocks || 0}`;
+    }else{
+      badge.textContent = team?.icon || '●';
+    }
   }
+  const el = teamScoreDisplays.get(teamId);
+  if(!el) return;
   const metrics = [];
   metrics.push(`${data.pickups} caught`);
   metrics.push(`${data.deliveries} delivered`);
@@ -1794,6 +1799,7 @@ function renderTeamRoster(){
   if(!roster) return;
   roster.innerHTML='';
   teamScoreDisplays.clear();
+  teamBadgeDisplays.clear();
   params.teams.forEach((team)=>{
     const card=document.createElement('div');
     card.className='team-card';
@@ -1817,6 +1823,7 @@ function renderTeamRoster(){
       badge.style.background=team.color;
       badge.style.color='#fff';
     }
+    teamBadgeDisplays.set(team.id, badge);
     const name=document.createElement('span');
     name.className='team-name';
     name.textContent=team.label;
@@ -5719,11 +5726,8 @@ if(btnUndoManual){
 const btnClearManual = Q('btnClearManual');
 if(btnClearManual){
   btnClearManual.addEventListener('click', ()=>{
-    for(let i=obstacles.length-1; i>=0; i--){
-      if(obstacles[i].manual){
-        obstacles.splice(i,1);
-      }
-    }
+    obstacles.length = 0;
+    setRangeValue('slObst', 0);
     syncManualObstacleState();
     markPathCostDirty();
   });
