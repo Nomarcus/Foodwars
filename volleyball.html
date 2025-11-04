@@ -115,13 +115,13 @@
         </section>
         <section class="legend">
           <strong>Objective</strong>
-          <p>Two cooperative agents learn to keep a glowing ball alive by volleying it over the central net. The ball now <span style="color:var(--ok);font-weight:700">bounces off side walls</span> (damped) for longer rallies.</p>
-          <p>Fitness rewards long rallies, clean upward hits, coordinated touches, and safe net clears. Minor penalties apply for net clips and stalling.</p>
+          <p>Four cooperative agents (two per side) learn to keep a glowing ball alive by volleying it over the central net. The ball now <span style="color:var(--ok);font-weight:700">bounces off side walls</span> (damped) for longer rallies.</p>
+          <p>Fitness rewards long rallies, clean upward hits, coordinated multi-player touches, and safe net clears. Minor penalties apply for net clips and stalling.</p>
         </section>
       </aside>
       <div class="field-area">
         <div class="playfield-frame">
-          <canvas id="court" width="1080" height="620" aria-label="Volley simulation field"></canvas>
+          <canvas id="court" width="1280" height="700" aria-label="Volley simulation field"></canvas>
         </div>
         <section class="stats-bar" aria-live="polite" aria-label="Simulation statistics">
           <div class="stat-card"><span class="stat-label">Generation</span><span class="stat-value" id="stat-generation">1</span></div>
@@ -140,6 +140,19 @@
   const randRange = (min, max)=> Math.random() * (max - min) + min;
   const clamp = (value, min, max)=> Math.max(min, Math.min(max, value));
   const TAU = Math.PI * 2;
+
+  const wrapAngle = (angle)=> {
+    if(!Number.isFinite(angle)) return 0;
+    while(angle <= -Math.PI) angle += TAU;
+    while(angle > Math.PI) angle -= TAU;
+    return angle;
+  };
+
+  const moveTowardAngle = (current, target, maxDelta)=> {
+    const diff = wrapAngle(target - current);
+    const delta = clamp(diff, -maxDelta, maxDelta);
+    return current + delta;
+  };
 
   const Q = (id)=> document.getElementById(id);
 
@@ -260,24 +273,21 @@
     // (8) Give useful initial priors to vertical outputs
     primeOutputBias(){
       const outStart = this.population.outputStart;
-      const OUT_LX = outStart+0, OUT_LY = outStart+1, OUT_RX = outStart+2, OUT_RY = outStart+3;
-      // Input indexes mapping (from getInputs)
-      const IN_BX=0, IN_BY=1, IN_BVX=2, IN_BVY=3, IN_LX=4, IN_LY=5, IN_RX=6, IN_RY=7, IN_LDX=8, IN_LDY=9, IN_RDX=10, IN_RDY=11, IN_TOUCH=12;
+      const players = [
+        {outX: outStart + OutputIndex.LEFT1_X, outY: outStart + OutputIndex.LEFT1_Y, dx: InputIndex.LEFT1_DX, dy: InputIndex.LEFT1_DY},
+        {outX: outStart + OutputIndex.LEFT2_X, outY: outStart + OutputIndex.LEFT2_Y, dx: InputIndex.LEFT2_DX, dy: InputIndex.LEFT2_DY},
+        {outX: outStart + OutputIndex.RIGHT1_X, outY: outStart + OutputIndex.RIGHT1_Y, dx: InputIndex.RIGHT1_DX, dy: InputIndex.RIGHT1_DY},
+        {outX: outStart + OutputIndex.RIGHT2_X, outY: outStart + OutputIndex.RIGHT2_Y, dx: InputIndex.RIGHT2_DX, dy: InputIndex.RIGHT2_DY}
+      ];
 
       for(const c of this.connections){
-        // Stronger weight from relative vertical error & ball vy to vertical outputs
-        if(c.to === OUT_LY && (c.from === IN_LDY || c.from === IN_BVY || c.from === IN_BY)){
-          c.weight += Math.abs(c.weight) + randRange(0.6, 1.2);
-        }
-        if(c.to === OUT_RY && (c.from === IN_RDY || c.from === IN_BVY || c.from === IN_BY)){
-          c.weight += Math.abs(c.weight) + randRange(0.6, 1.2);
-        }
-        // Helpful bias from horizontal error to horizontal outputs
-        if(c.to === OUT_LX && (c.from === IN_LDX || c.from === IN_BX || c.from === IN_BVX)){
-          c.weight += Math.abs(c.weight) + randRange(0.3, 0.8);
-        }
-        if(c.to === OUT_RX && (c.from === IN_RDX || c.from === IN_BX || c.from === IN_BVX)){
-          c.weight += Math.abs(c.weight) + randRange(0.3, 0.8);
+        for(const player of players){
+          if(c.to === player.outY && (c.from === player.dy || c.from === InputIndex.BALL_VY || c.from === InputIndex.BALL_Y)){
+            c.weight += Math.abs(c.weight) + randRange(0.6, 1.2);
+          }
+          if(c.to === player.outX && (c.from === player.dx || c.from === InputIndex.BALL_X || c.from === InputIndex.BALL_VX)){
+            c.weight += Math.abs(c.weight) + randRange(0.3, 0.8);
+          }
         }
       }
       this._markDirty();
@@ -653,7 +663,7 @@
   const FLOOR_Y = FIELD_HEIGHT - 20;
   const NET_X = FIELD_WIDTH / 2;
   const NET_WIDTH = 14;
-  const NET_HEIGHT = 240;
+  const NET_HEIGHT = 260;
   const NET_TOP = FIELD_HEIGHT - NET_HEIGHT;
   const PLAYER_RADIUS = 32;
   const BALL_RADIUS = 18;
@@ -676,8 +686,55 @@
   const TOUCH_REWARD = 4;
   const SURVIVAL_REWARD = 0.06;
 
-  const INPUT_COUNT = 13;
-  const OUTPUT_COUNT = 4;
+  const TEAM_SIZE = 2;
+  const SHOULDER_SPREAD = 22;
+  const SHOULDER_HEIGHT = -18;
+  const UPPER_ARM_LENGTH = 34;
+  const LOWER_ARM_LENGTH = 38;
+  const ARM_TOTAL_REACH = UPPER_ARM_LENGTH + LOWER_ARM_LENGTH;
+  const HAND_HIT_RADIUS = 14;
+  const ARM_SWING_RATE = Math.PI * 4.2;
+  const ARM_FACING_LIMIT = Math.PI * 0.72;
+  const ARM_STRIKE_BONUS = 2.5;
+  const ARM_DRAW_WIDTH = 8.5;
+
+  const INPUT_COUNT = 21;
+  const OUTPUT_COUNT = 8;
+
+  const InputIndex = Object.freeze({
+    BALL_X: 0,
+    BALL_Y: 1,
+    BALL_VX: 2,
+    BALL_VY: 3,
+    LEFT1_X: 4,
+    LEFT1_Y: 5,
+    LEFT2_X: 6,
+    LEFT2_Y: 7,
+    RIGHT1_X: 8,
+    RIGHT1_Y: 9,
+    RIGHT2_X: 10,
+    RIGHT2_Y: 11,
+    LEFT1_DX: 12,
+    LEFT1_DY: 13,
+    LEFT2_DX: 14,
+    LEFT2_DY: 15,
+    RIGHT1_DX: 16,
+    RIGHT1_DY: 17,
+    RIGHT2_DX: 18,
+    RIGHT2_DY: 19,
+    TOUCH: 20
+  });
+
+  const OutputIndex = Object.freeze({
+    LEFT1_X: 0,
+    LEFT1_Y: 1,
+    LEFT2_X: 2,
+    LEFT2_Y: 3,
+    RIGHT1_X: 4,
+    RIGHT1_Y: 5,
+    RIGHT2_X: 6,
+    RIGHT2_Y: 7
+  });
 
   const config = {
     populationSize: 30,
@@ -699,10 +756,27 @@
   let baseMutationAtStart = config.mutationRate;
 
   class Player {
-    constructor(x, y, side){
+    constructor(x, y, side, slot){
       this.side = side; // 'left' or 'right'
+      this.slot = slot;
+      this.shoulderOffsets = side === 'left'
+        ? [{x: -SHOULDER_SPREAD, y: SHOULDER_HEIGHT}, {x: SHOULDER_SPREAD, y: SHOULDER_HEIGHT}]
+        : [{x: SHOULDER_SPREAD, y: SHOULDER_HEIGHT}, {x: -SHOULDER_SPREAD, y: SHOULDER_HEIGHT}];
+      this.armAngles = [0, 0];
+      this.armSegments = [{}, {}];
       this.reset(x, y);
     }
+
+    resetArmAngles(){
+      const baseFacing = this.side === 'left' ? 0 : Math.PI;
+      const spread = 0.45;
+      if(this.side === 'left'){
+        this.armAngles = [baseFacing - spread, baseFacing + spread];
+      } else {
+        this.armAngles = [baseFacing + spread, baseFacing - spread];
+      }
+    }
+
     reset(x, y){
       const topLimit = NET_TOP - 40;
       if(this.side === 'left'){
@@ -711,12 +785,17 @@
         this.x = clamp(x, NET_X + NET_WIDTH/2 + PLAYER_RADIUS + 20, FIELD_WIDTH - PLAYER_RADIUS - 20);
       }
       this.y = clamp(y, topLimit, PLAYER_GROUND_Y);
+      this.vx = 0;
       this.vy = 0;
       this.grounded = this.y >= PLAYER_GROUND_Y - 1;
+      this.resetArmAngles();
+      this.updateArms(null, 0);
     }
-    update(dxInput, jumpInput, dt){
-      const horizontal = clamp(dxInput ?? 0, -1, 1) * MAX_MOVE_SPEED;
-      this.x += horizontal * dt;
+
+    update(dxInput, jumpInput, dt, ball){
+      const horizontal = clamp(dxInput ?? 0, -1, 1);
+      const prevX = this.x;
+      this.x += horizontal * MAX_MOVE_SPEED * dt;
       if(this.side === 'left'){
         this.x = clamp(this.x, PLAYER_RADIUS + 20, NET_X - NET_WIDTH/2 - PLAYER_RADIUS - 20);
       } else {
@@ -755,6 +834,80 @@
         if(this.vy > 0) this.vy = 0;
       }
       this.grounded = this.y >= ground - 1;
+      this.vx = (this.x - prevX) / dt;
+      this.updateArms(ball, dt);
+    }
+
+    updateArms(ball, dt){
+      const baseFacing = this.side === 'left' ? 0 : Math.PI;
+      const offsets = this.side === 'left' ? [-0.35, 0.35] : [0.35, -0.35];
+      const targetAngle = ball ? Math.atan2(ball.y - this.y, ball.x - this.x) : baseFacing;
+      const aim = wrapAngle(targetAngle);
+      for(let i=0;i<2;i++){
+        const desired = baseFacing + clamp(wrapAngle(aim + offsets[i] - baseFacing), -ARM_FACING_LIMIT, ARM_FACING_LIMIT);
+        const current = this.armAngles[i] ?? desired;
+        const maxDelta = ARM_SWING_RATE * dt;
+        this.armAngles[i] = moveTowardAngle(current, desired, maxDelta);
+        const shoulderOffset = this.shoulderOffsets[i];
+        const shoulderX = this.x + shoulderOffset.x;
+        const shoulderY = this.y + shoulderOffset.y;
+        let targetX = shoulderX;
+        let targetY = shoulderY + 40;
+        if(ball){
+          targetX = ball.x;
+          targetY = ball.y;
+        }
+        const dx = targetX - shoulderX;
+        const dy = targetY - shoulderY;
+        const dist = Math.hypot(dx, dy);
+        const reach = Math.min(ARM_TOTAL_REACH, dist + 18);
+        const elbowLen = Math.min(UPPER_ARM_LENGTH, Math.max(UPPER_ARM_LENGTH * 0.4, reach * 0.55));
+        const handLen = Math.min(LOWER_ARM_LENGTH, Math.max(LOWER_ARM_LENGTH * 0.35, reach - elbowLen));
+        const elbowX = shoulderX + Math.cos(this.armAngles[i]) * elbowLen;
+        const elbowY = shoulderY + Math.sin(this.armAngles[i]) * elbowLen;
+        const handX = elbowX + Math.cos(this.armAngles[i]) * handLen;
+        const handY = elbowY + Math.sin(this.armAngles[i]) * handLen;
+        this.armSegments[i] = {shoulderX, shoulderY, elbowX, elbowY, handX, handY, handRadius: HAND_HIT_RADIUS};
+      }
+    }
+
+    tryHitBall(ball){
+      if(!ball) return null;
+      if(!this.armSegments || this.armSegments.length < 2){
+        this.updateArms(ball, 0);
+      }
+      for(const arm of this.armSegments){
+        if(!arm) continue;
+        const dx = ball.x - arm.handX;
+        const dy = ball.y - arm.handY;
+        const dist = Math.hypot(dx, dy);
+        const minDist = BALL_RADIUS + (arm.handRadius ?? HAND_HIT_RADIUS);
+        if(dist < minDist){
+          const nx = dist > 0 ? dx / dist : 0;
+          const ny = dist > 0 ? dy / dist : -1;
+          const speed = Math.max(360, Math.min(MAX_BALL_SPEED, Math.hypot(ball.vx, ball.vy) * 0.85 + 220));
+          ball.vx = nx * speed + this.vx * 0.45;
+          ball.vy = ny * speed - 140 + this.vy * 0.25;
+          ball.x = arm.handX + nx * (minDist + 0.5);
+          ball.y = arm.handY + ny * (minDist + 0.5);
+          return {type: 'arm', normalX: nx, normalY: ny};
+        }
+      }
+
+      const dx = ball.x - this.x;
+      const dy = ball.y - this.y;
+      const distSq = dx*dx + dy*dy;
+      const minDist = PLAYER_RADIUS + BALL_RADIUS - 2;
+      if(distSq >= minDist*minDist) return null;
+      const dist = Math.sqrt(distSq) || 0.0001;
+      const nx = dx / dist;
+      const ny = dy / dist;
+      const speed = Math.max(280, Math.min(MAX_BALL_SPEED, Math.hypot(ball.vx, ball.vy) * 0.95 + 40));
+      ball.vx = nx * speed;
+      ball.vy = ny * speed - 80 + this.vy * 0.25;
+      ball.x = this.x + nx * (minDist + 1);
+      ball.y = this.y + ny * (minDist + 1);
+      return {type: 'head', normalX: nx, normalY: ny};
     }
   }
 
@@ -764,14 +917,14 @@
     }
     reset(side){
       if(side === 'right'){
-        this.x = NET_X + 120;
-        this.vx = randRange(-220, -160);
+        this.x = NET_X + 170;
+        this.vx = randRange(-240, -150);
       } else {
-        this.x = NET_X - 120;
-        this.vx = randRange(160, 220);
+        this.x = NET_X - 170;
+        this.vx = randRange(150, 240);
       }
-      this.y = NET_TOP - randRange(40, 90);
-      this.vy = randRange(-160, -80);
+      this.y = NET_TOP - randRange(40, 110);
+      this.vy = randRange(-180, -90);
       this.lastSide = side;
     }
     update(dt){
@@ -794,9 +947,16 @@
   class VolleyballSession {
     constructor(genome){
       this.genome = genome;
-      this.left = new Player(NET_X - 180, PLAYER_GROUND_Y, 'left');
-      this.right = new Player(NET_X + 180, PLAYER_GROUND_Y, 'right');
       this.ball = new Ball();
+      this.leftTeam = [
+        new Player(NET_X - 260, PLAYER_GROUND_Y, 'left', 0),
+        new Player(NET_X - 150, PLAYER_GROUND_Y, 'left', 1)
+      ];
+      this.rightTeam = [
+        new Player(NET_X + 260, PLAYER_GROUND_Y, 'right', 0),
+        new Player(NET_X + 150, PLAYER_GROUND_Y, 'right', 1)
+      ];
+      this.players = [...this.leftTeam, ...this.rightTeam];
       this.done = false;
       this.steps = 0;
       this.crossings = 0;
@@ -807,63 +967,79 @@
       this.lastTouchSide = this.spawnSide;
       this.ralliesRemaining = 2;
       this.mirrored = Math.random() < 0.5; // (9) mirror randomization
-      this.coordinationTouched = new Set(); // (4) team coordination tracking
+      this.coordinationTouched = {left: new Set(), right: new Set()};
       this.lastBallX = this.ball.x; // (2) anti-idle
       this.idleTicks = 0;
+      this.resetPlayers();
     }
 
-    // Inputs: [bx,by,bvx,bvy,lx,ly,rx,ry,ldx,ldy,rdx,rdy,touch]
+    resetPlayers(){
+      const leftStarts = [NET_X - 260, NET_X - 150];
+      const rightStarts = [NET_X + 260, NET_X + 150];
+      this.leftTeam.forEach((player, idx)=> player.reset(leftStarts[idx], PLAYER_GROUND_Y));
+      this.rightTeam.forEach((player, idx)=> player.reset(rightStarts[idx], PLAYER_GROUND_Y));
+    }
+
     getInputs(){
       const bx = this.ball.x / FIELD_WIDTH;
       const by = this.ball.y / FIELD_HEIGHT;
       const bvx = this.ball.vx / MAX_BALL_SPEED;
       const bvy = this.ball.vy / MAX_BALL_SPEED;
-      const lx = this.left.x / FIELD_WIDTH;
-      const ly = this.left.y / FIELD_HEIGHT;
-      const rx = this.right.x / FIELD_WIDTH;
-      const ry = this.right.y / FIELD_HEIGHT;
-      const ldx = (this.ball.x - this.left.x) / FIELD_WIDTH;
-      const ldy = (this.ball.y - this.left.y) / FIELD_HEIGHT;
-      const rdx = (this.ball.x - this.right.x) / FIELD_WIDTH;
-      const rdy = (this.ball.y - this.right.y) / FIELD_HEIGHT;
-      const touch = this.lastTouchSide === 'left' ? -1 : 1;
-      return [bx, by, bvx, bvy, lx, ly, rx, ry, ldx, ldy, rdx, rdy, touch];
+      const players = [...this.leftTeam, ...this.rightTeam];
+      const positions = players.map((p)=> [p.x / FIELD_WIDTH, p.y / FIELD_HEIGHT]);
+      const relatives = players.map((p)=> [(this.ball.x - p.x) / FIELD_WIDTH, (this.ball.y - p.y) / FIELD_HEIGHT]);
+      const touch = this.lastTouchSide === 'left' ? -1 : this.lastTouchSide === 'right' ? 1 : 0;
+      return [
+        bx, by, bvx, bvy,
+        positions[0][0], positions[0][1],
+        positions[1][0], positions[1][1],
+        positions[2][0], positions[2][1],
+        positions[3][0], positions[3][1],
+        relatives[0][0], relatives[0][1],
+        relatives[1][0], relatives[1][1],
+        relatives[2][0], relatives[2][1],
+        relatives[3][0], relatives[3][1],
+        touch
+      ];
     }
 
     applyOutputs(outputs, dt){
-      // (9) mirror: swap control mapping  (Lx,Ly,Rx,Ry)
-      const o = outputs;
-      const Lx = this.mirrored ? (o[2] ?? 0) : (o[0] ?? 0);
-      const Ly = this.mirrored ? (o[3] ?? 0) : (o[1] ?? 0);
-      const Rx = this.mirrored ? (o[0] ?? 0) : (o[2] ?? 0);
-      const Ry = this.mirrored ? (o[1] ?? 0) : (o[3] ?? 0);
-      this.left.update(Lx, Ly, dt);
-      this.right.update(Rx, Ry, dt);
+      const commands = [
+        {dx: outputs[OutputIndex.LEFT1_X] ?? 0, jump: outputs[OutputIndex.LEFT1_Y] ?? 0},
+        {dx: outputs[OutputIndex.LEFT2_X] ?? 0, jump: outputs[OutputIndex.LEFT2_Y] ?? 0},
+        {dx: outputs[OutputIndex.RIGHT1_X] ?? 0, jump: outputs[OutputIndex.RIGHT1_Y] ?? 0},
+        {dx: outputs[OutputIndex.RIGHT2_X] ?? 0, jump: outputs[OutputIndex.RIGHT2_Y] ?? 0}
+      ];
+
+      let leftCommands = [commands[0], commands[1]];
+      let rightCommands = [commands[2], commands[3]];
+      if(this.mirrored){
+        leftCommands = [commands[2], commands[3]];
+        rightCommands = [commands[0], commands[1]];
+      }
+
+      this.leftTeam.forEach((player, idx)=>{
+        const cmd = leftCommands[idx] ?? {dx: 0, jump: 0};
+        player.update(cmd.dx, cmd.jump, dt, this.ball);
+      });
+      this.rightTeam.forEach((player, idx)=>{
+        const cmd = rightCommands[idx] ?? {dx: 0, jump: 0};
+        player.update(cmd.dx, cmd.jump, dt, this.ball);
+      });
     }
 
-    handlePlayerCollision(player){
-      const dx = this.ball.x - player.x;
-      const dy = this.ball.y - player.y;
-      const distSq = dx*dx + dy*dy;
-      const minDist = PLAYER_RADIUS + BALL_RADIUS - 2;
-      if(distSq >= minDist*minDist) return false;
-      const dist = Math.sqrt(distSq) || 0.0001;
-      const nx = dx / dist;
-      const ny = dy / dist;
-      const speed = Math.max(280, Math.min(MAX_BALL_SPEED, Math.hypot(this.ball.vx, this.ball.vy) * 0.95 + 40));
-      this.ball.vx = nx * speed;
-      this.ball.vy = ny * speed - 80 + player.vy * 0.25;
-      this.ball.x = player.x + nx * (minDist + 1);
-      this.ball.y = player.y + ny * (minDist + 1);
-
-      // (3) Angle-based reward: bonus for upward redirection
-      const upward = -ny; // ny up is negative
+    processPlayerContact(player){
+      const contact = player.tryHitBall(this.ball);
+      if(!contact) return false;
+      const upward = -contact.normalY;
       const angleBonus = Math.max(0, upward) * 3.0;
-      this.fitness += TOUCH_REWARD + angleBonus;
-
-      // (4) coordination: track which team touched since last crossing
+      let reward = TOUCH_REWARD + angleBonus;
+      if(contact.type === 'arm'){
+        reward += ARM_STRIKE_BONUS;
+      }
+      this.fitness += reward;
       this.lastTouchSide = player.side;
-      this.coordinationTouched.add(player.side);
+      this.coordinationTouched[player.side].add(player.slot);
       this.touches++;
       return true;
     }
@@ -936,10 +1112,17 @@
     }
 
     handleCollisions(){
-      this.handlePlayerCollision(this.left);
-      this.handlePlayerCollision(this.right);
+      const sortedPlayers = this.players.slice().sort((a,b)=>{
+        const da = Math.hypot(this.ball.x - a.x, this.ball.y - a.y);
+        const db = Math.hypot(this.ball.x - b.x, this.ball.y - b.y);
+        return da - db;
+      });
+      for(const player of sortedPlayers){
+        if(this.processPlayerContact(player)){
+          break;
+        }
+      }
 
-      // Floor is still terminal
       if(this.ball.y + BALL_RADIUS >= FLOOR_Y){
         this.done = true;
         return;
@@ -948,22 +1131,24 @@
       this.resolveNetCollision();
       this.resolveWallBounce();
 
-      // Crossing logic
       const side = this.ball.x < NET_X ? 'left' : 'right';
       if(side !== this.ball.lastSide){
         if(this.ball.y - BALL_RADIUS <= NET_TOP){
           this.crossings++;
           this.fitness += CROSS_REWARD;
-
-          // (4) coordination bonus if both touched during this rally span
-          if(this.coordinationTouched.has('left') && this.coordinationTouched.has('right')){
+          if(this.coordinationTouched.left.size >= 1 && this.coordinationTouched.right.size >= 1){
             this.fitness += 10;
           }
-          this.coordinationTouched.clear();
-
+          if(this.coordinationTouched.left.size >= TEAM_SIZE){
+            this.fitness += 4;
+          }
+          if(this.coordinationTouched.right.size >= TEAM_SIZE){
+            this.fitness += 4;
+          }
+          this.coordinationTouched.left.clear();
+          this.coordinationTouched.right.clear();
           this.spawnSide = side === 'left' ? 'right' : 'left';
         } else {
-          // crossed under the net -> fail
           this.done = true;
           return;
         }
@@ -1008,11 +1193,11 @@
         this.ralliesRemaining--;
         this.ball.reset(this.spawnSide);
         this.lastTouchSide = this.spawnSide;
-        this.coordinationTouched.clear();
+        this.coordinationTouched.left.clear();
+        this.coordinationTouched.right.clear();
         this.done = false;
         this.steps = 0;
-        this.left.reset(NET_X - 180, PLAYER_GROUND_Y);
-        this.right.reset(NET_X + 180, PLAYER_GROUND_Y);
+        this.resetPlayers();
         this.spawnSide = this.spawnSide === 'left' ? 'right' : 'left';
       }
     }
@@ -1113,36 +1298,45 @@
     ctx.restore();
   }
 
-  function drawPlayer(player, hue, ball){
-    const gradient = ctx.createRadialGradient(player.x, player.y, 6, player.x, player.y, PLAYER_RADIUS);
-    gradient.addColorStop(0, `hsla(${hue},85%,72%,0.95)`);
-    gradient.addColorStop(1, `hsla(${hue},65%,45%,0.35)`);
+  function drawPlayer(player, hue){
+    const gradient = ctx.createRadialGradient(player.x, player.y, 10, player.x, player.y, PLAYER_RADIUS + 6);
+    gradient.addColorStop(0, `hsla(${hue},85%,74%,0.95)`);
+    gradient.addColorStop(1, `hsla(${hue},60%,42%,0.32)`);
 
-    const focusAngle = ball ? Math.atan2(ball.y - player.y, ball.x - player.x) : 0;
-    const armSpread = 0.9;
-    const armLength = PLAYER_RADIUS + 26;
-    const handRadius = 7;
     ctx.save();
-    ctx.lineWidth = 8;
     ctx.lineCap = 'round';
-    ctx.strokeStyle = `hsla(${hue},85%,72%,0.55)`;
-    ctx.fillStyle = `hsla(${hue},90%,88%,0.35)`;
-    [focusAngle - armSpread, focusAngle + armSpread].forEach((angle)=>{
-      const baseX = player.x + Math.cos(angle) * (PLAYER_RADIUS - 4);
-      const baseY = player.y + Math.sin(angle) * (PLAYER_RADIUS - 4);
-      const elbowX = player.x + Math.cos(angle) * (PLAYER_RADIUS + 8);
-      const elbowY = player.y + Math.sin(angle) * (PLAYER_RADIUS + 8);
-      const handX = player.x + Math.cos(angle) * armLength;
-      const handY = player.y + Math.sin(angle) * armLength;
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = `hsla(${hue},85%,72%,0.6)`;
+    ctx.lineWidth = ARM_DRAW_WIDTH;
+    ctx.fillStyle = `hsla(${hue},92%,86%,0.4)`;
+    (player.armSegments || []).forEach((arm)=>{
+      if(!arm) return;
       ctx.beginPath();
-      ctx.moveTo(baseX, baseY);
-      ctx.quadraticCurveTo(elbowX, elbowY, handX, handY);
+      ctx.moveTo(arm.shoulderX, arm.shoulderY);
+      ctx.lineTo(arm.elbowX, arm.elbowY);
       ctx.stroke();
       ctx.beginPath();
-      ctx.arc(handX, handY, handRadius, 0, TAU);
+      ctx.moveTo(arm.elbowX, arm.elbowY);
+      ctx.lineTo(arm.handX, arm.handY);
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.arc(arm.elbowX, arm.elbowY, 6, 0, TAU);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(arm.handX, arm.handY, (arm.handRadius ?? HAND_HIT_RADIUS) - 2, 0, TAU);
       ctx.fill();
       ctx.stroke();
     });
+    ctx.restore();
+
+    ctx.save();
+    ctx.strokeStyle = `hsla(${hue},65%,65%,0.45)`;
+    ctx.lineWidth = 10;
+    ctx.beginPath();
+    ctx.moveTo(player.x, player.y - PLAYER_RADIUS * 0.8);
+    ctx.lineTo(player.x, player.y + PLAYER_RADIUS * 0.95);
+    ctx.stroke();
     ctx.restore();
 
     ctx.fillStyle = gradient;
@@ -1186,8 +1380,10 @@
     drawBackground();
     drawNet();
     if(currentSession){
-      drawPlayer(currentSession.left, 160, currentSession.ball);
-      drawPlayer(currentSession.right, 320, currentSession.ball);
+      const leftHues = [160, 190];
+      const rightHues = [320, 300];
+      currentSession.leftTeam.forEach((player, idx)=> drawPlayer(player, leftHues[idx % leftHues.length]));
+      currentSession.rightTeam.forEach((player, idx)=> drawPlayer(player, rightHues[idx % rightHues.length]));
       drawBall(currentSession.ball);
     }
     drawOverlay();
