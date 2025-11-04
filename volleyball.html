@@ -752,25 +752,7 @@
   const canvas = Q('court');
   const ctx = canvas.getContext('2d');
 
- // --- Fysik & plan ---
-const FIELD_WIDTH = canvas.width;
-const FIELD_HEIGHT = canvas.height;
-const BORDER_PAD = 20;
-const CEILING_Y = 40 + BORDER_PAD;
-const FLOOR_Y = FIELD_HEIGHT - 20;
-const NET_X = FIELD_WIDTH / 2;
-const NET_WIDTH = 14;
-const NET_HEIGHT = 260;
-const NET_TOP = FIELD_HEIGHT - NET_HEIGHT;
 
-const PLAYER_RADIUS = 32;
-let ballRadius = 18;
-
-const MAX_MOVE_SPEED = 380;     // ↑ var 320 – snabbare sidled
-const MAX_BALL_SPEED = 520;
-
-const GRAVITY = 450;
-const PLAYER_GROUND_Y = FIELD_HEIGHT - PLAYER_RADIUS - 30;
 
 // --- Fysiska gränser m.m. (oförändrat) ---
 const FIELD_WIDTH = canvas.width;
