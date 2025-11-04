@@ -773,11 +773,11 @@ const GRAVITY = 450;
 const PLAYER_GROUND_Y = FIELD_HEIGHT - PLAYER_RADIUS - 30;
 
 // Fall & hopp – mindre studs
-const PLAYER_GRAVITY = 1600;    // ↑ lite tyngre i luft → mindre sväv
-const PLAYER_JUMP_IMPULSE = 360;// ↓ var 420 – lägre hopp → mindre pogo
-const PLAYER_FAST_FALL = 1000;  // ↓ var 1200 – lite mjukare ned
+const PLAYER_GRAVITY = 1400;    // ↑ lite tyngre i luft → mindre sväv
+const PLAYER_JUMP_IMPULSE = 380;// ↓ var 420 – lägre hopp → mindre pogo
+const PLAYER_FAST_FALL = 1100;  // ↓ var 1200 – lite mjukare ned
 const PLAYER_MAX_FALL_SPEED = 900;
-const PLAYER_MAX_RISE_SPEED = 600; // ↓ var 720 – begränsa raketupp
+const PLAYER_MAX_RISE_SPEED = 640; // ↓ var 720 – begränsa raketupp
 
 const NET_BOUNCE_DAMPING = 0.75;
 const WALL_BOUNCE_DAMPING = 0.82;
@@ -800,7 +800,7 @@ const SHOULDER_HEIGHT = -18;
 const UPPER_ARM_LENGTH = 34;
 const LOWER_ARM_LENGTH = 38;
 const ARM_TOTAL_REACH = UPPER_ARM_LENGTH + LOWER_ARM_LENGTH;
-const HAND_HIT_RADIUS = 12;        // ↓ var 14 – kräver mer precision
+const HAND_HIT_RADIUS = 15;        // ↓ var 14 – kräver mer precision
 const ARM_SWING_RATE = Math.PI * 3.6; // ↓ var 4.2 – mindre “stiff”, mer lagg
 const ARM_FACING_LIMIT = Math.PI * 0.9; // ↑ var 0.72 – större spelrum/fladdrigare
 const ARM_DRAW_WIDTH = 8.5;
@@ -817,8 +817,8 @@ const LEG_FACING_LIMIT = Math.PI * 0.25; // ↓ var 0.3 – håller benen mer ve
 const LEG_DRAW_WIDTH = 9.5;
 
 // --- Anti-hop (lägg enkel cooldown i inputlogiken) ---
-const MIN_GROUNDED_TIME_BEFORE_JUMP = 0.18; // sekunder innan nytt hopp tillåts
-const JUMP_ENERGY_COST = 0.2;               // liten kostnad → färre onödiga hopp
+const MIN_GROUNDED_TIME_BEFORE_JUMP = 0; // sekunder innan nytt hopp tillåts
+const JUMP_ENERGY_COST = 0.1;               // liten kostnad → färre onödiga hopp
 
 // --- Mitt-bias (mild) ---
 const CENTER_BAND_WIDTH = 160;      // px band runt mitt (per sida, se nedan)
