@@ -44,7 +44,9 @@
     .panel{background:var(--panel); border:1px solid var(--silver); padding:22px; border-radius:20px; backdrop-filter:blur(16px); box-shadow:0 18px 45px rgba(5,7,24,.55)}
     .panel h2{margin:0 0 12px; font-size:18px; letter-spacing:.02em}
     .panel p{margin:0 0 14px; font-size:13px; line-height:1.6; color:var(--muted)}
-    .control-grid{display:grid; grid-template-columns:1fr auto; gap:12px 10px; align-items:center}
+    .control-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:16px}
+    .control{display:flex; flex-direction:column; gap:10px; padding:12px 14px; border-radius:14px; border:1px solid rgba(148,163,209,.24); background:rgba(10,16,46,.55); box-shadow:inset 0 0 12px rgba(56,189,248,.08)}
+    .control-header{display:flex; align-items:center; justify-content:space-between; gap:12px}
     .label{font-size:13px; color:var(--muted); letter-spacing:.02em}
     .val{font-family:ui-monospace,Menlo,Consolas,monospace; font-size:12px; padding:4px 8px; border-radius:8px; background:rgba(10,16,46,.7); border:1px solid var(--silver); color:var(--accent-cyan); box-shadow:inset 0 0 12px rgba(56,189,248,.12)}
     input[type=range]{width:100%; accent-color:var(--accent-cyan)}
@@ -87,29 +89,69 @@
           <h2 id="controls-heading">Training controls</h2>
           <p>Adjust parameters and restart to explore different cooperative behaviours. Mutation auto-decays slightly every generation.</p>
           <div class="control-grid">
-            <label class="label" for="slPopulation">Population size</label>
-            <div class="val" id="lbPopulation">30 genomes</div>
-            <input id="slPopulation" type="range" min="10" max="80" value="30">
+            <div class="control">
+              <div class="control-header">
+                <label class="label" for="slPopulation">Population size</label>
+                <span class="val" id="lbPopulation">30 genomes</span>
+              </div>
+              <input id="slPopulation" type="range" min="10" max="80" value="30">
+            </div>
 
-            <label class="label" for="slHidden">Initial hidden neurons</label>
-            <div class="val" id="lbHidden">4 nodes</div>
-            <input id="slHidden" type="range" min="0" max="16" value="4">
+            <div class="control">
+              <div class="control-header">
+                <label class="label" for="slHidden">Initial hidden neurons</label>
+                <span class="val" id="lbHidden">4 nodes</span>
+              </div>
+              <input id="slHidden" type="range" min="0" max="16" value="4">
+            </div>
 
-            <label class="label" for="slMutRate">Mutation % (base)</label>
-            <div class="val" id="lbMutRate">22%</div>
-            <input id="slMutRate" type="range" min="5" max="80" value="22">
+            <div class="control">
+              <div class="control-header">
+                <label class="label" for="slMutRate">Mutation % (base)</label>
+                <span class="val" id="lbMutRate">22%</span>
+              </div>
+              <input id="slMutRate" type="range" min="5" max="80" value="22">
+            </div>
 
-            <label class="label" for="slAddConn">Add-connection %</label>
-            <div class="val" id="lbAddConn">8%</div>
-            <input id="slAddConn" type="range" min="1" max="40" value="8">
+            <div class="control">
+              <div class="control-header">
+                <label class="label" for="slAddConn">Add-connection %</label>
+                <span class="val" id="lbAddConn">8%</span>
+              </div>
+              <input id="slAddConn" type="range" min="1" max="40" value="8">
+            </div>
 
-            <label class="label" for="slAddNode">Add-node %</label>
-            <div class="val" id="lbAddNode">3%</div>
-            <input id="slAddNode" type="range" min="0" max="20" value="3">
+            <div class="control">
+              <div class="control-header">
+                <label class="label" for="slAddNode">Add-node %</label>
+                <span class="val" id="lbAddNode">3%</span>
+              </div>
+              <input id="slAddNode" type="range" min="0" max="20" value="3">
+            </div>
 
-            <label class="label" for="slSimSpeed">Sim speed</label>
-            <div class="val" id="lbSimSpeed">2×</div>
-            <input id="slSimSpeed" type="range" min="1" max="12" value="2">
+            <div class="control">
+              <div class="control-header">
+                <label class="label" for="slSimSpeed">Sim speed</label>
+                <span class="val" id="lbSimSpeed">2×</span>
+              </div>
+              <input id="slSimSpeed" type="range" min="1" max="12" value="2">
+            </div>
+
+            <div class="control">
+              <div class="control-header">
+                <label class="label" for="slBallCount">Ball count</label>
+                <span class="val" id="lbBallCount">1 ball</span>
+              </div>
+              <input id="slBallCount" type="range" min="1" max="6" value="1">
+            </div>
+
+            <div class="control">
+              <div class="control-header">
+                <label class="label" for="slBallRadius">Ball size</label>
+                <span class="val" id="lbBallRadius">18px</span>
+              </div>
+              <input id="slBallRadius" type="range" min="12" max="32" value="18">
+            </div>
           </div>
           <button id="btnRestart" class="btn">Restart training</button>
         </section>
@@ -117,6 +159,7 @@
           <strong>Objective</strong>
           <p>Four cooperative agents (two per side) learn to keep a glowing ball alive by volleying it over the central net. The ball now <span style="color:var(--ok);font-weight:700">bounces off side walls</span> (damped) for longer rallies.</p>
           <p>Fitness rewards long rallies, clean upward hits, coordinated multi-player touches, and safe net clears. Minor penalties apply for net clips and stalling.</p>
+          <p>Use the sliders to launch <span style="color:var(--accent-cyan);font-weight:600">multiple balls</span> at once or change the <span style="color:var(--accent);font-weight:600">ball size</span> for different challenge levels.</p>
         </section>
       </aside>
       <div class="field-area">
@@ -127,6 +170,7 @@
           <div class="stat-card"><span class="stat-label">Generation</span><span class="stat-value" id="stat-generation">1</span></div>
           <div class="stat-card"><span class="stat-label">Genome</span><span class="stat-value" id="stat-genome">1 / 1</span></div>
           <div class="stat-card"><span class="stat-label">Best fitness</span><span class="stat-value" id="stat-best">0</span></div>
+          <div class="stat-card"><span class="stat-label">Longest rally</span><span class="stat-value" id="stat-longest">0.0 s</span></div>
           <div class="stat-card"><span class="stat-label">Crossings</span><span class="stat-value" id="stat-crossings">0</span></div>
           <div class="stat-card"><span class="stat-label">Species</span><span class="stat-value" id="stat-species">1</span></div>
           <div class="stat-card"><span class="stat-label">Mut (active)</span><span class="stat-value" id="stat-mutation">0%</span></div>
@@ -666,7 +710,7 @@
   const NET_HEIGHT = 260;
   const NET_TOP = FIELD_HEIGHT - NET_HEIGHT;
   const PLAYER_RADIUS = 32;
-  const BALL_RADIUS = 18;
+  let ballRadius = 18;
   const MAX_MOVE_SPEED = 280;
   const MAX_BALL_SPEED = 520;
   const GRAVITY = 480;
@@ -742,7 +786,9 @@
     addConnectionRate: 8,
     addNodeRate: 3,
     initialHidden: 4,
-    simSpeed: 2
+    simSpeed: 2,
+    ballCount: 1,
+    ballRadius: 18
   };
 
   let population = null;
@@ -881,7 +927,7 @@
         const dx = ball.x - arm.handX;
         const dy = ball.y - arm.handY;
         const dist = Math.hypot(dx, dy);
-        const minDist = BALL_RADIUS + (arm.handRadius ?? HAND_HIT_RADIUS);
+        const minDist = ballRadius + (arm.handRadius ?? HAND_HIT_RADIUS);
         if(dist < minDist){
           const nx = dist > 0 ? dx / dist : 0;
           const ny = dist > 0 ? dy / dist : -1;
@@ -897,7 +943,7 @@
       const dx = ball.x - this.x;
       const dy = ball.y - this.y;
       const distSq = dx*dx + dy*dy;
-      const minDist = PLAYER_RADIUS + BALL_RADIUS - 2;
+      const minDist = PLAYER_RADIUS + ballRadius - 2;
       if(distSq >= minDist*minDist) return null;
       const dist = Math.sqrt(distSq) || 0.0001;
       const nx = dx / dist;
@@ -932,8 +978,8 @@
       this.x += this.vx * dt;
       this.y += this.vy * dt;
       // Ceiling bounce (kept)
-      if(this.y - BALL_RADIUS <= CEILING_Y){
-        this.y = CEILING_Y + BALL_RADIUS;
+      if(this.y - ballRadius <= CEILING_Y){
+        this.y = CEILING_Y + ballRadius;
         this.vy = Math.abs(this.vy) * 0.85;
       }
       // Clamp speeds
@@ -947,7 +993,6 @@
   class VolleyballSession {
     constructor(genome){
       this.genome = genome;
-      this.ball = new Ball();
       this.leftTeam = [
         new Player(NET_X - 260, PLAYER_GROUND_Y, 'left', 0),
         new Player(NET_X - 150, PLAYER_GROUND_Y, 'left', 1)
@@ -963,14 +1008,21 @@
       this.touches = 0;
       this.fitness = 0;
       this.spawnSide = Math.random() < 0.5 ? 'left' : 'right';
-      this.ball.reset(this.spawnSide);
-      this.lastTouchSide = this.spawnSide;
       this.ralliesRemaining = 2;
       this.mirrored = Math.random() < 0.5; // (9) mirror randomization
       this.coordinationTouched = {left: new Set(), right: new Set()};
-      this.lastBallX = this.ball.x; // (2) anti-idle
       this.idleTicks = 0;
+      this.currentRallyDuration = 0;
+      this.longestRallyDuration = 0;
+      this.balls = [];
       this.resetPlayers();
+      this.resetBalls(this.spawnSide);
+      this.lastTouchSide = this.spawnSide;
+      this.lastBallX = this.primaryBall ? this.primaryBall.x : NET_X;
+    }
+
+    get primaryBall(){
+      return this.balls[0];
     }
 
     resetPlayers(){
@@ -980,14 +1032,67 @@
       this.rightTeam.forEach((player, idx)=> player.reset(rightStarts[idx], PLAYER_GROUND_Y));
     }
 
+    createBallForIndex(index, baseSide){
+      const ball = new Ball();
+      const spawn = index % 2 === 0 ? baseSide : (baseSide === 'left' ? 'right' : 'left');
+      ball.reset(spawn);
+      ball.x = clamp(ball.x + randRange(-35, 35), BORDER_PAD + ballRadius, FIELD_WIDTH - BORDER_PAD - ballRadius);
+      ball.y = clamp(ball.y + randRange(-20, 20), CEILING_Y + ballRadius, FLOOR_Y - ballRadius);
+      return ball;
+    }
+
+    resetBalls(baseSide){
+      const desired = Math.max(1, Math.floor(config.ballCount));
+      this.balls = [];
+      for(let i=0;i<desired;i++){
+        this.balls.push(this.createBallForIndex(i, baseSide));
+      }
+      if(this.primaryBall){
+        this.lastBallX = this.primaryBall.x;
+      }
+    }
+
+    onBallRadiusChanged(){
+      this.balls.forEach((ball)=>{
+        ball.x = clamp(ball.x, BORDER_PAD + ballRadius, FIELD_WIDTH - BORDER_PAD - ballRadius);
+        ball.y = clamp(ball.y, CEILING_Y + ballRadius, FLOOR_Y - ballRadius);
+      });
+      if(this.primaryBall){
+        this.lastBallX = this.primaryBall.x;
+      }
+    }
+
+    onBallCountChanged(){
+      this.endCurrentRally();
+      this.resetBalls(this.spawnSide);
+      this.currentRallyDuration = 0;
+      this.lastTouchSide = this.spawnSide;
+      this.done = false;
+      this.steps = 0;
+      this.idleTicks = 0;
+      this.coordinationTouched.left.clear();
+      this.coordinationTouched.right.clear();
+    }
+
+    endCurrentRally(){
+      if(this.currentRallyDuration > this.longestRallyDuration){
+        this.longestRallyDuration = this.currentRallyDuration;
+      }
+      this.currentRallyDuration = 0;
+    }
+
     getInputs(){
-      const bx = this.ball.x / FIELD_WIDTH;
-      const by = this.ball.y / FIELD_HEIGHT;
-      const bvx = this.ball.vx / MAX_BALL_SPEED;
-      const bvy = this.ball.vy / MAX_BALL_SPEED;
+      const ball = this.primaryBall;
+      if(!ball){
+        return new Array(INPUT_COUNT).fill(0);
+      }
+      const bx = ball.x / FIELD_WIDTH;
+      const by = ball.y / FIELD_HEIGHT;
+      const bvx = ball.vx / MAX_BALL_SPEED;
+      const bvy = ball.vy / MAX_BALL_SPEED;
       const players = [...this.leftTeam, ...this.rightTeam];
       const positions = players.map((p)=> [p.x / FIELD_WIDTH, p.y / FIELD_HEIGHT]);
-      const relatives = players.map((p)=> [(this.ball.x - p.x) / FIELD_WIDTH, (this.ball.y - p.y) / FIELD_HEIGHT]);
+      const relatives = players.map((p)=> [(ball.x - p.x) / FIELD_WIDTH, (ball.y - p.y) / FIELD_HEIGHT]);
       const touch = this.lastTouchSide === 'left' ? -1 : this.lastTouchSide === 'right' ? 1 : 0;
       return [
         bx, by, bvx, bvy,
@@ -1001,6 +1106,20 @@
         relatives[3][0], relatives[3][1],
         touch
       ];
+    }
+
+    getClosestBall(player){
+      if(!this.balls.length) return null;
+      let closest = this.balls[0];
+      let bestDist = Infinity;
+      for(const ball of this.balls){
+        const dist = Math.hypot(ball.x - player.x, ball.y - player.y);
+        if(dist < bestDist){
+          bestDist = dist;
+          closest = ball;
+        }
+      }
+      return closest;
     }
 
     applyOutputs(outputs, dt){
@@ -1020,16 +1139,18 @@
 
       this.leftTeam.forEach((player, idx)=>{
         const cmd = leftCommands[idx] ?? {dx: 0, jump: 0};
-        player.update(cmd.dx, cmd.jump, dt, this.ball);
+        const focusBall = this.getClosestBall(player);
+        player.update(cmd.dx, cmd.jump, dt, focusBall);
       });
       this.rightTeam.forEach((player, idx)=>{
         const cmd = rightCommands[idx] ?? {dx: 0, jump: 0};
-        player.update(cmd.dx, cmd.jump, dt, this.ball);
+        const focusBall = this.getClosestBall(player);
+        player.update(cmd.dx, cmd.jump, dt, focusBall);
       });
     }
 
-    processPlayerContact(player){
-      const contact = player.tryHitBall(this.ball);
+    processPlayerContact(player, ball){
+      const contact = player.tryHitBall(ball);
       if(!contact) return false;
       const upward = -contact.normalY;
       const angleBonus = Math.max(0, upward) * 3.0;
@@ -1041,29 +1162,30 @@
       this.lastTouchSide = player.side;
       this.coordinationTouched[player.side].add(player.slot);
       this.touches++;
+      ball.lastSide = player.side;
       return true;
     }
 
-    resolveNetCollision(){
+    resolveNetCollision(ball){
       const netLeft = NET_X - NET_WIDTH/2;
       const netRight = NET_X + NET_WIDTH/2;
       const netTop = NET_TOP;
       const netBottom = NET_TOP + NET_HEIGHT;
-      let closestX = clamp(this.ball.x, netLeft, netRight);
-      let closestY = clamp(this.ball.y, netTop, netBottom);
-      let dx = this.ball.x - closestX;
-      let dy = this.ball.y - closestY;
+      let closestX = clamp(ball.x, netLeft, netRight);
+      let closestY = clamp(ball.y, netTop, netBottom);
+      let dx = ball.x - closestX;
+      let dy = ball.y - closestY;
       const distSq = dx*dx + dy*dy;
-      if(distSq >= BALL_RADIUS * BALL_RADIUS){
+      if(distSq >= ballRadius * ballRadius){
         return false;
       }
       let nx, ny;
       if(distSq === 0){
         const distances = [
-          {dist: Math.abs(this.ball.x - netLeft), nx: -1, ny: 0, adjustX: netLeft},
-          {dist: Math.abs(netRight - this.ball.x), nx: 1, ny: 0, adjustX: netRight},
-          {dist: Math.abs(this.ball.y - netTop), nx: 0, ny: -1, adjustY: netTop},
-          {dist: Math.abs(netBottom - this.ball.y), nx: 0, ny: 1, adjustY: netBottom}
+          {dist: Math.abs(ball.x - netLeft), nx: -1, ny: 0, adjustX: netLeft},
+          {dist: Math.abs(netRight - ball.x), nx: 1, ny: 0, adjustX: netRight},
+          {dist: Math.abs(ball.y - netTop), nx: 0, ny: -1, adjustY: netTop},
+          {dist: Math.abs(netBottom - ball.y), nx: 0, ny: 1, adjustY: netBottom}
         ].sort((a,b)=> a.dist - b.dist);
         const closest = distances[0];
         nx = closest.nx;
@@ -1075,34 +1197,33 @@
         nx = dx / dist;
         ny = dy / dist;
       }
-      const dot = this.ball.vx * nx + this.ball.vy * ny;
-      this.ball.vx -= 2 * dot * nx;
-      this.ball.vy -= 2 * dot * ny;
-      this.ball.vx *= NET_BOUNCE_DAMPING;
-      this.ball.vy *= NET_BOUNCE_DAMPING;
-      this.ball.x = closestX + nx * (BALL_RADIUS + 0.5);
-      this.ball.y = closestY + ny * (BALL_RADIUS + 0.5);
-      this.ball.vx = clamp(this.ball.vx, -MAX_BALL_SPEED, MAX_BALL_SPEED);
-      this.ball.vy = clamp(this.ball.vy, -MAX_BALL_SPEED, MAX_BALL_SPEED);
-      this.ball.lastSide = this.ball.x < NET_X ? 'left' : 'right';
+      const dot = ball.vx * nx + ball.vy * ny;
+      ball.vx -= 2 * dot * nx;
+      ball.vy -= 2 * dot * ny;
+      ball.vx *= NET_BOUNCE_DAMPING;
+      ball.vy *= NET_BOUNCE_DAMPING;
+      ball.x = closestX + nx * (ballRadius + 0.5);
+      ball.y = closestY + ny * (ballRadius + 0.5);
+      ball.vx = clamp(ball.vx, -MAX_BALL_SPEED, MAX_BALL_SPEED);
+      ball.vy = clamp(ball.vy, -MAX_BALL_SPEED, MAX_BALL_SPEED);
+      ball.lastSide = ball.x < NET_X ? 'left' : 'right';
 
       // (5) small penalty for net clip (but don't end run)
       this.fitness -= NET_CLIP_PENALTY;
       return true;
     }
 
-    // (1) Bounce on side walls, not terminate
-    resolveWallBounce(){
+    resolveWallBounce(ball){
       let bounced = false;
       const leftWall = BORDER_PAD;
       const rightWall = FIELD_WIDTH - BORDER_PAD;
-      if(this.ball.x - BALL_RADIUS <= leftWall){
-        this.ball.x = leftWall + BALL_RADIUS;
-        this.ball.vx = Math.abs(this.ball.vx) * WALL_BOUNCE_DAMPING;
+      if(ball.x - ballRadius <= leftWall){
+        ball.x = leftWall + ballRadius;
+        ball.vx = Math.abs(ball.vx) * WALL_BOUNCE_DAMPING;
         bounced = true;
-      } else if(this.ball.x + BALL_RADIUS >= rightWall){
-        this.ball.x = rightWall - BALL_RADIUS;
-        this.ball.vx = -Math.abs(this.ball.vx) * WALL_BOUNCE_DAMPING;
+      } else if(ball.x + ballRadius >= rightWall){
+        ball.x = rightWall - ballRadius;
+        ball.vx = -Math.abs(ball.vx) * WALL_BOUNCE_DAMPING;
         bounced = true;
       }
       if(bounced){
@@ -1111,29 +1232,30 @@
       return bounced;
     }
 
-    handleCollisions(){
+    handleBall(ball){
       const sortedPlayers = this.players.slice().sort((a,b)=>{
-        const da = Math.hypot(this.ball.x - a.x, this.ball.y - a.y);
-        const db = Math.hypot(this.ball.x - b.x, this.ball.y - b.y);
+        const da = Math.hypot(ball.x - a.x, ball.y - a.y);
+        const db = Math.hypot(ball.x - b.x, ball.y - b.y);
         return da - db;
       });
       for(const player of sortedPlayers){
-        if(this.processPlayerContact(player)){
+        if(this.processPlayerContact(player, ball)){
           break;
         }
       }
 
-      if(this.ball.y + BALL_RADIUS >= FLOOR_Y){
+      if(ball.y + ballRadius >= FLOOR_Y){
         this.done = true;
-        return;
+        this.endCurrentRally();
+        return true;
       }
 
-      this.resolveNetCollision();
-      this.resolveWallBounce();
+      this.resolveNetCollision(ball);
+      this.resolveWallBounce(ball);
 
-      const side = this.ball.x < NET_X ? 'left' : 'right';
-      if(side !== this.ball.lastSide){
-        if(this.ball.y - BALL_RADIUS <= NET_TOP){
+      const side = ball.x < NET_X ? 'left' : 'right';
+      if(side !== ball.lastSide){
+        if(ball.y - ballRadius <= NET_TOP){
           this.crossings++;
           this.fitness += CROSS_REWARD;
           if(this.coordinationTouched.left.size >= 1 && this.coordinationTouched.right.size >= 1){
@@ -1150,54 +1272,68 @@
           this.spawnSide = side === 'left' ? 'right' : 'left';
         } else {
           this.done = true;
-          return;
+          this.endCurrentRally();
+          return true;
         }
-        this.ball.lastSide = side;
+        ball.lastSide = side;
       }
+      return false;
     }
 
     update(dt){
       if(this.done) return;
+      if(this.primaryBall){
+        this.currentRallyDuration += dt;
+      }
 
       // Dynamic step budget grows with generation (6)
       const maxSteps = MAX_STEPS_BASE + (generation - 1) * 50;
 
       const outputs = this.genome.feedForward(this.getInputs());
       this.applyOutputs(outputs, dt);
-      this.ball.update(dt);
-      this.handleCollisions();
+      this.balls.forEach((ball)=> ball.update(dt));
+      for(const ball of this.balls){
+        if(this.handleBall(ball)){
+          break;
+        }
+      }
       this.steps++;
 
-      // Survival + motion-based shaping (2)
-      const speedNorm = Math.min(1, Math.hypot(this.ball.vx, this.ball.vy) / MAX_BALL_SPEED);
-      this.fitness += SURVIVAL_REWARD + 0.02 * speedNorm;
+      const primary = this.primaryBall;
+      if(primary){
+        // Survival + motion-based shaping (2)
+        const speedNorm = Math.min(1, Math.hypot(primary.vx, primary.vy) / MAX_BALL_SPEED);
+        this.fitness += SURVIVAL_REWARD + 0.02 * speedNorm;
 
-      // Anti-idle penalty if ball x hardly changes for many ticks (2)
-      const dx = Math.abs(this.ball.x - this.lastBallX);
-      if(dx < 0.8){
-        this.idleTicks++;
-        if(this.idleTicks % 60 === 0){ // about each second idle
-          this.fitness -= 2.0;
+        // Anti-idle penalty if ball x hardly changes for many ticks (2)
+        const dx = Math.abs(primary.x - this.lastBallX);
+        if(dx < 0.8){
+          this.idleTicks++;
+          if(this.idleTicks % 60 === 0){ // about each second idle
+            this.fitness -= 2.0;
+          }
+        } else {
+          this.idleTicks = 0;
         }
-      } else {
-        this.idleTicks = 0;
+        this.lastBallX = primary.x;
       }
-      this.lastBallX = this.ball.x;
 
       if(this.steps >= maxSteps){
         this.done = true;
+        this.endCurrentRally();
       }
 
       // Allow a limited rally reset if progress was made
       if(this.done && this.crossings > 0 && this.ralliesRemaining > 0){
         this.ralliesRemaining--;
-        this.ball.reset(this.spawnSide);
+        this.endCurrentRally();
+        this.resetPlayers();
+        this.resetBalls(this.spawnSide);
         this.lastTouchSide = this.spawnSide;
         this.coordinationTouched.left.clear();
         this.coordinationTouched.right.clear();
         this.done = false;
         this.steps = 0;
-        this.resetPlayers();
         this.spawnSide = this.spawnSide === 'left' ? 'right' : 'left';
       }
     }
@@ -1206,13 +1342,29 @@
   function scheduleConfigRefresh(){ needsConfigRefresh = true; }
 
   function readControls(){
+    const prevBallCount = config.ballCount;
+    const prevBallRadius = config.ballRadius;
     config.populationSize = Number(Q('slPopulation').value);
     config.initialHidden = Number(Q('slHidden').value);
     config.mutationRate = Number(Q('slMutRate').value);
     config.addConnectionRate = Number(Q('slAddConn').value);
     config.addNodeRate = Number(Q('slAddNode').value);
     config.simSpeed = Number(Q('slSimSpeed').value);
+    config.ballCount = Number(Q('slBallCount').value);
+    config.ballRadius = Number(Q('slBallRadius').value);
     baseMutationAtStart = config.mutationRate;
+
+    const radiusChanged = prevBallRadius !== config.ballRadius;
+    const countChanged = prevBallCount !== config.ballCount;
+    ballRadius = config.ballRadius;
+    if(currentSession){
+      if(radiusChanged){
+        currentSession.onBallRadiusChanged();
+      }
+      if(countChanged){
+        currentSession.onBallCountChanged();
+      }
+    }
   }
 
   function restartTraining(){
@@ -1270,6 +1422,8 @@
     Q('stat-generation').textContent = generation;
     Q('stat-genome').textContent = evaluationOrder.length ? `${genomeIndex + 1} / ${evaluationOrder.length}` : '0 / 0';
     Q('stat-best').textContent = bestFitness.toFixed(1);
+    const longest = currentSession ? Math.max(currentSession.longestRallyDuration, currentSession.currentRallyDuration) : 0;
+    Q('stat-longest').textContent = `${longest.toFixed(2)} s`;
     Q('stat-crossings').textContent = currentSession ? currentSession.crossings : 0;
     Q('stat-species').textContent = totalSpecies;
     Q('stat-mutation').textContent = `${config.mutationRate.toFixed(1)}%`;
@@ -1354,12 +1508,12 @@
   }
 
   function drawBall(ball){
-    const gradient = ctx.createRadialGradient(ball.x - ball.vx*0.04, ball.y - ball.vy*0.04, 6, ball.x, ball.y, BALL_RADIUS);
+    const gradient = ctx.createRadialGradient(ball.x - ball.vx*0.04, ball.y - ball.vy*0.04, 6, ball.x, ball.y, ballRadius);
     gradient.addColorStop(0, 'rgba(248,250,252,0.95)');
     gradient.addColorStop(1, 'rgba(56,189,248,0.45)');
     ctx.fillStyle = gradient;
     ctx.beginPath();
-    ctx.arc(ball.x, ball.y, BALL_RADIUS, 0, TAU);
+    ctx.arc(ball.x, ball.y, ballRadius, 0, TAU);
     ctx.fill();
     ctx.lineWidth = 2;
     ctx.strokeStyle = 'rgba(56,189,248,0.65)';
@@ -1374,6 +1528,8 @@
     ctx.fillText(`Touches: ${currentSession.touches}`, 30, 70);
     ctx.fillText(`Crossings: ${currentSession.crossings}`, 30, 92);
     ctx.fillText(`Mirrored: ${currentSession.mirrored ? 'yes' : 'no'}`, 30, 114);
+    const longest = Math.max(currentSession.longestRallyDuration, currentSession.currentRallyDuration);
+    ctx.fillText(`Longest rally: ${longest.toFixed(2)}s`, 30, 136);
   }
 
   function render(){
@@ -1384,7 +1540,7 @@
       const rightHues = [320, 300];
       currentSession.leftTeam.forEach((player, idx)=> drawPlayer(player, leftHues[idx % leftHues.length]));
       currentSession.rightTeam.forEach((player, idx)=> drawPlayer(player, rightHues[idx % rightHues.length]));
-      drawBall(currentSession.ball);
+      currentSession.balls.forEach((ball)=> drawBall(ball));
     }
     drawOverlay();
   }
@@ -1417,6 +1573,8 @@
   bindRange('slAddConn','lbAddConn',(v)=> `${v}%`);
   bindRange('slAddNode','lbAddNode',(v)=> `${v}%`);
   bindRange('slSimSpeed','lbSimSpeed',(v)=> `${v}×`);
+  bindRange('slBallCount','lbBallCount',(v)=> `${v} ball${v===1?'':'s'}`);
+  bindRange('slBallRadius','lbBallRadius',(v)=> `${v}px`);
 
   Q('btnRestart').addEventListener('click', restartTraining);
 
