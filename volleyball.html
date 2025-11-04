@@ -368,6 +368,7 @@
     // (8) Give useful initial priors to vertical outputs
     primeOutputBias(){
       const outStart = this.population.outputStart;
+      // <<< ÄNDRING 10: Uppdaterade OutputIndex
       const players = [
         {outX: outStart + OutputIndex.LEFT1_X, outY: outStart + OutputIndex.LEFT1_Y, dx: InputIndex.LEFT1_DX, dy: InputIndex.LEFT1_DY},
         {outX: outStart + OutputIndex.LEFT2_X, outY: outStart + OutputIndex.LEFT2_Y, dx: InputIndex.LEFT2_DX, dy: InputIndex.LEFT2_DY},
@@ -377,6 +378,7 @@
 
       for(const c of this.connections){
         for(const player of players){
+          // Prime X and Y (move/jump) only
           if(c.to === player.outY && (c.from === player.dy || c.from === InputIndex.BALL_VY || c.from === InputIndex.BALL_Y)){
             c.weight += Math.abs(c.weight) + randRange(0.6, 1.2);
           }
@@ -837,11 +839,11 @@ const EDGE_PENALTY = 0.004;       // halva 0.008
   const DEFAULT_MODE = 'cooperation';
   const DEFAULT_SHOW_SENSORS = false;
 
-  // <<< ÄNDRING 1: Minskade inputs
-  // Increase input count to accommodate additional environment sensors (ceiling, floor, net, wall distances for each player)
-  // Total base inputs (37).
-  const INPUT_COUNT = 37;
-  const OUTPUT_COUNT = 8;
+  // <<< ÄNDRING 10: Input count ökad till 69 (37 bas + 32 lem-positioner)
+  // (Punkt 1 är nu återställd)
+  const INPUT_COUNT = 69;
+  // <<< ÄNDRING 10: Output count ökad till 16 (4 spelare * 4 outputs)
+  const OUTPUT_COUNT = 16;
 
   const InputIndex = Object.freeze({
     BALL_X: 0,
@@ -866,8 +868,6 @@ const EDGE_PENALTY = 0.004;       // halva 0.008
     RIGHT2_DY: 19,
     TOUCH: 20,
     // Environment sensors per player:
-    // Distances normalized to field dimensions: (y - CEILING_Y)/FIELD_HEIGHT, (FLOOR_Y - y)/FIELD_HEIGHT,
-    // |x - NET_X|/FIELD_WIDTH, and distance to back wall depending on side.
     LEFT1_CEIL: 21,
     LEFT1_FLOOR: 22,
     LEFT1_NET: 23,
@@ -883,18 +883,64 @@ const EDGE_PENALTY = 0.004;       // halva 0.008
     RIGHT2_CEIL: 33,
     RIGHT2_FLOOR: 34,
     RIGHT2_NET: 35,
-    RIGHT2_WALL: 36
+    RIGHT2_WALL: 36,
+    // <<< ÄNDRING 10: Limb positions (4 players * 4 limbs * 2 coords = 32 inputs)
+    // Player Left 1
+    L1_HAND1_X: 37,
+    L1_HAND1_Y: 38,
+    L1_HAND2_X: 39,
+    L1_HAND2_Y: 40,
+    L1_FOOT1_X: 41,
+    L1_FOOT1_Y: 42,
+    L1_FOOT2_X: 43,
+    L1_FOOT2_Y: 44,
+    // Player Left 2
+    L2_HAND1_X: 45,
+    L2_HAND1_Y: 46,
+    L2_HAND2_X: 47,
+    L2_HAND2_Y: 48,
+    L2_FOOT1_X: 49,
+    L2_FOOT1_Y: 50,
+    L2_FOOT2_X: 51,
+    L2_FOOT2_Y: 52,
+    // Player Right 1
+    R1_HAND1_X: 53,
+    R1_HAND1_Y: 54,
+    R1_HAND2_X: 55,
+    R1_HAND2_Y: 56,
+    R1_FOOT1_X: 57,
+    R1_FOOT1_Y: 58,
+    R1_FOOT2_X: 59,
+    R1_FOOT2_Y: 60,
+    // Player Right 2
+    R2_HAND1_X: 61,
+    R2_HAND1_Y: 62,
+    R2_HAND2_X: 63,
+    R2_HAND2_Y: 64,
+    R2_FOOT1_X: 65,
+    R2_FOOT1_Y: 66,
+    R2_FOOT2_X: 67,
+    R2_FOOT2_Y: 68,
   });
 
+  // <<< ÄNDRING 10: 4 outputs per spelare
   const OutputIndex = Object.freeze({
     LEFT1_X: 0,
     LEFT1_Y: 1,
-    LEFT2_X: 2,
-    LEFT2_Y: 3,
-    RIGHT1_X: 4,
-    RIGHT1_Y: 5,
-    RIGHT2_X: 6,
-    RIGHT2_Y: 7
+    LEFT1_ARM: 2,
+    LEFT1_LEG: 3,
+    LEFT2_X: 4,
+    LEFT2_Y: 5,
+    LEFT2_ARM: 6,
+    LEFT2_LEG: 7,
+    RIGHT1_X: 8,
+    RIGHT1_Y: 9,
+    RIGHT1_ARM: 10,
+    RIGHT1_LEG: 11,
+    RIGHT2_X: 12,
+    RIGHT2_Y: 13,
+    RIGHT2_ARM: 14,
+    RIGHT2_LEG: 15,
   });
 
   const config = {
@@ -977,11 +1023,12 @@ const EDGE_PENALTY = 0.004;       // halva 0.008
       this.grounded = this.y >= PLAYER_GROUND_Y - 1;
       this.resetArmAngles();
       this.resetLegAngles();
-      this.updateArms(null, 0);
-      this.updateLegs(null, 0);
+      this.updateArms(null, 0, 0, 0); // <<< ÄNDRING 10
+      this.updateLegs(null, 0, 0); // <<< ÄNDRING 10
     }
 
-    update(dxInput, jumpInput, dt, ball){
+    // <<< ÄNDRING 10: Ny signatur
+    update(dxInput, jumpInput, armAimInput, legAimInput, dt, ball){
       const horizontal = clamp(dxInput ?? 0, -1, 1);
       const prevX = this.x;
       this.x += horizontal * MAX_MOVE_SPEED * dt;
@@ -1024,88 +1071,74 @@ const EDGE_PENALTY = 0.004;       // halva 0.008
       }
       this.grounded = this.y >= ground - 1;
       this.vx = (this.x - prevX) / dt;
-      this.updateArms(ball, dt, jump); // <<< ÄNDRING 4
-      this.updateLegs(ball, dt, jump); // <<< ÄNDRING 4
+      
+      // <<< ÄNDRING 10: Skicka med aim-inputs
+      this.updateArms(ball, dt, jump, armAimInput ?? 0); 
+      this.updateLegs(ball, dt, legAimInput ?? 0);
     }
 
-    updateArms(ball, dt, jumpInput = 0){ // <<< ÄNDRING 4
+    // <<< ÄNDRING 10: Helt omskriven logik för nätverkskontroll
+    updateArms(ball, dt, jumpInput = 0, armAimInput = 0){
       const baseFacing = this.side === 'left' ? 0 : Math.PI;
       const offsets = this.side === 'left' ? [-0.35, 0.35] : [0.35, -0.35];
-      const targetAngle = ball ? Math.atan2(ball.y - this.y, ball.x - this.x) : baseFacing;
-      const aim = wrapAngle(targetAngle);
-      for(let i=0;i<2;i++){
-        const desired = baseFacing + clamp(wrapAngle(aim + offsets[i] - baseFacing), -ARM_FACING_LIMIT, ARM_FACING_LIMIT);
+
+      // NYTT: Aim angle kommer från nätverket (-1 till 1)
+      const centralAim = baseFacing + (armAimInput * ARM_FACING_LIMIT);
+      
+      for(let i=0; i<2; i++){
+        // Rikta armen baserat på nätverkets input + en offset
+        const desired = wrapAngle(centralAim + offsets[i]);
         const current = this.armAngles[i] ?? desired;
         const maxDelta = ARM_SWING_RATE * dt;
         this.armAngles[i] = moveTowardAngle(current, desired, maxDelta);
+
+        // NYTT: Ta bort IK. Sträck bara ut armarna.
         const shoulderOffset = this.shoulderOffsets[i];
         const shoulderX = this.x + shoulderOffset.x;
         const shoulderY = this.y + shoulderOffset.y;
-        let targetX = shoulderX;
-        let targetY = shoulderY + 40;
-        if(ball){
-          targetX = ball.x;
-          targetY = ball.y;
 
-          // <<< ÄNDRING 4: Justera siktet baserat på Y-input (jumpInput)
-          // jumpInput är mellan -1 och 1.
-          // * 1 (hopp): aimAdjust blir negativ -> siktar *under* bollen (slår ner)
-          // * -1 (huka): aimAdjust blir positiv -> siktar *över* bollen (slår upp)
-          const aimAdjust = (jumpInput * -1) * (ballRadius + 10);
-          targetY += aimAdjust;
-        }
-        const dx = targetX - shoulderX;
-        const dy = targetY - shoulderY;
-        const dist = Math.hypot(dx, dy);
-        const reach = Math.min(ARM_TOTAL_REACH, dist + 18);
-        const elbowLen = Math.min(UPPER_ARM_LENGTH, Math.max(UPPER_ARM_LENGTH * 0.4, reach * 0.55));
-        const handLen = Math.min(LOWER_ARM_LENGTH, Math.max(LOWER_ARM_LENGTH * 0.35, reach - elbowLen));
-        const elbowX = shoulderX + Math.cos(this.armAngles[i]) * elbowLen;
-        const elbowY = shoulderY + Math.sin(this.armAngles[i]) * elbowLen;
-        const handX = elbowX + Math.cos(this.armAngles[i]) * handLen;
-        const handY = elbowY + Math.sin(this.armAngles[i]) * handLen;
+        const elbowX = shoulderX + Math.cos(this.armAngles[i]) * UPPER_ARM_LENGTH;
+        const elbowY = shoulderY + Math.sin(this.armAngles[i]) * UPPER_ARM_LENGTH;
+        const handX = elbowX + Math.cos(this.armAngles[i]) * LOWER_ARM_LENGTH;
+        const handY = elbowY + Math.sin(this.armAngles[i]) * LOWER_ARM_LENGTH;
+        
         this.armSegments[i] = {shoulderX, shoulderY, elbowX, elbowY, handX, handY, handRadius: HAND_HIT_RADIUS};
       }
     }
 
-    updateLegs(ball, dt, jumpInput = 0){ // <<< ÄNDRING 4 (endast signatur)
-      const baseFacing = Math.PI / 2;
+    // <<< ÄNDRING 10: Helt omskriven logik för nätverkskontroll
+    updateLegs(ball, dt, legAimInput = 0){
+      const baseFacing = Math.PI / 2; // Rakt ner
       const offsets = [-0.28, 0.28];
-      const targetAngle = ball ? Math.atan2(ball.y - this.y, ball.x - this.x) : baseFacing;
-      const aim = wrapAngle(targetAngle);
-      const gait = clamp(this.vx / MAX_MOVE_SPEED, -1, 1) * 0.25;
+      const gait = clamp(this.vx / MAX_MOVE_SPEED, -1, 1) * 0.25; // Behåll "gait"
+
+      // NYTT: Aim angle kommer från nätverket (-1 till 1)
+      const centralAim = baseFacing + (legAimInput * LEG_FACING_LIMIT);
+
       for(let i=0;i<2;i++){
-        const desired = baseFacing + clamp(wrapAngle(aim + offsets[i] - baseFacing), -LEG_FACING_LIMIT, LEG_FACING_LIMIT) + (i === 0 ? gait : -gait);
+        // Rikta benet baserat på nätverkets input + offset + gait
+        const desired = wrapAngle(centralAim + offsets[i] + (i === 0 ? gait : -gait));
         const current = this.legAngles[i] ?? desired;
         const maxDelta = LEG_SWING_RATE * dt + Math.abs(gait) * 0.35 * dt;
         this.legAngles[i] = moveTowardAngle(current, desired, maxDelta);
+
+        // NYTT: Ta bort IK. Sträck bara ut benen.
         const hipOffset = this.hipOffsets[i];
         const hipX = this.x + hipOffset.x;
         const hipY = this.y + hipOffset.y;
-        let targetX = hipX;
-        let targetY = hipY + LEG_TOTAL_REACH * 0.7;
-        if(ball){
-          targetX = ball.x;
-          targetY = ball.y;
-        }
-        const dx = targetX - hipX;
-        const dy = targetY - hipY;
-        const dist = Math.hypot(dx, dy);
-        const reach = Math.min(LEG_TOTAL_REACH, dist + 16);
-        const thighLen = Math.min(THIGH_LENGTH, Math.max(THIGH_LENGTH * 0.45, reach * 0.52));
-        const shinLen = Math.min(SHIN_LENGTH, Math.max(SHIN_LENGTH * 0.45, reach - thighLen));
-        const kneeX = hipX + Math.cos(this.legAngles[i]) * thighLen;
-        const kneeY = hipY + Math.sin(this.legAngles[i]) * thighLen;
-        const footX = kneeX + Math.cos(this.legAngles[i]) * shinLen;
-        const footY = kneeY + Math.sin(this.legAngles[i]) * shinLen;
+
+        const kneeX = hipX + Math.cos(this.legAngles[i]) * THIGH_LENGTH;
+        const kneeY = hipY + Math.sin(this.legAngles[i]) * THIGH_LENGTH;
+        const footX = kneeX + Math.cos(this.legAngles[i]) * SHIN_LENGTH;
+        const footY = kneeY + Math.sin(this.legAngles[i]) * SHIN_LENGTH;
         this.legSegments[i] = {hipX, hipY, kneeX, kneeY, footX, footY, footRadius: FOOT_HIT_RADIUS};
       }
     }
 
     tryHitBall(ball){
       if(!ball) return null;
-      if(!this.armSegments || this.armSegments.length < 2){
-        this.updateArms(ball, 0);
+      if(!this.armSegments || this.armSegments.length < 2 || !this.armSegments[0].handX){
+        this.updateArms(ball, 0, 0, 0); // Se till att segment finns
       }
       for(const arm of this.armSegments){
         if(!arm) continue;
@@ -1125,8 +1158,8 @@ const EDGE_PENALTY = 0.004;       // halva 0.008
         }
       }
 
-      if(!this.legSegments || this.legSegments.length < 2){
-        this.updateLegs(ball, 0);
+      if(!this.legSegments || this.legSegments.length < 2 || !this.legSegments[0].footX){
+        this.updateLegs(ball, 0, 0); // Se till att segment finns
       }
       for(const leg of this.legSegments){
         if(!leg) continue;
@@ -1352,7 +1385,22 @@ const EDGE_PENALTY = 0.004;       // halva 0.008
       });
       const touch = this.lastTouchSide === 'left' ? -1 : this.lastTouchSide === 'right' ? 1 : 0;
       
-      // <<< ÄNDRING 1: All logik för "limbSensors" borttagen
+      // <<< ÄNDRING 10: Lägg till lem-positioner som inputs
+      const limbSensors = [];
+      players.forEach((p)=>{
+        // Se till att segmenten finns
+        if(!p.armSegments || p.armSegments.length < 2 || !p.armSegments[0].handX) p.updateArms(null, 0, 0, 0);
+        if(!p.legSegments || p.legSegments.length < 2 || !p.legSegments[0].footX) p.updateLegs(null, 0, 0);
+        
+        limbSensors.push(p.armSegments[0].handX / FIELD_WIDTH);
+        limbSensors.push(p.armSegments[0].handY / FIELD_HEIGHT);
+        limbSensors.push(p.armSegments[1].handX / FIELD_WIDTH);
+        limbSensors.push(p.armSegments[1].handY / FIELD_HEIGHT);
+        limbSensors.push(p.legSegments[0].footX / FIELD_WIDTH);
+        limbSensors.push(p.legSegments[0].footY / FIELD_HEIGHT);
+        limbSensors.push(p.legSegments[1].footX / FIELD_WIDTH);
+        limbSensors.push(p.legSegments[1].footY / FIELD_HEIGHT);
+      });
       
       return [
         bx, by, bvx, bvy,
@@ -1369,8 +1417,9 @@ const EDGE_PENALTY = 0.004;       // halva 0.008
         env[1][0], env[1][1], env[1][2], env[1][3],
         env[2][0], env[2][1], env[2][2], env[2][3],
         env[3][0], env[3][1], env[3][2], env[3][3],
-        touch
-        // <<< ÄNDRING 1: ...limbSensors borttagen
+        touch,
+        // <<< ÄNDRING 10: Lägg till de 32 lem-sensorerna
+        ...limbSensors
       ];
     }
 
@@ -1389,11 +1438,12 @@ const EDGE_PENALTY = 0.004;       // halva 0.008
     }
 
     applyOutputs(outputs, dt){
+      // <<< ÄNDRING 10: Läs 16 outputs
       const commands = [
-        {dx: outputs[OutputIndex.LEFT1_X] ?? 0, jump: outputs[OutputIndex.LEFT1_Y] ?? 0},
-        {dx: outputs[OutputIndex.LEFT2_X] ?? 0, jump: outputs[OutputIndex.LEFT2_Y] ?? 0},
-        {dx: outputs[OutputIndex.RIGHT1_X] ?? 0, jump: outputs[OutputIndex.RIGHT1_Y] ?? 0},
-        {dx: outputs[OutputIndex.RIGHT2_X] ?? 0, jump: outputs[OutputIndex.RIGHT2_Y] ?? 0}
+        {dx: outputs[OutputIndex.LEFT1_X] ?? 0, jump: outputs[OutputIndex.LEFT1_Y] ?? 0, armAim: outputs[OutputIndex.LEFT1_ARM] ?? 0, legAim: outputs[OutputIndex.LEFT1_LEG] ?? 0},
+        {dx: outputs[OutputIndex.LEFT2_X] ?? 0, jump: outputs[OutputIndex.LEFT2_Y] ?? 0, armAim: outputs[OutputIndex.LEFT2_ARM] ?? 0, legAim: outputs[OutputIndex.LEFT2_LEG] ?? 0},
+        {dx: outputs[OutputIndex.RIGHT1_X] ?? 0, jump: outputs[OutputIndex.RIGHT1_Y] ?? 0, armAim: outputs[OutputIndex.RIGHT1_ARM] ?? 0, legAim: outputs[OutputIndex.RIGHT1_LEG] ?? 0},
+        {dx: outputs[OutputIndex.RIGHT2_X] ?? 0, jump: outputs[OutputIndex.RIGHT2_Y] ?? 0, armAim: outputs[OutputIndex.RIGHT2_ARM] ?? 0, legAim: outputs[OutputIndex.RIGHT2_LEG] ?? 0}
       ];
 
       let leftCommands = [commands[0], commands[1]];
@@ -1404,14 +1454,16 @@ const EDGE_PENALTY = 0.004;       // halva 0.008
       }
 
       this.leftTeam.forEach((player, idx)=>{
-        const cmd = leftCommands[idx] ?? {dx: 0, jump: 0};
+        const cmd = leftCommands[idx] ?? {dx: 0, jump: 0, armAim: 0, legAim: 0};
         const focusBall = this.getClosestBall(player);
-        player.update(cmd.dx, cmd.jump, dt, focusBall);
+        // <<< ÄNDRING 10: Skicka med alla 4 kommandon
+        player.update(cmd.dx, cmd.jump, cmd.armAim, cmd.legAim, dt, focusBall);
       });
       this.rightTeam.forEach((player, idx)=>{
-        const cmd = rightCommands[idx] ?? {dx: 0, jump: 0};
+        const cmd = rightCommands[idx] ?? {dx: 0, jump: 0, armAim: 0, legAim: 0};
         const focusBall = this.getClosestBall(player);
-        player.update(cmd.dx, cmd.jump, dt, focusBall);
+        // <<< ÄNDRING 10: Skicka med alla 4 kommandon
+        player.update(cmd.dx, cmd.jump, cmd.armAim, cmd.legAim, dt, focusBall);
       });
     }
 
@@ -1950,8 +2002,34 @@ const EDGE_PENALTY = 0.004;       // halva 0.008
       ctx.moveTo(player.x, player.y);
       ctx.lineTo(wallX, player.y);
       ctx.stroke();
-      // <<< ÄNDRING 1: Logik för att rita sensorer från lemmar borttagen
-      // (den ritade bara från lemmar om de var med i inputs, vilket de inte är längre)
+
+      // <<< ÄNDRING 10: Ritar nu även sensorlinjer från lemmar till boll
+      // (Detta fanns i din originalkod men togs bort i steg 1, nu är det relevant igen)
+      if(!player.armSegments || player.armSegments.length < 2) player.updateArms(ball, 0, 0, 0);
+      if(!player.legSegments || player.legSegments.length < 2) player.updateLegs(ball, 0, 0);
+      
+      const limbs = [
+        player.armSegments[0]?.handX ? player.armSegments[0] : null,
+        player.armSegments[1]?.handX ? player.armSegments[1] : null,
+        player.legSegments[0]?.footX ? player.legSegments[0] : null,
+        player.legSegments[1]?.footX ? player.legSegments[1] : null
+      ];
+
+      limbs.forEach((seg)=>{
+        if (!seg) return;
+        const lx = seg.handX !== undefined ? seg.handX : seg.footX;
+        const ly = seg.handY !== undefined ? seg.handY : seg.footY;
+
+        // line to ball from each limb
+        ctx.strokeStyle = sideColor; // Använd samma färg som spelaren
+        ctx.lineWidth = 1;
+        ctx.setLineDash([2, 3]); // Streckad linje
+        ctx.beginPath();
+        ctx.moveTo(lx, ly);
+        ctx.lineTo(ball.x, ball.y);
+        ctx.stroke();
+        ctx.setLineDash([]); // Återställ
+      });
     });
     // draw ball velocity vector
     ctx.strokeStyle = 'rgba(255,255,255,0.4)';
@@ -1991,8 +2069,8 @@ const EDGE_PENALTY = 0.004;       // halva 0.008
   function deserializePopulation(data){
     const pop = new Population({
       populationSize: data.size,
-      inputCount: data.inputCount,
-      outputCount: data.outputCount
+      inputCount: data.inputCount, // <<< Viktigt att ladda rätt antal
+      outputCount: data.outputCount // <<< Viktigt att ladda rätt antal
     });
     // restore innovation tracker
     pop.innovationTracker.next = data.innovation.next;
@@ -2035,6 +2113,13 @@ const EDGE_PENALTY = 0.004;       // halva 0.008
   // Save current training progress to localStorage
   function saveProgress(){
     if(!population) return;
+    // <<< ÄNDRING 10: Se till att spara med rätt input/output counts
+    const popData = serializePopulation(population);
+    if (popData.inputCount !== INPUT_COUNT || popData.outputCount !== OUTPUT_COUNT) {
+        alert(`Sparning avbruten: Populations-mismatch. Förväntade ${INPUT_COUNT} inputs / ${OUTPUT_COUNT} outputs, men fann ${popData.inputCount}/${popData.outputCount}. Tryck 'Restart Training' först.`);
+        return;
+    }
+
     const data = {
       generation,
       bestFitness,
@@ -2053,7 +2138,7 @@ const EDGE_PENALTY = 0.004;       // halva 0.008
         mode: config.mode,
         showSensors: config.showSensors
       },
-      population: serializePopulation(population),
+      population: popData,
       cumulativeScores
     };
     try{
@@ -2074,6 +2159,13 @@ const EDGE_PENALTY = 0.004;       // halva 0.008
     }
     try{
       const data = JSON.parse(raw);
+      
+      // <<< ÄNDRING 10: Validera att den sparade filen matchar den nuvarande koden
+      if (data.population.inputCount !== INPUT_COUNT || data.population.outputCount !== OUTPUT_COUNT) {
+          alert(`Laddning misslyckades: Den sparade filen är inkompatibel. Förväntade ${INPUT_COUNT} inputs / ${OUTPUT_COUNT} outputs, men den sparade filen har ${data.population.inputCount}/${data.population.outputCount}.`);
+          return;
+      }
+      
       // restore config
       config.populationSize = data.config.populationSize;
       config.mutationRate = data.config.mutationRate;
@@ -2125,6 +2217,7 @@ const EDGE_PENALTY = 0.004;       // halva 0.008
       // restart training from loaded state
       startCurrentGenome();
       updateStats();
+      alert('Progress loaded successfully.');
     } catch(err){
       console.error(err);
       alert('Failed to load progress.');
