@@ -177,7 +177,6 @@
               <input id="slHeadPenalty" type="range" min="0" max="5" value="1.5" step="0.1" title="How much fitness to subtract when agents rely on body bumps instead of precise hand or foot control.">
             </div>
           </div>
-          <!-- Additional training controls for sensors, mode and save/load -->
           <div class="control">
             <div class="control-header">
               <label class="label" for="cbShowSensors">Show sensors</label>
@@ -787,7 +786,7 @@ const WALL_BOUNCE_REWARD = 1.2;
 const NET_CLIP_PENALTY = 1.5;
 
 const SIM_DT = 1/60;
-const MAX_STEPS_BASE = 2200;
+const MAX_STEPS_BASE = 1200; // <<< ÄNDRING 9
 const CROSS_REWARD = 30;
 const TOUCH_REWARD = 4;
 const SURVIVAL_REWARD = 0.06;
@@ -828,9 +827,9 @@ const CENTER_STEP_REWARD = 0.0075;// halva 0.015
 const EDGE_PENALTY = 0.004;       // halva 0.008
 
 
-  const ARM_STRIKE_BONUS_DEFAULT = 6;
-  const LEG_KICK_BONUS_DEFAULT = 4;
-  const HEAD_TOUCH_PENALTY_DEFAULT = 1.5;
+  const ARM_STRIKE_BONUS_DEFAULT = 12; // <<< ÄNDRING 5
+  const LEG_KICK_BONUS_DEFAULT = 8; // <<< ÄNDRING 5
+  const HEAD_TOUCH_PENALTY_DEFAULT = 5; // <<< ÄNDRING 5
   let armStrikeBonus = ARM_STRIKE_BONUS_DEFAULT;
   let legKickBonus = LEG_KICK_BONUS_DEFAULT;
   let headTouchPenalty = HEAD_TOUCH_PENALTY_DEFAULT;
@@ -838,10 +837,10 @@ const EDGE_PENALTY = 0.004;       // halva 0.008
   const DEFAULT_MODE = 'cooperation';
   const DEFAULT_SHOW_SENSORS = false;
 
+  // <<< ÄNDRING 1: Minskade inputs
   // Increase input count to accommodate additional environment sensors (ceiling, floor, net, wall distances for each player)
-  // plus sensors from both hands and both feet to ceiling, floor, net, back wall and ball (dx, dy). 4 players × 4 limbs × 6 features = 96 additional inputs.
-  // Total base inputs (37) + 96 = 133.
-  const INPUT_COUNT = 133;
+  // Total base inputs (37).
+  const INPUT_COUNT = 37;
   const OUTPUT_COUNT = 8;
 
   const InputIndex = Object.freeze({
@@ -1025,11 +1024,11 @@ const EDGE_PENALTY = 0.004;       // halva 0.008
       }
       this.grounded = this.y >= ground - 1;
       this.vx = (this.x - prevX) / dt;
-      this.updateArms(ball, dt);
-      this.updateLegs(ball, dt);
+      this.updateArms(ball, dt, jump); // <<< ÄNDRING 4
+      this.updateLegs(ball, dt, jump); // <<< ÄNDRING 4
     }
 
-    updateArms(ball, dt){
+    updateArms(ball, dt, jumpInput = 0){ // <<< ÄNDRING 4
       const baseFacing = this.side === 'left' ? 0 : Math.PI;
       const offsets = this.side === 'left' ? [-0.35, 0.35] : [0.35, -0.35];
       const targetAngle = ball ? Math.atan2(ball.y - this.y, ball.x - this.x) : baseFacing;
@@ -1047,6 +1046,13 @@ const EDGE_PENALTY = 0.004;       // halva 0.008
         if(ball){
           targetX = ball.x;
           targetY = ball.y;
+
+          // <<< ÄNDRING 4: Justera siktet baserat på Y-input (jumpInput)
+          // jumpInput är mellan -1 och 1.
+          // * 1 (hopp): aimAdjust blir negativ -> siktar *under* bollen (slår ner)
+          // * -1 (huka): aimAdjust blir positiv -> siktar *över* bollen (slår upp)
+          const aimAdjust = (jumpInput * -1) * (ballRadius + 10);
+          targetY += aimAdjust;
         }
         const dx = targetX - shoulderX;
         const dy = targetY - shoulderY;
@@ -1062,7 +1068,7 @@ const EDGE_PENALTY = 0.004;       // halva 0.008
       }
     }
 
-    updateLegs(ball, dt){
+    updateLegs(ball, dt, jumpInput = 0){ // <<< ÄNDRING 4 (endast signatur)
       const baseFacing = Math.PI / 2;
       const offsets = [-0.28, 0.28];
       const targetAngle = ball ? Math.atan2(ball.y - this.y, ball.x - this.x) : baseFacing;
@@ -1163,15 +1169,26 @@ const EDGE_PENALTY = 0.004;       // halva 0.008
       this.reset('left');
     }
     reset(side){
+      // <<< ÄNDRING 8: Varierade servar
+      const serveType = Math.random();
       if(side === 'right'){
-        this.x = NET_X + 170;
-        this.vx = randRange(-240, -150);
+          this.x = NET_X + 170;
+          this.vx = randRange(-240, -150);
       } else {
-        this.x = NET_X - 170;
-        this.vx = randRange(150, 240);
+          this.x = NET_X - 170;
+          this.vx = randRange(150, 240);
       }
-      this.y = NET_TOP - randRange(40, 110);
-      this.vy = randRange(-180, -90);
+      
+      if (serveType < 0.4) {
+          // Hög, lös serve (tvingar dem att backa)
+          this.y = NET_TOP - randRange(150, 200);
+          this.vy = randRange(50, 100); // Går uppåt först
+          this.vx *= 0.6; // Långsammare horisontellt
+      } else {
+          // Standard-serve
+          this.y = NET_TOP - randRange(40, 110);
+          this.vy = randRange(-180, -90);
+      }
       this.lastSide = side;
     }
     update(dt){
@@ -1222,6 +1239,7 @@ const EDGE_PENALTY = 0.004;       // halva 0.008
       this.lastBallX = this.primaryBall ? this.primaryBall.x : NET_X;
       // initialize per-team score tracking for competition mode
       this.teamScores = {left: 0, right: 0};
+      this.maxSteps = MAX_STEPS_BASE; // <<< ÄNDRING 9
     }
 
     get primaryBall(){
@@ -1333,45 +1351,9 @@ const EDGE_PENALTY = 0.004;       // halva 0.008
         return [ceilDist, floorDist, netDist, wallDist];
       });
       const touch = this.lastTouchSide === 'left' ? -1 : this.lastTouchSide === 'right' ? 1 : 0;
-      // Compute additional sensors from each limb (both hands and both feet) to the environment and ball
-      const limbSensors = [];
-      players.forEach((p)=>{
-        // ensure limb segments exist for arms and legs
-        if(!p.armSegments || p.armSegments.length < 2){
-          p.updateArms(ball, 0);
-        }
-        if(!p.legSegments || p.legSegments.length < 2){
-          p.updateLegs(ball, 0);
-        }
-        const segs = [p.armSegments[0], p.armSegments[1], p.legSegments[0], p.legSegments[1]];
-        segs.forEach((seg)=>{
-          const lx = seg.handX !== undefined ? seg.handX : seg.footX;
-          const ly = seg.handY !== undefined ? seg.handY : seg.footY;
-          // distance from limb to ceiling and floor
-          const ceilDistL = Math.max(0, (ly - CEILING_Y)) / FIELD_HEIGHT;
-          const floorDistL = Math.max(0, (FLOOR_Y - ly)) / FIELD_HEIGHT;
-          // horizontal distance to net
-          const netDistL = Math.abs(NET_X - lx) / FIELD_WIDTH;
-          // horizontal distance to back wall depending on player side
-          let wallDistL;
-          if(p.side === 'left'){
-            wallDistL = Math.max(0, lx - BORDER_PAD) / FIELD_WIDTH;
-          } else {
-            wallDistL = Math.max(0, (FIELD_WIDTH - BORDER_PAD) - lx) / FIELD_WIDTH;
-          }
-          // relative position to ball for each limb
-          const ballDxL = (ball.x - lx) / FIELD_WIDTH;
-          const ballDyL = (ball.y - ly) / FIELD_HEIGHT;
-          limbSensors.push(
-            ceilDistL,
-            floorDistL,
-            netDistL,
-            wallDistL,
-            ballDxL,
-            ballDyL
-          );
-        });
-      });
+      
+      // <<< ÄNDRING 1: All logik för "limbSensors" borttagen
+      
       return [
         bx, by, bvx, bvy,
         positions[0][0], positions[0][1],
@@ -1387,9 +1369,8 @@ const EDGE_PENALTY = 0.004;       // halva 0.008
         env[1][0], env[1][1], env[1][2], env[1][3],
         env[2][0], env[2][1], env[2][2], env[2][3],
         env[3][0], env[3][1], env[3][2], env[3][3],
-        touch,
-        // append limb-specific sensor values
-        ...limbSensors
+        touch
+        // <<< ÄNDRING 1: ...limbSensors borttagen
       ];
     }
 
@@ -1439,7 +1420,20 @@ const EDGE_PENALTY = 0.004;       // halva 0.008
       if(!contact) return false;
       const upward = -contact.normalY;
       const angleBonus = Math.max(0, upward) * 3.0;
+
+      // <<< ÄNDRING 7: "Smash"-bonus i tävlingsläge
+      if (config.mode === 'competition' && upward < -0.3 && player.y < NET_TOP) {
+          // Om träffen är mer än 30% nedåt OCH spelaren är ovanför nätet
+          this.fitness += 15.0; // Stor bonus för en smash!
+      }
+
       let reward = TOUCH_REWARD + angleBonus;
+
+      // <<< ÄNDRING 6: Bonus för att vara i luften
+      if (!player.grounded) {
+          reward += 4.0; // Bonus för "aerial"
+      }
+
       if(contact.type === 'arm'){
         reward += armStrikeBonus;
       } else if(contact.type === 'leg'){
@@ -1573,6 +1567,7 @@ const EDGE_PENALTY = 0.004;       // halva 0.008
         if(ball.y - ballRadius <= NET_TOP){
           this.crossings++;
           this.fitness += CROSS_REWARD;
+          this.maxSteps += 300; // <<< ÄNDRING 9: Lägg till tid
           // update team score in competition mode
           if(config.mode === 'competition'){
             const last = this.lastTouchSide;
@@ -1608,8 +1603,8 @@ const EDGE_PENALTY = 0.004;       // halva 0.008
         this.currentRallyDuration += dt;
       }
 
-      // Dynamic step budget grows with generation (6)
-      const maxSteps = MAX_STEPS_BASE + (generation - 1) * 50;
+      // <<< ÄNDRING 9: Dynamisk maxSteps hanteras nu av this.maxSteps
+      // const maxSteps = MAX_STEPS_BASE + (generation - 1) * 50;
 
       const outputs = this.genome.feedForward(this.getInputs());
       this.applyOutputs(outputs, dt);
@@ -1646,9 +1641,19 @@ const EDGE_PENALTY = 0.004;       // halva 0.008
           this.idleTicks = 0;
         }
         this.lastBallX = primary.x;
+
+        // <<< ÄNDRING 3: Belöna aktiv positionering
+        this.players.forEach(player => {
+            const distToBall = Math.hypot(player.x - primary.x, player.y - primary.y);
+            const distToNet = Math.abs(player.x - NET_X);
+            // Om spelaren är nära bollen OCH på den "aktiva" planhalvan
+            if (distToBall < 300 && distToNet < 400) {
+                 this.fitness += 0.005; // Liten bonus för att vara "redo"
+            }
+        });
       }
 
-      if(this.steps >= maxSteps){
+      if(this.steps >= this.maxSteps){ // <<< ÄNDRING 9
         this.done = true;
         this.endCurrentRally();
       }
@@ -1753,7 +1758,7 @@ const EDGE_PENALTY = 0.004;       // halva 0.008
     if(genomeIndex >= evaluationOrder.length){
       // (7) Auto-decay mutation slightly each generation, lower-bounded
       const decayFactor = 0.98;
-      config.mutationRate = Math.max(6, Math.min(80, config.mutationRate * decayFactor));
+      config.mutationRate = Math.max(10, Math.min(80, config.mutationRate * decayFactor)); // <<< ÄNDRING 2
 
       population.evolve(config);
       evaluationOrder = population.genomes.slice();
@@ -1945,47 +1950,8 @@ const EDGE_PENALTY = 0.004;       // halva 0.008
       ctx.moveTo(player.x, player.y);
       ctx.lineTo(wallX, player.y);
       ctx.stroke();
-      // draw sensor lines from both hands and both feet to the ball and environment
-      // ensure limb segments exist
-      if(!player.armSegments || player.armSegments.length < 2) player.updateArms(ball, 0);
-      if(!player.legSegments || player.legSegments.length < 2) player.updateLegs(ball, 0);
-      const limbs = [player.armSegments[0], player.armSegments[1], player.legSegments[0], player.legSegments[1]];
-      limbs.forEach((seg)=>{
-        const lx = seg.handX !== undefined ? seg.handX : seg.footX;
-        const ly = seg.handY !== undefined ? seg.handY : seg.footY;
-        // lines to ceiling and floor
-        ctx.strokeStyle = 'rgba(255,255,255,0.25)';
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(lx, ly);
-        ctx.lineTo(lx, CEILING_Y);
-        ctx.stroke();
-        ctx.beginPath();
-        ctx.moveTo(lx, ly);
-        ctx.lineTo(lx, FLOOR_Y);
-        ctx.stroke();
-        // line to net
-        ctx.beginPath();
-        ctx.moveTo(lx, ly);
-        ctx.lineTo(NET_X, ly);
-        ctx.stroke();
-        // line to back wall
-        const wX = player.side === 'left' ? BORDER_PAD : (FIELD_WIDTH - BORDER_PAD);
-        ctx.beginPath();
-        ctx.moveTo(lx, ly);
-        ctx.lineTo(wX, ly);
-        ctx.stroke();
-        // line to ball from each limb
-        const limbColor = player.side === 'left'
-          ? 'rgba(56,189,248,0.4)'
-          : 'rgba(244,114,182,0.4)';
-        ctx.strokeStyle = limbColor;
-        ctx.lineWidth = 1.5;
-        ctx.beginPath();
-        ctx.moveTo(lx, ly);
-        ctx.lineTo(ball.x, ball.y);
-        ctx.stroke();
-      });
+      // <<< ÄNDRING 1: Logik för att rita sensorer från lemmar borttagen
+      // (den ritade bara från lemmar om de var med i inputs, vilket de inte är längre)
     });
     // draw ball velocity vector
     ctx.strokeStyle = 'rgba(255,255,255,0.4)';
