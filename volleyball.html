@@ -94,7 +94,7 @@
                 <label class="label" for="slPopulation">Population size</label>
                 <span class="val" id="lbPopulation">30 genomes</span>
               </div>
-              <input id="slPopulation" type="range" min="10" max="80" value="30">
+              <input id="slPopulation" type="range" min="10" max="80" value="30" title="How many genomes evolve each generation. Larger populations explore more behaviours at once.">
             </div>
 
             <div class="control">
@@ -102,7 +102,7 @@
                 <label class="label" for="slHidden">Initial hidden neurons</label>
                 <span class="val" id="lbHidden">4 nodes</span>
               </div>
-              <input id="slHidden" type="range" min="0" max="16" value="4">
+              <input id="slHidden" type="range" min="0" max="16" value="4" title="Number of hidden neurons seeded at the start of training.">
             </div>
 
             <div class="control">
@@ -110,7 +110,7 @@
                 <label class="label" for="slMutRate">Mutation % (base)</label>
                 <span class="val" id="lbMutRate">22%</span>
               </div>
-              <input id="slMutRate" type="range" min="5" max="80" value="22">
+              <input id="slMutRate" type="range" min="5" max="80" value="22" title="Base probability of mutating weights or structure each generation.">
             </div>
 
             <div class="control">
@@ -118,7 +118,7 @@
                 <label class="label" for="slAddConn">Add-connection %</label>
                 <span class="val" id="lbAddConn">8%</span>
               </div>
-              <input id="slAddConn" type="range" min="1" max="40" value="8">
+              <input id="slAddConn" type="range" min="1" max="40" value="8" title="Chance of inserting a brand-new synapse during mutation.">
             </div>
 
             <div class="control">
@@ -126,7 +126,7 @@
                 <label class="label" for="slAddNode">Add-node %</label>
                 <span class="val" id="lbAddNode">3%</span>
               </div>
-              <input id="slAddNode" type="range" min="0" max="20" value="3">
+              <input id="slAddNode" type="range" min="0" max="20" value="3" title="Chance of splitting a connection with a new hidden neuron.">
             </div>
 
             <div class="control">
@@ -134,7 +134,7 @@
                 <label class="label" for="slSimSpeed">Sim speed</label>
                 <span class="val" id="lbSimSpeed">2×</span>
               </div>
-              <input id="slSimSpeed" type="range" min="1" max="12" value="2">
+              <input id="slSimSpeed" type="range" min="1" max="12" value="2" title="How many physics steps run per animation frame.">
             </div>
 
             <div class="control">
@@ -142,7 +142,7 @@
                 <label class="label" for="slBallCount">Ball count</label>
                 <span class="val" id="lbBallCount">1 ball</span>
               </div>
-              <input id="slBallCount" type="range" min="1" max="6" value="1">
+              <input id="slBallCount" type="range" min="1" max="6" value="1" title="Number of balls spawned for the cooperative drill.">
             </div>
 
             <div class="control">
@@ -150,7 +150,31 @@
                 <label class="label" for="slBallRadius">Ball size</label>
                 <span class="val" id="lbBallRadius">18px</span>
               </div>
-              <input id="slBallRadius" type="range" min="12" max="32" value="18">
+              <input id="slBallRadius" type="range" min="12" max="32" value="18" title="Radius of each ball. Larger balls are easier targets but heavier.">
+            </div>
+
+            <div class="control">
+              <div class="control-header">
+                <label class="label" for="slArmBonus">Arm reward boost</label>
+                <span class="val" id="lbArmBonus">6.0</span>
+              </div>
+              <input id="slArmBonus" type="range" min="2" max="12" value="6" step="0.5" title="Extra fitness granted when a player strikes the ball with a hand.">
+            </div>
+
+            <div class="control">
+              <div class="control-header">
+                <label class="label" for="slKickBonus">Kick reward boost</label>
+                <span class="val" id="lbKickBonus">4.0</span>
+              </div>
+              <input id="slKickBonus" type="range" min="1" max="10" value="4" step="0.5" title="Bonus fitness for controlled kicks using the new leg joints.">
+            </div>
+
+            <div class="control">
+              <div class="control-header">
+                <label class="label" for="slHeadPenalty">Head touch penalty</label>
+                <span class="val" id="lbHeadPenalty">1.5</span>
+              </div>
+              <input id="slHeadPenalty" type="range" min="0" max="5" value="1.5" step="0.1" title="How much fitness to subtract when agents rely on body bumps instead of precise hand or foot control.">
             </div>
           </div>
           <button id="btnRestart" class="btn">Restart training</button>
@@ -739,8 +763,24 @@
   const HAND_HIT_RADIUS = 14;
   const ARM_SWING_RATE = Math.PI * 4.2;
   const ARM_FACING_LIMIT = Math.PI * 0.72;
-  const ARM_STRIKE_BONUS = 2.5;
   const ARM_DRAW_WIDTH = 8.5;
+
+  const HIP_SPREAD = 18;
+  const HIP_HEIGHT = 24;
+  const THIGH_LENGTH = 36;
+  const SHIN_LENGTH = 44;
+  const LEG_TOTAL_REACH = THIGH_LENGTH + SHIN_LENGTH;
+  const FOOT_HIT_RADIUS = 18;
+  const LEG_SWING_RATE = Math.PI * 3.2;
+  const LEG_FACING_LIMIT = Math.PI * 0.65;
+  const LEG_DRAW_WIDTH = 9.5;
+
+  const ARM_STRIKE_BONUS_DEFAULT = 6;
+  const LEG_KICK_BONUS_DEFAULT = 4;
+  const HEAD_TOUCH_PENALTY_DEFAULT = 1.5;
+  let armStrikeBonus = ARM_STRIKE_BONUS_DEFAULT;
+  let legKickBonus = LEG_KICK_BONUS_DEFAULT;
+  let headTouchPenalty = HEAD_TOUCH_PENALTY_DEFAULT;
 
   const INPUT_COUNT = 21;
   const OUTPUT_COUNT = 8;
@@ -788,7 +828,10 @@
     initialHidden: 4,
     simSpeed: 2,
     ballCount: 1,
-    ballRadius: 18
+    ballRadius: 18,
+    armReward: ARM_STRIKE_BONUS_DEFAULT,
+    kickReward: LEG_KICK_BONUS_DEFAULT,
+    headPenalty: HEAD_TOUCH_PENALTY_DEFAULT
   };
 
   let population = null;
@@ -810,6 +853,11 @@
         : [{x: SHOULDER_SPREAD, y: SHOULDER_HEIGHT}, {x: -SHOULDER_SPREAD, y: SHOULDER_HEIGHT}];
       this.armAngles = [0, 0];
       this.armSegments = [{}, {}];
+      this.hipOffsets = side === 'left'
+        ? [{x: -HIP_SPREAD, y: HIP_HEIGHT}, {x: HIP_SPREAD, y: HIP_HEIGHT}]
+        : [{x: HIP_SPREAD, y: HIP_HEIGHT}, {x: -HIP_SPREAD, y: HIP_HEIGHT}];
+      this.legAngles = [Math.PI/2, Math.PI/2];
+      this.legSegments = [{}, {}];
       this.reset(x, y);
     }
 
@@ -821,6 +869,12 @@
       } else {
         this.armAngles = [baseFacing + spread, baseFacing - spread];
       }
+    }
+
+    resetLegAngles(){
+      const base = Math.PI / 2;
+      const spread = 0.32;
+      this.legAngles = [base - spread, base + spread];
     }
 
     reset(x, y){
@@ -835,7 +889,9 @@
       this.vy = 0;
       this.grounded = this.y >= PLAYER_GROUND_Y - 1;
       this.resetArmAngles();
+      this.resetLegAngles();
       this.updateArms(null, 0);
+      this.updateLegs(null, 0);
     }
 
     update(dxInput, jumpInput, dt, ball){
@@ -882,6 +938,7 @@
       this.grounded = this.y >= ground - 1;
       this.vx = (this.x - prevX) / dt;
       this.updateArms(ball, dt);
+      this.updateLegs(ball, dt);
     }
 
     updateArms(ball, dt){
@@ -917,6 +974,40 @@
       }
     }
 
+    updateLegs(ball, dt){
+      const baseFacing = Math.PI / 2;
+      const offsets = [-0.28, 0.28];
+      const targetAngle = ball ? Math.atan2(ball.y - this.y, ball.x - this.x) : baseFacing;
+      const aim = wrapAngle(targetAngle);
+      const gait = clamp(this.vx / MAX_MOVE_SPEED, -1, 1) * 0.25;
+      for(let i=0;i<2;i++){
+        const desired = baseFacing + clamp(wrapAngle(aim + offsets[i] - baseFacing), -LEG_FACING_LIMIT, LEG_FACING_LIMIT) + (i === 0 ? gait : -gait);
+        const current = this.legAngles[i] ?? desired;
+        const maxDelta = LEG_SWING_RATE * dt + Math.abs(gait) * 0.35 * dt;
+        this.legAngles[i] = moveTowardAngle(current, desired, maxDelta);
+        const hipOffset = this.hipOffsets[i];
+        const hipX = this.x + hipOffset.x;
+        const hipY = this.y + hipOffset.y;
+        let targetX = hipX;
+        let targetY = hipY + LEG_TOTAL_REACH * 0.7;
+        if(ball){
+          targetX = ball.x;
+          targetY = ball.y;
+        }
+        const dx = targetX - hipX;
+        const dy = targetY - hipY;
+        const dist = Math.hypot(dx, dy);
+        const reach = Math.min(LEG_TOTAL_REACH, dist + 16);
+        const thighLen = Math.min(THIGH_LENGTH, Math.max(THIGH_LENGTH * 0.45, reach * 0.52));
+        const shinLen = Math.min(SHIN_LENGTH, Math.max(SHIN_LENGTH * 0.45, reach - thighLen));
+        const kneeX = hipX + Math.cos(this.legAngles[i]) * thighLen;
+        const kneeY = hipY + Math.sin(this.legAngles[i]) * thighLen;
+        const footX = kneeX + Math.cos(this.legAngles[i]) * shinLen;
+        const footY = kneeY + Math.sin(this.legAngles[i]) * shinLen;
+        this.legSegments[i] = {hipX, hipY, kneeX, kneeY, footX, footY, footRadius: FOOT_HIT_RADIUS};
+      }
+    }
+
     tryHitBall(ball){
       if(!ball) return null;
       if(!this.armSegments || this.armSegments.length < 2){
@@ -937,6 +1028,28 @@
           ball.x = arm.handX + nx * (minDist + 0.5);
           ball.y = arm.handY + ny * (minDist + 0.5);
           return {type: 'arm', normalX: nx, normalY: ny};
+        }
+      }
+
+      if(!this.legSegments || this.legSegments.length < 2){
+        this.updateLegs(ball, 0);
+      }
+      for(const leg of this.legSegments){
+        if(!leg) continue;
+        const dx = ball.x - leg.footX;
+        const dy = ball.y - leg.footY;
+        const dist = Math.hypot(dx, dy);
+        const minDist = ballRadius + (leg.footRadius ?? FOOT_HIT_RADIUS);
+        if(dist < minDist){
+          const nx = dist > 0 ? dx / dist : 0;
+          const ny = dist > 0 ? dy / dist : -1;
+          const speed = Math.max(320, Math.min(MAX_BALL_SPEED, Math.hypot(ball.vx, ball.vy) * 0.9 + 200));
+          const walkInfluence = clamp(this.vx / MAX_MOVE_SPEED, -1, 1);
+          ball.vx = nx * speed + this.vx * 0.65 + walkInfluence * 60;
+          ball.vy = ny * speed - 90 + this.vy * 0.35;
+          ball.x = leg.footX + nx * (minDist + 0.5);
+          ball.y = leg.footY + ny * (minDist + 0.5);
+          return {type: 'leg', normalX: nx, normalY: ny};
         }
       }
 
@@ -1156,7 +1269,11 @@
       const angleBonus = Math.max(0, upward) * 3.0;
       let reward = TOUCH_REWARD + angleBonus;
       if(contact.type === 'arm'){
-        reward += ARM_STRIKE_BONUS;
+        reward += armStrikeBonus;
+      } else if(contact.type === 'leg'){
+        reward += legKickBonus;
+      } else if(contact.type === 'head'){
+        reward -= headTouchPenalty;
       }
       this.fitness += reward;
       this.lastTouchSide = player.side;
@@ -1352,6 +1469,12 @@
     config.simSpeed = Number(Q('slSimSpeed').value);
     config.ballCount = Number(Q('slBallCount').value);
     config.ballRadius = Number(Q('slBallRadius').value);
+    config.armReward = Number(Q('slArmBonus').value);
+    config.kickReward = Number(Q('slKickBonus').value);
+    config.headPenalty = Number(Q('slHeadPenalty').value);
+    armStrikeBonus = config.armReward;
+    legKickBonus = config.kickReward;
+    headTouchPenalty = config.headPenalty;
     baseMutationAtStart = config.mutationRate;
 
     const radiusChanged = prevBallRadius !== config.ballRadius;
@@ -1456,6 +1579,33 @@
     const gradient = ctx.createRadialGradient(player.x, player.y, 10, player.x, player.y, PLAYER_RADIUS + 6);
     gradient.addColorStop(0, `hsla(${hue},85%,74%,0.95)`);
     gradient.addColorStop(1, `hsla(${hue},60%,42%,0.32)`);
+
+    ctx.save();
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = `hsla(${hue},72%,62%,0.55)`;
+    ctx.lineWidth = LEG_DRAW_WIDTH;
+    ctx.fillStyle = `hsla(${hue},82%,72%,0.35)`;
+    (player.legSegments || []).forEach((leg)=>{
+      if(!leg) return;
+      ctx.beginPath();
+      ctx.moveTo(leg.hipX, leg.hipY);
+      ctx.lineTo(leg.kneeX, leg.kneeY);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(leg.kneeX, leg.kneeY);
+      ctx.lineTo(leg.footX, leg.footY);
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.arc(leg.kneeX, leg.kneeY, 7, 0, TAU);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(leg.footX, leg.footY, (leg.footRadius ?? FOOT_HIT_RADIUS) - 3, 0, TAU);
+      ctx.fill();
+      ctx.stroke();
+    });
+    ctx.restore();
 
     ctx.save();
     ctx.lineCap = 'round';
@@ -1575,6 +1725,9 @@
   bindRange('slSimSpeed','lbSimSpeed',(v)=> `${v}×`);
   bindRange('slBallCount','lbBallCount',(v)=> `${v} ball${v===1?'':'s'}`);
   bindRange('slBallRadius','lbBallRadius',(v)=> `${v}px`);
+  bindRange('slArmBonus','lbArmBonus',(v)=> `${Number(v).toFixed(1)}`);
+  bindRange('slKickBonus','lbKickBonus',(v)=> `${Number(v).toFixed(1)}`);
+  bindRange('slHeadPenalty','lbHeadPenalty',(v)=> `${Number(v).toFixed(1)}`);
 
   Q('btnRestart').addEventListener('click', restartTraining);
 
