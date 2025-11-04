@@ -752,59 +752,79 @@
   const canvas = Q('court');
   const ctx = canvas.getContext('2d');
 
-  const FIELD_WIDTH = canvas.width;
-  const FIELD_HEIGHT = canvas.height;
-  const BORDER_PAD = 20;
-  const CEILING_Y = 40 + BORDER_PAD; // visual top padding already drawn at 20; ceiling acts at 40
-  const FLOOR_Y = FIELD_HEIGHT - 20;
-  const NET_X = FIELD_WIDTH / 2;
-  const NET_WIDTH = 14;
-  const NET_HEIGHT = 260;
-  const NET_TOP = FIELD_HEIGHT - NET_HEIGHT;
-  const PLAYER_RADIUS = 32;
-  let ballRadius = 18;
-  const MAX_MOVE_SPEED = 320;
-  const MAX_BALL_SPEED = 520;
-  const GRAVITY = 450;
-  const PLAYER_GROUND_Y = FIELD_HEIGHT - PLAYER_RADIUS - 30;
-  const PLAYER_GRAVITY = 1500;
-  const PLAYER_JUMP_IMPULSE = 420;
-  const PLAYER_FAST_FALL = 1200;
-  const PLAYER_MAX_FALL_SPEED = 900;
-  const PLAYER_MAX_RISE_SPEED = 720;
-  const NET_BOUNCE_DAMPING = 0.75;
-  const WALL_BOUNCE_DAMPING = 0.82;   // (1) side wall bounce damping
-  const WALL_BOUNCE_REWARD = 1.2;     // (1) tiny reward to encourage recovery plays
-  const NET_CLIP_PENALTY = 1.5;       // (5) small penalty on net clip
-  const SIM_DT = 1/60;
-  const MAX_STEPS_BASE = 2200;        // (6) base, grows by generation
-  const CROSS_REWARD = 30;
-  const TOUCH_REWARD = 4;
-  const SURVIVAL_REWARD = 0.06;
-  // Competition victory bonus applied when one team scores higher in competition mode
-  const COMPETITION_VICTORY_BONUS = 50;
+ // --- Fysik & plan ---
+const FIELD_WIDTH = canvas.width;
+const FIELD_HEIGHT = canvas.height;
+const BORDER_PAD = 20;
+const CEILING_Y = 40 + BORDER_PAD;
+const FLOOR_Y = FIELD_HEIGHT - 20;
+const NET_X = FIELD_WIDTH / 2;
+const NET_WIDTH = 14;
+const NET_HEIGHT = 260;
+const NET_TOP = FIELD_HEIGHT - NET_HEIGHT;
 
-  const TEAM_SIZE = 2;
-  const SHOULDER_SPREAD = 22;
-  const SHOULDER_HEIGHT = -18;
-  const UPPER_ARM_LENGTH = 34;
-  const LOWER_ARM_LENGTH = 38;
-  const ARM_TOTAL_REACH = UPPER_ARM_LENGTH + LOWER_ARM_LENGTH;
-  const HAND_HIT_RADIUS = 14;
-  const ARM_SWING_RATE = Math.PI * 4.2;
-  const ARM_FACING_LIMIT = Math.PI * 0.72;
-  const ARM_DRAW_WIDTH = 8.5;
+const PLAYER_RADIUS = 32;
+let ballRadius = 18;
 
-  const HIP_SPREAD = 18;
-  const HIP_HEIGHT = 24;
-  const THIGH_LENGTH = 36;
-  const SHIN_LENGTH = 44;
-  const LEG_TOTAL_REACH = THIGH_LENGTH + SHIN_LENGTH;
-  const FOOT_HIT_RADIUS = 18;
-  const LEG_SWING_RATE = Math.PI * 3.2;
-  // Limit leg swing to a narrower range so legs remain mostly vertical
-  const LEG_FACING_LIMIT = Math.PI * 0.3;
-  const LEG_DRAW_WIDTH = 9.5;
+const MAX_MOVE_SPEED = 380;     // ↑ var 320 – snabbare sidled
+const MAX_BALL_SPEED = 520;
+
+const GRAVITY = 450;
+const PLAYER_GROUND_Y = FIELD_HEIGHT - PLAYER_RADIUS - 30;
+
+// Fall & hopp – mindre studs
+const PLAYER_GRAVITY = 1600;    // ↑ lite tyngre i luft → mindre sväv
+const PLAYER_JUMP_IMPULSE = 360;// ↓ var 420 – lägre hopp → mindre pogo
+const PLAYER_FAST_FALL = 1000;  // ↓ var 1200 – lite mjukare ned
+const PLAYER_MAX_FALL_SPEED = 900;
+const PLAYER_MAX_RISE_SPEED = 600; // ↓ var 720 – begränsa raketupp
+
+const NET_BOUNCE_DAMPING = 0.75;
+const WALL_BOUNCE_DAMPING = 0.82;
+const WALL_BOUNCE_REWARD = 1.2;
+const NET_CLIP_PENALTY = 1.5;
+
+const SIM_DT = 1/60;
+const MAX_STEPS_BASE = 2200;
+const CROSS_REWARD = 30;
+const TOUCH_REWARD = 4;
+const SURVIVAL_REWARD = 0.06;
+const COMPETITION_VICTORY_BONUS = 50;
+
+// --- Team ---
+const TEAM_SIZE = 2;
+
+// --- Armar (lösare + lite svårare att träffa) ---
+const SHOULDER_SPREAD = 22;
+const SHOULDER_HEIGHT = -18;
+const UPPER_ARM_LENGTH = 34;
+const LOWER_ARM_LENGTH = 38;
+const ARM_TOTAL_REACH = UPPER_ARM_LENGTH + LOWER_ARM_LENGTH;
+const HAND_HIT_RADIUS = 12;        // ↓ var 14 – kräver mer precision
+const ARM_SWING_RATE = Math.PI * 3.6; // ↓ var 4.2 – mindre “stiff”, mer lagg
+const ARM_FACING_LIMIT = Math.PI * 0.9; // ↑ var 0.72 – större spelrum/fladdrigare
+const ARM_DRAW_WIDTH = 8.5;
+
+// --- Ben (stabilare, mindre autohopp) ---
+const HIP_SPREAD = 18;
+const HIP_HEIGHT = 24;
+const THIGH_LENGTH = 36;
+const SHIN_LENGTH = 44;
+const LEG_TOTAL_REACH = THIGH_LENGTH + SHIN_LENGTH;
+const FOOT_HIT_RADIUS = 18;
+const LEG_SWING_RATE = Math.PI * 2.6; // ↓ var 3.2 – lugnare pendel
+const LEG_FACING_LIMIT = Math.PI * 0.25; // ↓ var 0.3 – håller benen mer vertikala
+const LEG_DRAW_WIDTH = 9.5;
+
+// --- Anti-hop (lägg enkel cooldown i inputlogiken) ---
+const MIN_GROUNDED_TIME_BEFORE_JUMP = 0.18; // sekunder innan nytt hopp tillåts
+const JUMP_ENERGY_COST = 0.2;               // liten kostnad → färre onödiga hopp
+
+// --- Mitt-bias (mild) ---
+const CENTER_BAND_WIDTH = 160;      // px band runt mitt (per sida, se nedan)
+const CENTER_STEP_REWARD = 0.015;   // liten per-step reward i centerbandet
+const EDGE_PENALTY = 0.008;         // liten per-step penalty nära sidovägg
+
 
   const ARM_STRIKE_BONUS_DEFAULT = 6;
   const LEG_KICK_BONUS_DEFAULT = 4;
