@@ -1,1604 +1,1599 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="sv">
 <head>
-<meta charset="UTF-8" />
-<title>Rolling Ball (NEAT)</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NEAT Studsboll - Förfinad</title>
 <style>
+    /* ... (Din exakta CSS-kod från originalet, ingen ändring behövs) ... */
     :root {
         --bg-gradient-start: #1f2633;
         --bg-gradient-end: #121722;
         --accent: #ff9f43;
-        --accent-soft: rgba(255, 159, 67, 0.2);
-        --panel-bg: rgba(24, 31, 44, 0.92);
-        --panel-border: rgba(255, 255, 255, 0.08);
+        --accent-glow: rgba(255, 159, 67, 0.4);
+        --panel-bg: rgba(24, 31, 44, 0.95);
+        --panel-border: rgba(255, 255, 255, 0.1);
         --text-light: #f5f7ff;
         --text-dim: #9aa7c2;
-        --shadow: 0 12px 24px rgba(0, 0, 0, 0.3);
+        --shadow: 0 12px 24px rgba(0, 0, 0, 0.4);
         --radius: 14px;
-        font-size: 16px;
     }
-
-    * {
-        box-sizing: border-box;
-    }
-
+    * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
-        margin: 0;
-        font-family: "Inter", "Segoe UI", sans-serif;
-        color: var(--text-light);
+        font-family: 'Inter', 'Segoe UI', sans-serif;
         background: linear-gradient(160deg, var(--bg-gradient-start), var(--bg-gradient-end));
+        color: var(--text-light);
         min-height: 100vh;
         display: flex;
-        flex-direction: column;
-    }
-
-    a {
-        color: var(--accent);
-        text-decoration: none;
-        font-weight: 600;
-    }
-
-    .top-bar {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        padding: 16px 24px;
-        background: rgba(12, 16, 24, 0.7);
-        backdrop-filter: blur(8px);
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
-        z-index: 10;
-    }
-
-    .top-bar h1 {
-        font-size: 1.1rem;
-        margin: 0;
-        letter-spacing: 0.08em;
-        text-transform: uppercase;
-        color: var(--text-light);
-    }
-
-    .layout {
-        flex: 1;
-        display: flex;
-        position: relative;
+        gap: 0;
         overflow: hidden;
     }
-
-    .game-container {
+    .main-area {
         flex: 1;
-        position: relative;
         display: flex;
-        align-items: stretch;
-        justify-content: center;
-        padding: 16px;
+        flex-direction: column;
+        padding: 20px;
+        overflow: hidden;
     }
-
     canvas {
-        width: 100%;
-        height: 100%;
-        max-height: calc(100vh - 120px);
         border-radius: var(--radius);
-        background: linear-gradient(180deg, rgba(13, 18, 28, 0.96) 0%, rgba(10, 12, 16, 0.98) 60%, rgba(8, 9, 12, 1) 100%);
-        box-shadow: var(--shadow);
-    }
-
-    .hud {
-        position: absolute;
-        top: 24px;
-        left: 32px;
-        padding: 16px 18px;
-        background: rgba(12, 18, 30, 0.72);
-        border: 1px solid var(--panel-border);
-        border-radius: var(--radius);
-        backdrop-filter: blur(6px);
-        font-size: 0.85rem;
-        line-height: 1.4;
-    }
-
-    .hud span {
+        background: linear-gradient(180deg, #1a1f2e 0%, #0d1117 100%);
+        box-shadow: var(--shadow), inset 0 1px 0 rgba(255,255,255,0.05);
         display: block;
-        color: var(--text-dim);
+        width: 100%;
+        max-height: 70vh;
     }
-
-    .hud strong {
-        color: var(--text-light);
+    .stats {
+        margin-top: 20px;
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+        gap: 12px;
     }
-
-    .overlay {
-        position: absolute;
-        inset: 0;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        pointer-events: none;
-    }
-
-    .overlay .panel {
-        pointer-events: auto;
-        padding: 28px 32px;
-        border-radius: var(--radius);
-        background: rgba(10, 14, 24, 0.92);
+    .stat-box {
+        background: var(--panel-bg);
         border: 1px solid var(--panel-border);
-        box-shadow: var(--shadow);
-        text-align: center;
-        min-width: 280px;
-    }
-
-    .overlay .panel h2 {
-        margin: 0 0 12px;
-        font-weight: 600;
-        letter-spacing: 0.05em;
-    }
-
-    .overlay .panel button {
-        margin: 8px;
-        padding: 10px 18px;
-        font-size: 0.9rem;
         border-radius: 10px;
-        border: none;
-        cursor: pointer;
-        font-weight: 600;
-        background: var(--accent);
-        color: #09101a;
-        transition: transform 0.15s ease, box-shadow 0.15s ease;
+        padding: 14px;
+        text-align: center;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        transition: all 0.3s ease;
     }
-
-    .overlay .panel button:hover {
-        transform: translateY(-1px);
-        box-shadow: 0 8px 14px rgba(255, 159, 67, 0.35);
+    .stat-box:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 16px rgba(0, 0, 0, 0.3);
     }
-
+    .stat-box .label {
+        font-size: 0.7rem;
+        color: var(--text-dim);
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        margin-bottom: 6px;
+    }
+    .stat-box .value {
+        font-size: 1.8rem;
+        font-weight: 700;
+        background: linear-gradient(135deg, var(--accent) 0%, #f5576c 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+    }
     .side-panel {
-        width: 320px;
+        width: 340px;
+        max-height: 100vh;
         background: var(--panel-bg);
         border-left: 1px solid var(--panel-border);
-        box-shadow: -12px 0 24px rgba(0, 0, 0, 0.25);
-        display: flex;
-        flex-direction: column;
-        transition: transform 0.3s ease;
+        overflow-y: auto;
+        padding: 20px;
+        box-shadow: -4px 0 20px rgba(0, 0, 0, 0.3);
     }
-
-    .side-panel.collapsed {
-        transform: translateX(260px);
+    .side-panel::-webkit-scrollbar {
+        width: 8px;
     }
-
-    .side-panel header {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        padding: 16px 20px;
-        border-bottom: 1px solid var(--panel-border);
-        font-weight: 600;
-        text-transform: uppercase;
-        letter-spacing: 0.08em;
+    .side-panel::-webkit-scrollbar-track {
+        background: rgba(0, 0, 0, 0.2);
+        border-radius: 4px;
     }
-
-    .toggle-panel {
-        position: absolute;
-        top: 24px;
-        right: 340px;
-        z-index: 5;
-        padding: 8px 12px;
-        background: rgba(12, 18, 30, 0.8);
-        border: 1px solid var(--panel-border);
-        border-radius: 999px;
-        color: var(--text-dim);
-        font-weight: 600;
-        cursor: pointer;
-        box-shadow: var(--shadow);
+    .side-panel::-webkit-scrollbar-thumb {
+        background: var(--accent);
+        border-radius: 4px;
     }
-
-    .side-panel.collapsed + .toggle-panel {
-        right: 60px;
-    }
-
     .panel-section {
-        padding: 16px 20px;
+        margin-bottom: 24px;
+        padding-bottom: 20px;
         border-bottom: 1px solid var(--panel-border);
     }
-
+    .panel-section:last-child {
+        border-bottom: none;
+    }
     .panel-section h3 {
-        margin: 0 0 12px;
-        font-size: 0.8rem;
-        letter-spacing: 0.08em;
-        color: var(--text-dim);
+        font-size: 0.85rem;
         text-transform: uppercase;
+        letter-spacing: 0.1em;
+        color: var(--accent);
+        margin-bottom: 14px;
+        font-weight: 700;
     }
-
-    .panel-section label {
-        display: flex;
-        flex-direction: column;
-        gap: 6px;
+    .control-group {
+        margin-bottom: 14px;
+    }
+    .control-group label {
+        display: block;
         font-size: 0.8rem;
-        margin-bottom: 12px;
         color: var(--text-dim);
+        margin-bottom: 6px;
     }
-
-    .panel-section input[type="range"] {
+    .control-group input[type="range"] {
         width: 100%;
+        height: 6px;
+        border-radius: 3px;
+        background: rgba(255, 255, 255, 0.08);
+        outline: none;
+        transition: background 0.2s;
     }
-
-    .panel-section input[type="number"],
-    .panel-section input[type="text"] {
-        width: 100%;
-        padding: 6px 8px;
-        border-radius: 8px;
-        border: 1px solid rgba(255, 255, 255, 0.08);
-        background: rgba(0, 0, 0, 0.3);
-        color: var(--text-light);
-    }
-
-    .panel-section .checkbox-row {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        margin-bottom: 10px;
-    }
-
-    .panel-section button {
-        padding: 8px 12px;
-        border-radius: 8px;
-        border: 1px solid rgba(255, 255, 255, 0.12);
-        background: rgba(255, 255, 255, 0.05);
-        color: var(--text-light);
-        cursor: pointer;
-        font-weight: 600;
-        transition: background 0.2s ease;
-    }
-
-    .panel-section button:hover {
+    .control-group input[type="range"]:hover {
         background: rgba(255, 255, 255, 0.12);
     }
-
-    .save-status {
-        font-size: 0.75rem;
-        color: var(--text-dim);
-        margin-top: 6px;
-        min-height: 14px;
+    .control-group input[type="range"]::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        width: 18px;
+        height: 18px;
+        border-radius: 50%;
+        background: var(--accent);
+        cursor: pointer;
+        box-shadow: 0 2px 8px var(--accent-glow);
+        transition: all 0.2s;
     }
-
-    .stuck-warning {
-        color: #ff6b6b;
-        font-weight: 600;
+    .control-group input[type="range"]::-webkit-slider-thumb:hover {
+        transform: scale(1.1);
+        box-shadow: 0 4px 12px var(--accent-glow);
     }
-
-    @media (max-width: 1200px) {
-        .side-panel {
-            position: absolute;
-            right: 0;
-            top: 72px;
-            height: calc(100% - 72px);
-        }
-        .toggle-panel {
-            top: 92px;
-        }
+    .control-group .value-display {
+        display: inline-block;
+        float: right;
+        color: var(--accent);
+        font-weight: 700;
+        font-size: 0.85rem;
+    }
+    button {
+        width: 100%;
+        padding: 12px;
+        margin-bottom: 10px;
+        border: none;
+        border-radius: 10px;
+        background: linear-gradient(135deg, var(--accent) 0%, #f5576c 100%);
+        color: white;
+        font-weight: 700;
+        cursor: pointer;
+        transition: all 0.3s;
+        box-shadow: 0 4px 12px rgba(255, 159, 67, 0.3);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        font-size: 0.85rem;
+    }
+    button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 16px rgba(255, 159, 67, 0.5);
+    }
+    button:active {
+        transform: translateY(0);
+    }
+    .chart {
+        margin-top: 12px;
+        height: 100px;
+        background: rgba(0, 0, 0, 0.3);
+        border-radius: 8px;
+        padding: 8px;
+        position: relative;
+        border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+    .chart-bar {
+        display: inline-block;
+        width: 3px;
+        background: linear-gradient(to top, var(--accent), #f5576c);
+        margin-right: 1px;
+        vertical-align: bottom;
+        border-radius: 2px 2px 0 0;
+    }
+    /* NYTT FÖR AI-VISUALISERING */
+    #nnCanvas {
+        width: 100%;
+        height: 180px;
+        background: rgba(0, 0, 0, 0.3);
+        border-radius: 8px;
+        border: 1px solid rgba(255, 255, 255, 0.05);
     }
 </style>
 </head>
 <body>
-    <div class="top-bar">
-        <h1>Rolling Ball (NEAT)</h1>
-        <a href="index.html">Back to Foodwars</a>
-    </div>
-    <div class="layout">
-        <div class="game-container">
-            <canvas id="game" width="1280" height="720"></canvas>
-            <div class="hud" id="hud"></div>
-            <div class="overlay" id="overlay" hidden>
-                <div class="panel">
-                    <h2 id="overlay-title">Episode Over</h2>
-                    <p id="overlay-subtitle"></p>
-                    <div>
-                        <button data-action="restart">Restart (R)</button>
-                        <button data-action="new-seed">New Seed (Enter)</button>
-                        <button data-action="toggle-mode">Toggle Mode (Space)</button>
-                    </div>
-                </div>
-            </div>
+<div class="main-area">
+    <canvas id="canvas" width="1200" height="600"></canvas>
+    <div class="stats">
+        <div class="stat-box">
+            <div class="label">Generation</div>
+            <div class="value" id="generation">1</div>
         </div>
-        <aside class="side-panel" id="side-panel">
-            <header>
-                <span>Telemetry &amp; Controls</span>
-                <button id="collapse-btn" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-weight:600;">⮜</button>
-            </header>
-            <div class="panel-section">
-                <h3>Physics</h3>
-                <label>Gravity Scale <input type="range" min="200" max="1200" value="550" step="10" data-param="gravity" /></label>
-                <label>Ground Friction <input type="range" min="0" max="10" value="2" step="0.1" data-param="friction" /></label>
-                <label>Acceleration Power <input type="range" min="50" max="400" value="180" step="5" data-param="accel" /></label>
-                <label>Brake Strength <input type="range" min="50" max="400" value="220" step="5" data-param="brake" /></label>
-                <label>Stuck Timeout (s) <input type="range" min="2" max="8" value="4" step="0.1" data-param="stuckTime" /></label>
-                <label>Gap Frequency <input type="range" min="0" max="1" value="0.25" step="0.01" data-param="gapFreq" /></label>
-            </div>
-            <div class="panel-section">
-                <h3>NEAT</h3>
-                <label>Population Size <input type="number" value="24" min="4" max="100" step="1" data-param="population" /></label>
-                <label>Mutation Rate <input type="range" min="0" max="1" value="0.2" step="0.01" data-param="mutation" /></label>
-                <label>Add Node Rate <input type="range" min="0" max="0.5" value="0.03" step="0.005" data-param="addNode" /></label>
-                <label>Add Connection Rate <input type="range" min="0" max="0.8" value="0.18" step="0.01" data-param="addConn" /></label>
-                <label>Elitism (%) <input type="range" min="0" max="0.5" value="0.1" step="0.01" data-param="elitism" /></label>
-                <label>Compat c1 <input type="range" min="0" max="5" value="1" step="0.05" data-param="c1" /></label>
-                <label>Compat c2 <input type="range" min="0" max="5" value="1" step="0.05" data-param="c2" /></label>
-                <label>Compat c3 <input type="range" min="0" max="5" value="0.4" step="0.05" data-param="c3" /></label>
-                <label>Compat Threshold <input type="range" min="0.1" max="6" value="2.6" step="0.05" data-param="compatThreshold" /></label>
-                <label>Species Target <input type="range" min="1" max="10" value="5" step="1" data-param="speciesTarget" /></label>
-                <div class="checkbox-row"><input type="checkbox" data-param="showNormals" id="showNormals" /> <label for="showNormals" style="margin:0;">Show normals</label></div>
-                <div class="checkbox-row"><input type="checkbox" data-param="fastTrain" id="fastTrain" /> <label for="fastTrain" style="margin:0;">Fast training</label></div>
-                <div class="checkbox-row"><input type="checkbox" data-param="autoRestart" id="autoRestart" checked /> <label for="autoRestart" style="margin:0;">Auto restart</label></div>
-            </div>
-            <div class="panel-section">
-                <h3>Seed</h3>
-                <label>Seed <input type="text" data-param="seedText" /></label>
-                <div style="display:flex;gap:8px;flex-wrap:wrap;">
-                    <button data-action="new-seed">New Seed</button>
-                    <button data-action="use-seed">Use Seed</button>
-                </div>
-            </div>
-            <div class="panel-section">
-                <h3>Best Genome</h3>
-                <div style="display:flex;gap:8px;flex-wrap:wrap;">
-                    <button data-action="save-best">Save Best</button>
-                    <button data-action="load-best">Load Best</button>
-                    <button data-action="clear-best">Clear Saved</button>
-                </div>
-                <div class="save-status" id="save-status"></div>
-            </div>
-        </aside>
-        <button class="toggle-panel" id="toggle-panel">Telemetry</button>
+        <div class="stat-box">
+            <div class="label">Levande</div>
+            <div class="value" id="alive">0</div>
+        </div>
+        <div class="stat-box">
+            <div class="label">Bästa Fitness</div>
+            <div class="value" id="bestEver">0</div>
+        </div>
+        <div class="stat-box">
+            <div class="label">Bästa Hinder</div>
+            <div class="value" id="bestObstacles">0</div>
+        </div>
+        <div class="stat-box">
+            <div class="label">Bästa Nu</div>
+            <div class="value" id="bestNow">0</div>
+        </div>
+        <div class="stat-box">
+            <div class="label">Genomsnitt Nu</div>
+            <div class="value" id="average">0</div>
+        </div>
     </div>
-    <script>
-    // -------------------------------------------------------------
-    // Utility helpers
-    // -------------------------------------------------------------
-    const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
-    const lerp = (a, b, t) => a + (b - a) * clamp(t, 0, 1);
+</div>
 
-    class RNG {
-        constructor(seed) {
-            this.setSeed(seed || Date.now().toString());
+<div class="side-panel">
+    <div class="panel-section">
+        <h3>🎮 Kontroller</h3>
+        <button onclick="resetGeneration()">🔄 Ny Generation</button>
+        <button onclick="togglePause()">⏯️ Pausa/Fortsätt</button>
+        <button onclick="showBestOnly()">⭐ Visa Bara Bästa</button>
+        <button onclick="saveBest()">💾 Spara Bästa AI</button>
+        <button onclick="loadBest()">📂 Ladda Sparad AI</button>
+        <div id="saveStatus" style="font-size: 0.75rem; color: #9aa7c2; margin-top: 8px; min-height: 16px;"></div>
+    </div>
+
+    <div class="panel-section">
+        <h3>⚡ Simulering</h3>
+        <div class="control-group">
+            <label>Hastighet <span class="value-display" id="speedVal">1.0x</span></label>
+            <input type="range" id="speed" min="0.1" max="5" step="0.1" value="1">
+        </div>
+        <div class="control-group">
+            <label>Zoom <span class="value-display" id="zoomVal">1.0x</span></label>
+            <input type="range" id="zoom" min="0.5" max="2" step="0.1" value="1">
+        </div>
+        <div class="control-group">
+            <label>Auto-Reset Timer <span class="value-display" id="timeoutVal">5s</span></label>
+            <input type="range" id="progressTimeout" min="2" max="15" step="1" value="5">
+        </div>
+        <div class="control-group">
+            <label>Sensorlängd <span class="value-display" id="sensorLengthVal">150</span></label>
+            <input type="range" id="sensorLength" min="50" max="500" step="10" value="150">
+        </div>
+        <div class="control-group">
+            <label>Visa Sensorer <span class="value-display" id="sensorsVal">Ja</span></label>
+            <input type="range" id="showSensors" min="0" max="1" step="1" value="1">
+        </div>
+    </div>
+     <div class="panel-section">
+        <h3>🌍 Bana (Oändlig!)</h3>
+        <div class="control-group">
+            <label>Svårighetstillväxt <span class="value-display" id="difficultyGrowthVal">1.0x</span></label>
+            <input type="range" id="difficultyGrowth" min="0.3" max="2" step="0.1" value="1">
+        </div>
+        <div class="control-group">
+            <label>Hinderhöjd <span class="value-display" id="obstacleHeightVal">1.0x</span></label>
+            <input type="range" id="obstacleHeight" min="0.3" max="2" step="0.1" value="1">
+        </div>
+        <div class="control-group">
+            <label>Första Hinder Vid <span class="value-display" id="firstObstacleVal">800</span></label>
+            <input type="range" id="firstObstacle" min="300" max="1500" step="50" value="800">
+        </div>
+    </div>
+    <div class="panel-section">
+        <h3>⚙️ Fysik</h3>
+        <div class="control-group">
+            <label>Bollstorlek <span class="value-display" id="ballSizeVal">12</span></label>
+            <input type="range" id="ballSize" min="8" max="20" step="1" value="12">
+        </div>
+        <div class="control-group">
+            <label>Gravitation <span class="value-display" id="gravityVal">0.5</span></label>
+            <input type="range" id="gravity" min="0.1" max="1" step="0.05" value="0.5">
+        </div>
+        <div class="control-group">
+            <label>Studskraft <span class="value-display" id="bounceVal">0.6</span></label>
+            <input type="range" id="bounce" min="0" max="1" step="0.05" value="0.6">
+        </div>
+        <div class="control-group">
+            <label>Hopphöjd <span class="value-display" id="jumpVal">12</span></label>
+            <input type="range" id="jumpPower" min="5" max="20" step="0.5" value="12">
+        </div>
+        <div class="control-group">
+            <label>Friktion <span class="value-display" id="frictionVal">0.98</span></label>
+            <input type="range" id="friction" min="0.9" max="0.99" step="0.01" value="0.98">
+        </div>
+        <div class="control-group">
+            <label>Max Hastighet <span class="value-display" id="maxSpeedVal">8</span></label>
+            <input type="range" id="maxSpeed" min="3" max="15" step="0.5" value="8">
+        </div>
+    </div>
+    <div class="panel-section">
+        <h3>🧬 NEAT</h3>
+        <div class="control-group">
+            <label>Population <span class="value-display" id="popVal">30</span></label>
+            <input type="range" id="populationSize" min="10" max="100" step="5" value="30">
+        </div>
+        <div class="control-group">
+            <label>Mutation <span class="value-display" id="mutationVal">0.8</span></label>
+            <input type="range" id="mutationRate" min="0.1" max="1" step="0.05" value="0.8">
+        </div>
+        <div class="control-group">
+            <label>Elite % <span class="value-display" id="eliteVal">20%</span></label>
+            <input type="range" id="elitism" min="0" max="0.5" step="0.05" value="0.2">
+        </div>
+    </div>
+    
+    <div class="panel-section">
+        <h3>🧠 AI-Hjärna (Bästa Nu)</h3>
+        <canvas id="nnCanvas" width="300" height="180"></canvas>
+    </div>
+
+    <div class="panel-section">
+        <h3>📊 Historik</h3>
+        <div class="chart" id="chart"></div>
+    </div>
+</div>
+
+<script>
+// ============= CONFIG =============
+const config = {
+    populationSize: 30,
+    mutationRate: 0.8,
+    elitism: 0.2,
+    gravity: 0.5,
+    bounce: 0.6,
+    jumpPower: 12,
+    friction: 0.98,
+    maxSpeed: 8,
+    speed: 1.0,
+    zoom: 1.0,
+    showSensors: true,
+    sensorLength: 150,
+    ballSize: 12,
+    difficultyGrowth: 1.0,
+    obstacleHeight: 1.0,
+    firstObstacle: 800,
+    progressTimeout: 5
+};
+
+let paused = false;
+let showOnlyBest = false;
+let lastProgressTime = 0;
+let lastBestDistance = 0;
+
+// NYTT: För fixed timestep
+const FIXED_DT = 1 / 60; // Kör fysiken i 60hz
+let lastTime = 0;
+let accumulator = 0;
+
+// NYTT: För fjädrande kamera
+let camera = {
+    x: 0,
+    vx: 0,
+    spring: 0.03,
+    damping: 0.8
+};
+
+// NYTT: För screen shake
+let screenShake = 0;
+function triggerScreenShake(amount) {
+    screenShake = Math.max(screenShake, amount);
+}
+
+// ============= NEAT IMPLEMENTATION =============
+// ... (Din NEAT-kod (Genome, Population) är perfekt. Den klistras in här oförändrad) ...
+class Genome {
+    constructor() {
+        this.weights = [];
+        // 24 sensorer -> hidden layer -> 3 outputs (hoppa, gasa, bromsa)
+        this.inputSize = 24;
+        this.hiddenSize = 16;
+        this.outputSize = 3;
+        
+        const totalWeights = (this.inputSize * this.hiddenSize) + (this.hiddenSize * this.outputSize);
+        for (let i = 0; i < totalWeights; i++) {
+            this.weights.push(Math.random() * 2 - 1);
         }
-        setSeed(seedStr) {
-            this.seedStr = seedStr;
-            let h = 1779033703 ^ seedStr.length;
-            for (let i = 0; i < seedStr.length; i++) {
-                h = Math.imul(h ^ seedStr.charCodeAt(i), 3432918353);
-                h = (h << 13) | (h >>> 19);
-            }
-            this.state = h >>> 0;
-        }
-        next() {
-            let x = this.state;
-            x ^= x << 13;
-            x ^= x >>> 17;
-            x ^= x << 5;
-            this.state = x >>> 0;
-            return (this.state & 0xffffffff) / 0xffffffff;
-        }
-        range(min, max) {
-            return min + (max - min) * this.next();
-        }
-        choice(arr) {
-            return arr[Math.floor(this.next() * arr.length)];
-        }
+        
+        this.fitness = 0;
     }
-
-    // -------------------------------------------------------------
-    // Procedural track generation
-    // -------------------------------------------------------------
-    class TrackGenerator {
-        constructor(rng, params) {
-            this.rng = rng;
-            this.params = params;
-            this.reset();
-        }
-        reset() {
-            this.segments = [{ startX: -200, endX: 0, startY: 420, endY: 420, gap: false }];
-            this.cursorY = 420;
-            this.cursorX = 0;
-        }
-        ensureSegments(targetX) {
-            while (this.cursorX < targetX + 1500) {
-                this.addSegment();
+    
+    activate(inputs) {
+        const hidden = [];
+        let w = 0;
+        for (let h = 0; h < this.hiddenSize; h++) {
+            let sum = 0;
+            for (let i = 0; i < this.inputSize; i++) {
+                sum += inputs[i] * this.weights[w++];
             }
+            hidden.push(Math.tanh(sum));
         }
-        addSegment() {
-            const gapChance = this.params.gapFrequency;
-            const segmentLength = this.rng.range(120, 340);
-            const slope = this.rng.range(-0.45, 0.45);
-            const isGap = this.rng.next() < gapChance;
-            const endX = this.cursorX + segmentLength;
-            let endY = this.cursorY + slope * segmentLength;
-            endY = clamp(endY, 320, 520);
-            if (isGap) {
-                this.segments.push({ startX: this.cursorX, endX, startY: this.cursorY, endY, gap: true });
-                this.cursorX = endX;
-                this.cursorY = endY;
-                return;
+        
+        const outputs = [];
+        for (let o = 0; o < this.outputSize; o++) {
+            let sum = 0;
+            for (let h = 0; h < this.hiddenSize; h++) {
+                sum += hidden[h] * this.weights[w++];
             }
-            this.segments.push({ startX: this.cursorX, endX, startY: this.cursorY, endY, gap: false });
-            this.cursorX = endX;
-            this.cursorY = endY;
+            outputs.push(Math.tanh(sum));
         }
-        getSegment(x) {
-            this.ensureSegments(x);
-            for (let i = this.segments.length - 1; i >= 0; i--) {
-                const seg = this.segments[i];
-                if (x >= seg.startX && x <= seg.endX) {
-                    return seg;
-                }
-            }
-            return this.segments[this.segments.length - 1];
-        }
-        getHeight(x) {
-            const seg = this.getSegment(x);
-            if (!seg || seg.gap) return Infinity;
-            const t = (x - seg.startX) / (seg.endX - seg.startX || 1);
-            return seg.startY + (seg.endY - seg.startY) * t;
-        }
-        getSlope(x) {
-            const seg = this.getSegment(x);
-            if (!seg || seg.gap) return 0;
-            const dy = seg.endY - seg.startY;
-            const dx = seg.endX - seg.startX || 1;
-            return dy / dx;
-        }
-        getDistToNextGap(x) {
-            this.ensureSegments(x);
-            for (const seg of this.segments) {
-                if (seg.endX > x) {
-                    if (seg.gap) {
-                        return seg.startX - x;
-                    }
-                }
-            }
-            return 9999;
-        }
-        getUpcomingSlope(x) {
-            this.ensureSegments(x + 80);
-            for (const seg of this.segments) {
-                if (!seg.gap && seg.startX > x) {
-                    const dy = seg.endY - seg.startY;
-                    const dx = seg.endX - seg.startX || 1;
-                    return dy / dx;
-                }
-            }
-            return 0;
-        }
+        
+        return outputs;
     }
-
-    // -------------------------------------------------------------
-    // Physics and episode state
-    // -------------------------------------------------------------
-    class Ball {
-        constructor(params) {
-            this.params = params;
-            this.radius = 24;
-            this.reset();
-        }
-        reset() {
-            this.x = 0;
-            this.y = 360;
-            this.vx = 0;
-            this.vy = 0;
-            this.onGround = false;
-            this.groundNormal = { x: 0, y: -1 };
-            this.groundSlope = 0;
-            this.distToNextGap = 999;
-            this.upcomingSlope = 0;
-            this.coyoteTimer = 0;
-            this.jumpBuffer = 0;
-            this.stuckTimer = 0;
-            this.stuckCountdown = this.params.stuckTime;
-            this.prevX = this.x;
-            this.timeAlive = 0;
-            this.reward = 0;
-            this.peakRewardRate = 0;
-        }
-    }
-
-    class Episode {
-        constructor(params) {
-            this.params = params;
-            this.rng = new RNG(params.seed);
-            this.track = new TrackGenerator(this.rng, params);
-            this.ball = new Ball(params);
-            this.reset();
-        }
-        reset(seed) {
-            if (seed) {
-                this.params.seed = seed;
-                this.rng.setSeed(seed);
-            }
-            this.track.reset();
-            this.ball.reset();
-            this.elapsed = 0;
-            this.done = false;
-            this.reason = "";
-            this.lastReward = 0;
-        }
-        update(action, dt) {
-            if (this.done) return;
-            const p = this.params;
-            const ball = this.ball;
-            const track = this.track;
-
-            ball.timeAlive += dt;
-            this.elapsed += dt;
-
-            // Update timers
-            if (ball.onGround) {
-                ball.coyoteTimer = p.coyoteTime;
-                ball.stuckTimer = 0;
-            } else {
-                ball.coyoteTimer -= dt;
-            }
-            if (action.jumpPressed) {
-                ball.jumpBuffer = p.jumpBufferTime;
-            } else {
-                ball.jumpBuffer -= dt;
-            }
-
-            // Apply horizontal impulses
-            if (action.accel) {
-                ball.vx += p.accelPower * dt;
-            }
-            if (action.brake) {
-                ball.vx -= p.brakeStrength * dt;
-            }
-
-            // Gravity and jump cut logic
-            const cut = (!action.jumpHeld && ball.vy < 0) ? p.jumpCutScale : 1;
-            ball.vy += p.gravity * cut * dt;
-
-            // Integrate
-            ball.x += ball.vx * dt;
-            ball.y += ball.vy * dt;
-
-            // Track sampling
-            track.ensureSegments(ball.x + 100);
-            const groundY = track.getHeight(ball.x);
-            const slope = track.getSlope(ball.x);
-            const distGap = track.getDistToNextGap(ball.x);
-            const upcomingSlope = track.getUpcomingSlope(ball.x);
-            ball.distToNextGap = distGap;
-            ball.upcomingSlope = upcomingSlope;
-
-            const isGap = !isFinite(groundY);
-            if (!isGap) {
-                const floor = groundY - ball.radius;
-                if (ball.y > floor) {
-                    ball.y = floor;
-                    if (ball.vy > 0) ball.vy = 0;
-                    ball.onGround = true;
-                    const tangent = { x: 1, y: slope };
-                    const len = Math.hypot(tangent.x, tangent.y) || 1;
-                    ball.groundNormal = { x: -tangent.y / len, y: tangent.x / len };
-                    ball.groundSlope = slope;
-                    const tangentNorm = { x: tangent.x / len, y: tangent.y / len };
-                    const vAlong = ball.vx * tangentNorm.x + ball.vy * tangentNorm.y;
-                    ball.vx = vAlong * tangentNorm.x;
-                    ball.vy = vAlong * tangentNorm.y;
-                    ball.vx += -slope * p.slopeForce * dt;
-                    ball.vx *= (1 - p.groundFriction * dt);
+    
+    mutate(rate) {
+        for (let i = 0; i < this.weights.length; i++) {
+            if (Math.random() < rate) {
+                if (Math.random() < 0.1) {
+                    this.weights[i] = Math.random() * 2 - 1; // Helt nytt värde
                 } else {
-                    ball.onGround = false;
-                    ball.groundSlope = slope;
+                    this.weights[i] += (Math.random() - 0.5) * 0.5; // Justera lite
+                    this.weights[i] = Math.max(-2, Math.min(2, this.weights[i])); // Kläm fast värdet
                 }
-            } else {
-                ball.onGround = false;
-                ball.groundSlope = 0;
             }
-
-            if (ball.jumpBuffer > 0 && (ball.onGround || ball.coyoteTimer > 0)) {
-                ball.onGround = false;
-                ball.vy = -p.jumpImpulse;
-                ball.jumpBuffer = 0;
-                ball.coyoteTimer = 0;
-            }
-
-            const forwardDelta = ball.x - ball.prevX;
-            ball.prevX = ball.x;
-            if (forwardDelta < p.stuckDeltaThreshold) {
-                ball.stuckTimer += dt;
-            } else {
-                ball.stuckTimer = 0;
-            }
-            ball.stuckCountdown = clamp(p.stuckTime - ball.stuckTimer, 0, p.stuckTime);
-
-            const reward = p.rewardSurvival * dt + Math.max(0, forwardDelta) * p.rewardForward;
-            const brakePenalty = action.brake ? p.penaltyBrake * dt : 0;
-            const stuckPenalty = ball.stuckTimer > 0 ? p.penaltyStuck * dt : 0;
-            const totalReward = reward - brakePenalty - stuckPenalty;
-            ball.reward += totalReward;
-            this.lastReward = totalReward;
-
-            if (ball.y - ball.radius > 820) {
-                this.end("Fell out");
-            } else if (ball.x < -240) {
-                this.end("Out of bounds");
-            } else if (ball.stuckTimer > p.stuckTime) {
-                this.end("Stuck");
-            } else if (isGap && ball.y > 700) {
-                this.end("Fell in gap");
-            }
-        }
-        end(reason) {
-            this.done = true;
-            this.reason = reason;
-        }
-        getState() {
-            const b = this.ball;
-            const heightRaw = this.getHeightAboveFloorRaw();
-            return {
-                x: b.x,
-                y: b.y,
-                vx: b.vx,
-                vy: b.vy,
-                onGround: b.onGround,
-                groundNormal: { x: b.groundNormal.x, y: b.groundNormal.y },
-                groundSlope: b.groundSlope,
-                distToNextGap: b.distToNextGap,
-                upcomingSlope: b.upcomingSlope,
-                stuckTimer: b.stuckTimer,
-                heightAboveFloor: heightRaw,
-                normalized: {
-                    vx: clamp(b.vx / 600, -1, 1),
-                    vy: clamp(b.vy / 600, -1, 1),
-                    onGround: b.onGround ? 1 : 0,
-                    groundSlope: clamp(b.groundSlope, -1, 1),
-                    distToNextGap: clamp(b.distToNextGap / 400, 0, 1),
-                    upcomingSlope: clamp(b.upcomingSlope, -1, 1),
-                    stuckTimer: clamp(b.stuckTimer / this.params.stuckTime, 0, 1),
-                    heightAboveFloor: clamp(heightRaw / 200, 0, 1),
-                    speedNormalized: clamp(Math.abs(b.vx) / this.params.targetSpeed, 0, 1)
-                }
-            };
-        }
-        sampleHeightAboveFloor() {
-            const h = this.getHeightAboveFloorRaw();
-            return clamp(h / 200, 0, 1);
-        }
-        getHeightAboveFloorRaw() {
-            const ground = this.track.getHeight(this.ball.x);
-            if (!isFinite(ground)) return 200;
-            return ground - this.ball.y - this.ball.radius;
         }
     }
-
-    // -------------------------------------------------------------
-    // NEAT implementation
-    // -------------------------------------------------------------
-    const NODE_TYPES = { INPUT: 'input', HIDDEN: 'hidden', OUTPUT: 'output', BIAS: 'bias' };
-
-    class NodeGene {
-        constructor(id, type, layer = 0) {
-            this.id = id;
-            this.type = type;
-            this.layer = layer;
+    
+    crossover(other) {
+        const child = new Genome();
+        for (let i = 0; i < this.weights.length; i++) {
+            child.weights[i] = Math.random() < 0.5 ? this.weights[i] : other.weights[i];
         }
+        return child;
+    }
+}
+
+class Population {
+    constructor(size) {
+        this.genomes = [];
+        for (let i = 0; i < size; i++) {
+            this.genomes.push(new Genome());
+        }
+        this.generation = 1;
+        this.bestFitness = 0;
+        this.bestGenome = null;
+        this.history = [];
+        this.bestObstaclesEver = 0; // NYTT: För fitness
+    }
+    
+    evolve() {
+        this.genomes.sort((a, b) => b.fitness - a.fitness);
+        
+        const best = this.genomes[0].fitness;
+        const avg = this.genomes.reduce((sum, g) => sum + g.fitness, 0) / this.genomes.length;
+        this.history.push({ best, avg });
+        if (this.history.length > 50) this.history.shift();
+        
+        if (best > this.bestFitness) {
+            this.bestFitness = best;
+            this.bestGenome = this.genomes[0];
+            // NYTT: Uppdatera bästa hinder klarade
+            const bestBall = balls.find(b => b.genome === this.bestGenome);
+            if (bestBall) {
+                this.bestObstaclesEver = Math.max(this.bestObstaclesEver, bestBall.obstaclesCleared);
+            }
+        }
+        
+        const newGenomes = [];
+        const eliteCount = Math.floor(config.elitism * this.genomes.length);
+        
+        for (let i = 0; i < eliteCount; i++) {
+            newGenomes.push(this.genomes[i]);
+        }
+        
+        while (newGenomes.length < config.populationSize) {
+            const p1 = this.selectParent();
+            const p2 = this.selectParent();
+            const child = p1.crossover(p2);
+            child.mutate(config.mutationRate);
+            newGenomes.push(child);
+        }
+        
+        this.genomes = newGenomes;
+        this.generation++;
+    }
+    
+    selectParent() {
+        const totalFitness = this.genomes.reduce((sum, g) => sum + Math.max(0, g.fitness), 0);
+        if (totalFitness === 0) {
+            return this.genomes[Math.floor(Math.random() * this.genomes.length)];
+        }
+        let rand = Math.random() * totalFitness;
+        for (const g of this.genomes) {
+            rand -= Math.max(0, g.fitness);
+            if (rand <= 0) return g;
+        }
+        return this.genomes[0];
+    }
+}
+
+// ============= NYTT: PARTIKEL-POOL =============
+class Particle {
+    constructor() {
+        this.isAlive = false;
     }
 
-    class ConnectionGene {
-        constructor(innovation, inNode, outNode, weight, enabled = true) {
-            this.innovation = innovation;
-            this.inNode = inNode;
-            this.outNode = outNode;
-            this.weight = weight;
-            this.enabled = enabled;
+    // "spawn"
+    reset(x, y, vx, vy, color, life) {
+        this.x = x;
+        this.y = y;
+        this.vx = vx;
+        this.vy = vy;
+        this.color = color;
+        this.life = life;
+        this.maxLife = life;
+        this.isAlive = true;
+    }
+    
+    update(dt) {
+        if (!this.isAlive) return;
+        
+        this.x += this.vx * dt;
+        this.y += this.vy * dt;
+        this.vy += 0.2 * dt;
+        this.life -= dt;
+        
+        if (this.life <= 0) {
+            this.isAlive = false;
         }
     }
+    
+    draw(ctx, cameraX) {
+        if (!this.isAlive) return;
 
-    class InnovationTracker {
-        constructor() {
-            this.map = new Map();
-            this.nextInnovation = 1;
-            this.nextNodeId = 1;
-        }
-        getInnovation(inNode, outNode) {
-            const key = `${inNode}->${outNode}`;
-            if (!this.map.has(key)) {
-                this.map.set(key, this.nextInnovation++);
-            }
-            return this.map.get(key);
-        }
-        newNodeId() {
-            return this.nextNodeId++;
-        }
+        const alpha = this.life / this.maxLife;
+        const screenX = (this.x - cameraX) * config.zoom;
+        const screenY = this.y * config.zoom;
+        
+        const gradient = ctx.createRadialGradient(screenX, screenY, 0, screenX, screenY, 4 * config.zoom);
+        gradient.addColorStop(0, this.color.replace('1)', alpha + ')'));
+        gradient.addColorStop(1, this.color.replace('1)', '0)'));
+        
+        ctx.fillStyle = gradient;
+        ctx.beginPath();
+        ctx.arc(screenX, screenY, 3 * config.zoom, 0, Math.PI * 2);
+        ctx.fill();
     }
+}
 
-    class Genome {
-        constructor(tracker) {
-            this.tracker = tracker;
-            this.nodes = new Map();
-            this.connections = new Map();
-            this.cachedOrder = null;
-            this.fitness = 0;
-            this.adjustedFitness = 0;
+const particlePool = [];
+let nextParticleIndex = 0;
+const MAX_PARTICLES = 500;
+
+function initParticlePool() {
+    for (let i = 0; i < MAX_PARTICLES; i++) {
+        particlePool.push(new Particle());
+    }
+}
+
+// Omskriven "createParticles" till "spawnParticles"
+function spawnParticles(x, y, color, count = 5, baseSpeed = 2) {
+    for (let i = 0; i < count; i++) {
+        const particle = particlePool[nextParticleIndex];
+        
+        const angle = Math.random() * Math.PI * 2;
+        const speed = 1 + Math.random() * baseSpeed;
+        
+        particle.reset(
+            x, y,
+            Math.cos(angle) * speed,
+            Math.sin(angle) * speed,
+            color,
+            0.5 + Math.random() * 0.5 // livslängd i sekunder
+        );
+        
+        nextParticleIndex = (nextParticleIndex + 1) % MAX_PARTICLES;
+    }
+}
+
+// ============= GAME OBJECTS =============
+
+class Ball {
+    constructor(genome) {
+        this.genome = genome;
+        this.radius = config.ballSize;
+        this.hue = Math.random() * 360;
+        this.reset();
+    }
+    
+    reset() {
+        this.x = 100;
+        this.y = 100;
+        this.vx = 2;
+        this.vy = 0;
+        this.rotation = 0;
+        this.alive = true;
+        this.distance = 0;
+        this.radius = config.ballSize;
+        
+        // NYTT: För S&S
+        this.squash = 1.0;
+        this.stretch = 1.0;
+        
+        // NYTT: För fitness & AI-visualisering
+        this.obstaclesCleared = 0;
+        this.lastObstacleIndex = -1;
+        this.lastInputs = new Array(24).fill(0);
+        this.onGround = false;
+    }
+    
+    // NYTT: OPTIMERAD SENSORFUNKTION
+    getSensors(terrain) {
+        const angles = [];
+        for (let i = 0; i < 24; i++) {
+            angles.push(i * 15);
         }
-        clone() {
-            const g = new Genome(this.tracker);
-            for (const node of this.nodes.values()) {
-                g.nodes.set(node.id, new NodeGene(node.id, node.type, node.layer));
-            }
-            for (const conn of this.connections.values()) {
-                g.connections.set(conn.innovation, new ConnectionGene(conn.innovation, conn.inNode, conn.outNode, conn.weight, conn.enabled));
-            }
-            g.cachedOrder = this.cachedOrder ? [...this.cachedOrder] : null;
-            g.fitness = this.fitness;
-            g.adjustedFitness = this.adjustedFitness;
-            return g;
-        }
-        addNodeGene(node) {
-            this.nodes.set(node.id, node);
-            this.cachedOrder = null;
-        }
-        addConnectionGene(conn) {
-            this.connections.set(conn.innovation, conn);
-            this.cachedOrder = null;
-        }
-        getConnectionsTo(nodeId) {
-            const list = [];
-            for (const conn of this.connections.values()) {
-                if (conn.outNode === nodeId && conn.enabled) list.push(conn);
-            }
-            return list;
-        }
-        feedForward(inputs) {
-            const order = this.getNodeOrder();
-            const values = new Map();
-            let inputIndex = 0;
-            for (const node of order) {
-                if (node.type === NODE_TYPES.INPUT) {
-                    values.set(node.id, inputs[inputIndex++] ?? 0);
-                    continue;
-                }
-                if (node.type === NODE_TYPES.BIAS) {
-                    values.set(node.id, 1);
-                    continue;
-                }
-                const incoming = this.getConnectionsTo(node.id);
-                let sum = 0;
-                for (const conn of incoming) {
-                    const v = values.get(conn.inNode) ?? 0;
-                    sum += v * conn.weight;
-                }
-                values.set(node.id, Math.tanh(sum));
-            }
-            const outputs = [];
-            for (const node of order) {
-                if (node.type === NODE_TYPES.OUTPUT) {
-                    outputs.push((values.get(node.id) + 1) / 2);
-                }
-            }
-            return outputs;
-        }
-        getNodeOrder() {
-            if (this.cachedOrder) return this.cachedOrder;
-            const list = Array.from(this.nodes.values()).sort((a, b) => a.layer - b.layer || a.id - b.id);
-            this.cachedOrder = list;
-            return list;
-        }
-        mutateWeights(rate = 0.9, jitter = 0.5, resetRate = 0.1) {
-            for (const conn of this.connections.values()) {
-                if (Math.random() < rate) {
-                    if (Math.random() < resetRate) {
-                        conn.weight = Math.random() * 2 - 1;
-                    } else {
-                        conn.weight += (Math.random() * 2 - 1) * jitter;
+        
+        const rayLength = config.sensorLength;
+        const sensors = [];
+        
+        for (const angle of angles) {
+            const rad = (angle * Math.PI) / 180;
+            const dx = Math.cos(rad);
+            const dy = Math.sin(rad);
+            
+            let hitDist = rayLength;
+            const coarseStep = 20; // Glesa steg
+
+            // Stega glesare
+            for (let dist = coarseStep; dist <= rayLength; dist += coarseStep) {
+                const checkX = this.x + dx * dist;
+                const checkY = this.y + dy * dist;
+                const terrainY = terrain.getHeight(checkX);
+                
+                if (checkY >= terrainY) {
+                    // Träff! Binärsök för exakt avstånd.
+                    let low = dist - coarseStep;
+                    let high = dist;
+                    for (let i = 0; i < 5; i++) { // 5 iterationer räcker
+                        const mid = (low + high) / 2;
+                        const midX = this.x + dx * mid;
+                        const midY = this.y + dy * mid;
+                        if (midY >= terrain.getHeight(midX)) {
+                            high = mid;
+                        } else {
+                            low = mid;
+                        }
                     }
+                    hitDist = high;
+                    break;
                 }
             }
+            sensors.push(1.0 - (hitDist / rayLength)); // Invertera: 1 = nära, 0 = långt borta
         }
-        mutateToggle() {
-            const conns = Array.from(this.connections.values());
-            if (!conns.length) return;
-            const conn = conns[Math.floor(Math.random() * conns.length)];
-            conn.enabled = !conn.enabled;
-        }
-        mutateAddConnection(maxAttempts = 24) {
-            const nodes = Array.from(this.nodes.values());
-            for (let attempt = 0; attempt < maxAttempts; attempt++) {
-                const a = nodes[Math.floor(Math.random() * nodes.length)];
-                const b = nodes[Math.floor(Math.random() * nodes.length)];
-                if (!a || !b || a.id === b.id) continue;
-                if (a.layer >= b.layer) continue;
-                if (b.type === NODE_TYPES.INPUT) continue;
-                if (a.type === NODE_TYPES.OUTPUT) continue;
-                const innovation = this.tracker.getInnovation(a.id, b.id);
-                if (this.connections.has(innovation)) continue;
-                this.addConnectionGene(new ConnectionGene(innovation, a.id, b.id, Math.random() * 2 - 1, true));
-                return;
+        
+        this.lastInputs = sensors; // Spara för AI-visualisering
+        return sensors;
+    }
+    
+    update(terrain, dt) {
+        if (!this.alive) return;
+        
+        const sensors = this.getSensors(terrain);
+        const outputs = this.genome.activate(sensors);
+        
+        const wantsJump = outputs[0] > 0.3;
+        const accelerate = outputs[1];
+        const brake = outputs[2];
+        
+        this.vy += config.gravity * dt * 60; // dt*60 för att matcha originalskalan
+        
+        const terrainY = terrain.getHeight(this.x);
+        const wasOnGround = this.onGround;
+        this.onGround = this.y >= terrainY - this.radius;
+        
+        if (this.onGround) {
+            this.y = terrainY - this.radius;
+            
+            // NYTT: Partiklar vid landning
+            if (!wasOnGround && Math.abs(this.vy) > 2) {
+                spawnParticles(this.x, this.y + this.radius, `hsla(30, 40%, 70%, 1)`, 3, 1);
+                // NYTT: Squash-effekt
+                this.squash = 1.3;
+                this.stretch = 0.8;
+            }
+
+            this.vy *= -config.bounce;
+            
+            if (wantsJump && Math.abs(this.vy) < 2) {
+                this.vy = -config.jumpPower;
+                spawnParticles(this.x, this.y + this.radius, `hsla(${this.hue}, 70%, 60%, 1)`, 3);
+                // NYTT: Stretch-effekt
+                this.squash = 0.8;
+                this.stretch = 1.3;
             }
         }
-        mutateAddNode() {
-            const enabled = Array.from(this.connections.values()).filter(c => c.enabled);
-            if (!enabled.length) return;
-            const conn = enabled[Math.floor(Math.random() * enabled.length)];
-            conn.enabled = false;
-            const newNodeId = this.tracker.newNodeId();
-            const inNode = this.nodes.get(conn.inNode);
-            const outNode = this.nodes.get(conn.outNode);
-            const node = new NodeGene(newNodeId, NODE_TYPES.HIDDEN, (inNode.layer + outNode.layer) / 2 + 0.0001);
-            this.addNodeGene(node);
-            const inInnovation = this.tracker.getInnovation(conn.inNode, newNodeId);
-            const outInnovation = this.tracker.getInnovation(newNodeId, conn.outNode);
-            this.addConnectionGene(new ConnectionGene(inInnovation, conn.inNode, newNodeId, 1, true));
-            this.addConnectionGene(new ConnectionGene(outInnovation, newNodeId, conn.outNode, conn.weight, true));
-        }
-        crossover(other) {
-            const child = new Genome(this.tracker);
-            for (const node of this.nodes.values()) {
-                child.addNodeGene(new NodeGene(node.id, node.type, node.layer));
+        
+        // NYTT: Återställ S&S
+        this.squash += (1 - this.squash) * 0.1;
+        this.stretch += (1 - this.stretch) * 0.1;
+
+        if (accelerate > 0.2) {
+            this.vx += accelerate * 0.3 * dt * 60;
+            // NYTT: Partiklar vid acceleration
+            if (accelerate > 0.8 && Math.random() < 0.3) {
+                spawnParticles(this.x, this.y, `hsla(180, 70%, 60%, 1)`, 1, 1);
             }
-            for (const conn of this.connections.values()) {
-                const matching = other.connections.get(conn.innovation);
-                const pick = matching && Math.random() < 0.5 ? matching : conn;
-                child.addConnectionGene(new ConnectionGene(conn.innovation, pick.inNode, pick.outNode, pick.weight, pick.enabled && conn.enabled));
-            }
-            return child;
         }
-        static compatibilityDistance(a, b, params) {
-            const keysA = Array.from(a.connections.keys()).sort((x, y) => x - y);
-            const keysB = Array.from(b.connections.keys()).sort((x, y) => x - y);
-            let i = 0, j = 0;
-            let disjoint = 0, excess = 0, weightDiff = 0, matches = 0;
-            const maxA = keysA.length ? keysA[keysA.length - 1] : 0;
-            const maxB = keysB.length ? keysB[keysB.length - 1] : 0;
-            while (i < keysA.length && j < keysB.length) {
-                const ia = keysA[i];
-                const ib = keysB[j];
-                if (ia === ib) {
-                    const wa = a.connections.get(ia).weight;
-                    const wb = b.connections.get(ib).weight;
-                    weightDiff += Math.abs(wa - wb);
-                    matches++;
-                    i++; j++;
-                } else if (ia < ib) {
-                    disjoint++;
-                    i++;
+        if (brake > 0.2) {
+            this.vx -= brake * 0.2 * dt * 60;
+        }
+        
+        this.vx *= config.friction;
+        this.vx += 0.15 * dt * 60; 
+        
+        this.vx = Math.max(-config.maxSpeed, Math.min(config.maxSpeed, this.vx));
+        
+        this.x += this.vx * dt * 60;
+        this.y += this.vy * dt * 60;
+        
+        this.rotation += this.vx * 0.03;
+        
+        if (this.x < camera.x - 200 || this.y > 700) { // Dö om utanför skärmen
+            this.alive = false;
+            spawnParticles(this.x, this.y, `hsla(${this.hue}, 70%, 60%, 1)`, 10);
+            triggerScreenShake(5);
+        }
+        
+        // Obstacle collision
+        const obs = terrain.getObstacleAt(this.x);
+        if (obs) {
+            const ballLeft = this.x - this.radius;
+            const ballRight = this.x + this.radius;
+            const ballTop = this.y - this.radius;
+            const ballBottom = this.y + this.radius;
+            
+            const obsLeft = obs.x;
+            const obsRight = obs.x + obs.width;
+            const obsTop = obs.y;
+            
+            if (ballRight > obsLeft && ballLeft < obsRight && ballBottom > obsTop) {
+                const fromTop = this.vy > 0 && ballBottom - obsTop < 15;
+                
+                if (fromTop) {
+                    this.y = obsTop - this.radius;
+                    this.vy *= -config.bounce;
+                    spawnParticles(this.x, obsTop, `hsla(30, 70%, 50%, 1)`, 2);
+                    this.squash = 1.2;
+                    this.stretch = 0.8;
                 } else {
-                    disjoint++;
-                    j++;
+                    this.alive = false;
+                    spawnParticles(this.x, this.y, `hsla(0, 70%, 50%, 1)`, 12);
+                    triggerScreenShake(10);
                 }
             }
-            if (i < keysA.length) excess += keysA.length - i;
-            if (j < keysB.length) excess += keysB.length - j;
-            const N = Math.max(a.connections.size, b.connections.size, 1);
-            const avgW = matches ? weightDiff / matches : 0;
-            return params.c1 * excess / N + params.c2 * disjoint / N + params.c3 * avgW;
+            
+            // NYTT: Fitness-logik för att klara hinder
+            if (obs.index > this.lastObstacleIndex && this.x > obs.x + obs.width) {
+                this.obstaclesCleared++;
+                this.lastObstacleIndex = obs.index;
+            }
+
+        } else {
+            // Kolla om vi passerat hinder som vi var på väg mot
+            const lastObs = terrain.getLastObstacleBefore(this.x);
+            if (lastObs && lastObs.index > this.lastObstacleIndex) {
+                 this.obstaclesCleared++;
+                 this.lastObstacleIndex = lastObs.index;
+            }
         }
+        
+        this.distance = Math.max(this.distance, this.x);
+        // NYTT: Uppdaterad fitness-funktion
+        this.genome.fitness = this.distance + (this.obstaclesCleared * 150); // Ge 150p per hinder
     }
+    
+    draw(ctx, cameraX) {
+        if (!this.alive) return;
+        
+        const screenX = (this.x - cameraX) * config.zoom;
+        const screenY = this.y * config.zoom;
+        const r = this.radius * config.zoom;
+        
+        if (screenX < -100 || screenX > canvas.width + 100) return;
+        
+        ctx.save();
+        ctx.translate(screenX, screenY);
+        
+        // NYTT: Applicera Squash & Stretch
+        ctx.scale(this.squash, this.stretch);
 
-    class Species {
-        constructor(representative) {
-            this.representative = representative.clone();
-            this.members = [];
-            this.bestFitness = -Infinity;
-            this.stagnant = 0;
-        }
-        addMember(genome) {
-            this.members.push(genome);
-        }
-        resetMembers() {
-            this.members = [];
-        }
-        updateStagnation() {
-            const best = Math.max(...this.members.map(m => m.fitness));
-            if (best > this.bestFitness) {
-                this.bestFitness = best;
-                this.stagnant = 0;
-            } else {
-                this.stagnant++;
-            }
-        }
+        // ... (Resten av din 'draw'-funktion är densamma) ...
+        // Enhanced shadow with blur
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+        ctx.shadowBlur = 8;
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
+        ctx.beginPath();
+        // Skuggan ska inte S&S, så vi skalar emot det
+        ctx.ellipse(0, r * 1.5 / this.stretch, r * 0.9 / this.squash, r * 0.35 / this.stretch, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+        
+        ctx.rotate(this.rotation);
+        
+        // Outer glow
+        const outerGlow = ctx.createRadialGradient(0, 0, r * 0.8, 0, 0, r * 1.3);
+        outerGlow.addColorStop(0, `hsla(${this.hue}, 70%, 50%, 0)`);
+        outerGlow.addColorStop(1, `hsla(${this.hue}, 70%, 50%, 0.4)`);
+        ctx.fillStyle = outerGlow;
+        ctx.beginPath();
+        ctx.arc(0, 0, r * 1.3, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // Main ball with enhanced gradient
+        const gradient = ctx.createRadialGradient(-r * 0.35, -r * 0.35, 0, 0, 0, r * 1.2);
+        gradient.addColorStop(0, `hsla(${this.hue}, 85%, 80%, 1)`);
+        gradient.addColorStop(0.3, `hsla(${this.hue}, 75%, 65%, 1)`);
+        gradient.addColorStop(0.7, `hsla(${this.hue}, 70%, 50%, 1)`);
+        gradient.addColorStop(1, `hsla(${this.hue}, 60%, 30%, 1)`);
+        
+        ctx.fillStyle = gradient;
+        ctx.shadowColor = `hsla(${this.hue}, 70%, 50%, 0.8)`;
+        ctx.shadowBlur = 20 * config.zoom;
+        ctx.beginPath();
+        ctx.arc(0, 0, r, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+        
+        // Multiple shine highlights
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+        ctx.beginPath();
+        ctx.ellipse(-r * 0.35, -r * 0.35, r * 0.35, r * 0.25, -0.3, 0, Math.PI * 2);
+        ctx.fill();
+        
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
+        ctx.beginPath();
+        ctx.ellipse(-r * 0.2, -r * 0.4, r * 0.15, r * 0.1, -0.3, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // Rotation indicator
+        ctx.strokeStyle = 'rgba(0, 0, 0, 0.6)';
+        ctx.lineWidth = 3 * config.zoom;
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.lineTo(r * 0.7, 0);
+        ctx.stroke();
+        
+        ctx.restore();
     }
-
-    class Population {
-        constructor(config) {
-            this.config = config;
-            this.tracker = new InnovationTracker();
-            this.genomes = [];
-            this.species = [];
-            this.generation = 1;
-            this.globalBest = null;
-            this.globalBestFitness = -Infinity;
-            this.initPopulation();
+    
+    // NYTT: Sensor-ritning använder nu den optimerade metoden
+    drawSensors(ctx, cameraX, terrain) {
+        if (!this.alive || !config.showSensors) return;
+        
+        const angles = [];
+        for (let i = 0; i < 24; i++) {
+            angles.push(i * 15);
         }
-        initPopulation() {
-            this.genomes = [];
-            this.species = [];
-            const inputs = 10;
-            const outputs = 4;
-            const biasNodeId = this.tracker.newNodeId();
-            const inputNodes = [];
-            for (let i = 0; i < inputs; i++) {
-                inputNodes.push(new NodeGene(this.tracker.newNodeId(), NODE_TYPES.INPUT, 0));
-            }
-            const biasNode = new NodeGene(biasNodeId, NODE_TYPES.BIAS, 0);
-            const outputNodes = [];
-            for (let i = 0; i < outputs; i++) {
-                outputNodes.push(new NodeGene(this.tracker.newNodeId(), NODE_TYPES.OUTPUT, 1));
-            }
-            for (let i = 0; i < this.config.populationSize; i++) {
-                const genome = new Genome(this.tracker);
-                inputNodes.forEach(node => genome.addNodeGene(new NodeGene(node.id, node.type, node.layer)));
-                genome.addNodeGene(new NodeGene(biasNode.id, biasNode.type, biasNode.layer));
-                outputNodes.forEach(node => genome.addNodeGene(new NodeGene(node.id, node.type, node.layer)));
-                for (const inNode of [...inputNodes, biasNode]) {
-                    for (const outNode of outputNodes) {
-                        const innov = this.tracker.getInnovation(inNode.id, outNode.id);
-                        genome.addConnectionGene(new ConnectionGene(innov, inNode.id, outNode.id, Math.random() * 2 - 1, true));
-                    }
-                }
-                genome.mutateWeights();
-                this.genomes.push(genome);
-            }
-            this.speciate();
-        }
-        speciate() {
-            for (const species of this.species) {
-                species.resetMembers();
-            }
-            for (const genome of this.genomes) {
-                let assigned = false;
-                for (const species of this.species) {
-                    const dist = Genome.compatibilityDistance(genome, species.representative, this.config);
-                    if (dist < this.config.compatibilityThreshold) {
-                        species.addMember(genome);
-                        assigned = true;
-                        break;
-                    }
-                }
-                if (!assigned) {
-                    const species = new Species(genome);
-                    species.addMember(genome);
-                    this.species.push(species);
-                }
-            }
-            this.species = this.species.filter(s => s.members.length > 0);
-            if (this.species.length > this.config.speciesTarget) {
-                this.config.compatibilityThreshold += 0.05;
-            } else if (this.species.length < this.config.speciesTarget) {
-                this.config.compatibilityThreshold = Math.max(0.5, this.config.compatibilityThreshold - 0.05);
-            }
-        }
-        recordFitness(genome, fitness) {
-            genome.fitness = fitness;
-            if (fitness > this.globalBestFitness) {
-                this.globalBestFitness = fitness;
-                this.globalBest = genome.clone();
-            }
-        }
-        prepareNextGeneration() {
-            for (const species of this.species) {
-                for (const member of species.members) {
-                    member.adjustedFitness = member.fitness / species.members.length;
-                }
-            }
-            const totalAdjusted = this.genomes.reduce((sum, g) => sum + g.adjustedFitness, 0) || 1;
-            const newGenomes = [];
-            const eliteCount = Math.max(1, Math.floor(this.config.elitism * this.config.populationSize));
-            const sorted = [...this.genomes].sort((a, b) => b.fitness - a.fitness);
-            for (let i = 0; i < eliteCount; i++) {
-                newGenomes.push(sorted[i].clone());
-            }
-            while (newGenomes.length < this.config.populationSize) {
-                const parentA = this.selectParent(totalAdjusted);
-                const parentB = this.selectParent(totalAdjusted);
-                const fitter = parentA.fitness >= parentB.fitness ? parentA : parentB;
-                const weaker = fitter === parentA ? parentB : parentA;
-                const child = fitter.crossover(weaker);
-                this.mutate(child);
-                newGenomes.push(child);
-            }
-            this.genomes = newGenomes;
-            this.generation++;
-            this.speciate();
-        }
-        selectParent(totalAdjusted) {
-            let r = Math.random() * totalAdjusted;
-            for (const genome of this.genomes) {
-                r -= genome.adjustedFitness;
-                if (r <= 0) return genome;
-            }
-            return this.genomes[this.genomes.length - 1];
-        }
-        mutate(genome) {
-            if (Math.random() < this.config.mutationRate) genome.mutateWeights();
-            if (Math.random() < 0.05) genome.mutateToggle();
-            if (Math.random() < this.config.addNodeRate) genome.mutateAddNode();
-            if (Math.random() < this.config.addConnectionRate) genome.mutateAddConnection();
-        }
-    }
-
-    const MODES = ["training", "best", "manual"];
-
-    class Controller {
-        constructor() {
-            this.modeIndex = 0;
-            this.manual = { jumpHeld: false, accel: false, brake: false, jumpPressed: false, jumpLatched: false };
-            this.prevNetwork = [0, 0, 0, 0];
-            this.currentNetwork = [0, 0, 0, 0];
-            this.bindInputs();
-        }
-        bindInputs() {
-            window.addEventListener('keydown', e => {
-                if (e.repeat) return;
-                switch (e.code) {
-                    case 'Space':
-                        e.preventDefault();
-                        toggleMode();
-                        break;
-                    case 'KeyR':
-                        e.preventDefault();
-                        resetEpisode(currentEpisode.params.seed);
-                        break;
-                    case 'Enter':
-                        e.preventDefault();
-                        newSeed();
-                        break;
-                    case 'ArrowUp':
-                    case 'KeyW':
-                        this.manual.jumpHeld = true;
-                        this.manual.jumpPressed = true;
-                        break;
-                    case 'ArrowRight':
-                    case 'KeyD':
-                        this.manual.accel = true;
-                        break;
-                    case 'ArrowLeft':
-                    case 'KeyA':
-                        this.manual.brake = true;
-                        break;
-                }
-            });
-            window.addEventListener('keyup', e => {
-                switch (e.code) {
-                    case 'ArrowUp':
-                    case 'KeyW':
-                        this.manual.jumpHeld = false;
-                        this.manual.jumpLatched = false;
-                        break;
-                    case 'ArrowRight':
-                    case 'KeyD':
-                        this.manual.accel = false;
-                        break;
-                    case 'ArrowLeft':
-                    case 'KeyA':
-                        this.manual.brake = false;
-                        break;
-                }
-            });
-        }
-        get mode() {
-            return MODES[this.modeIndex];
-        }
-        setMode(mode) {
-            const idx = MODES.indexOf(mode);
-            if (idx >= 0) this.modeIndex = idx;
-        }
-        nextMode() {
-            this.modeIndex = (this.modeIndex + 1) % MODES.length;
-            return this.mode;
-        }
-        getAction(state, genome) {
-            if (this.mode === 'manual') {
-                const jumpPressed = !!this.manual.jumpPressed && !this.manual.jumpLatched;
-                this.manual.jumpLatched = !!this.manual.jumpPressed;
-                this.manual.jumpPressed = false;
-                return {
-                    jumpPressed,
-                    jumpHeld: this.manual.jumpHeld,
-                    accel: this.manual.accel,
-                    brake: this.manual.brake
-                };
-            }
-            if (!genome) {
-                return { jumpPressed: false, jumpHeld: false, accel: false, brake: false };
-            }
-            const inputs = [
-                state.vx,
-                state.vy,
-                state.onGround ? 1 : 0,
-                state.groundSlope,
-                state.distToNextGap,
-                state.upcomingSlope,
-                state.stuckTimer,
-                state.heightAboveFloor,
-                state.speedNormalized,
-                1
-            ];
-            const outputs = genome.feedForward(inputs);
-            this.prevNetwork = this.currentNetwork;
-            this.currentNetwork = outputs;
-            const jumpPressed = this.prevNetwork[0] <= 0.5 && outputs[0] > 0.5;
-            const jumpHeld = outputs[1] > 0.5;
-            return {
-                jumpPressed,
-                jumpHeld,
-                accel: outputs[2] > 0.5,
-                brake: outputs[3] > 0.5
-            };
-        }
-    }
-
-    class Trainer {
-        constructor(population, params) {
-            this.population = population;
-            this.params = params;
-            this.activeIndex = 0;
-            this.currentGenome = population.genomes[0];
-            this.fastTrain = false;
-        }
-        setFastTrain(flag) {
-            this.fastTrain = flag;
-        }
-        get generation() {
-            return this.population.generation;
-        }
-        get bestGenome() {
-            return this.population.globalBest;
-        }
-        nextGenome() {
-            this.activeIndex = (this.activeIndex + 1) % this.population.genomes.length;
-            this.currentGenome = this.population.genomes[this.activeIndex];
-            return this.currentGenome;
-        }
-        recordEpisode(fitness) {
-            this.population.recordFitness(this.currentGenome, fitness);
-            if (this.activeIndex === this.population.genomes.length - 1) {
-                this.population.prepareNextGeneration();
-                this.activeIndex = 0;
-            } else {
-                this.activeIndex++;
-            }
-            this.currentGenome = this.population.genomes[this.activeIndex];
-        }
-    }
-
-    class Renderer {
-        constructor(canvas, params) {
-            this.canvas = canvas;
-            this.ctx = canvas.getContext('2d');
-            this.params = params;
-            this.camera = { x: -150, y: 350 };
-        }
-        draw(episode, controller, trainer, hudElem, params) {
-            const ctx = this.ctx;
-            const { ball, track } = episode;
-            const camTargetX = ball.x - 200;
-            const camTargetY = ball.y - 120;
-            this.camera.x = lerp(this.camera.x, camTargetX, 0.08);
-            this.camera.y = lerp(this.camera.y, camTargetY, 0.08);
-            ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-            ctx.save();
-            ctx.translate(-this.camera.x, -this.camera.y);
-
-            ctx.fillStyle = '#141a2d';
-            ctx.fillRect(this.camera.x, this.camera.y, this.canvas.width, this.canvas.height);
-
-            this.drawTrack(track);
-            this.drawBall(ball, params.showNormals);
-            ctx.restore();
-            this.drawHUD(episode, controller, trainer, hudElem, params);
-        }
-        drawTrack(track) {
-            const ctx = this.ctx;
-            ctx.lineWidth = 6;
-            ctx.strokeStyle = 'rgba(120, 160, 255, 0.7)';
+        
+        const rayLength = config.sensorLength;
+        const screenX = (this.x - cameraX) * config.zoom;
+        const screenY = this.y * config.zoom;
+        const time = performance.now() * 0.001;
+        
+        for (let i = 0; i < angles.length; i++) {
+            const angle = angles[i];
+            const rad = (angle * Math.PI) / 180;
+            const dx = Math.cos(rad);
+            const dy = Math.sin(rad);
+            
+            // Använd det sparade sensorvärdet (inverterat)
+            let hitDist = (1.0 - this.lastInputs[i]) * rayLength;
+            
+            const endX = screenX + dx * hitDist * config.zoom;
+            const endY = screenY + dy * hitDist * config.zoom;
+            
+            const pulse = Math.sin(time * 3 + i * 0.3) * 0.2 + 0.6;
+            
+            const gradient = ctx.createLinearGradient(screenX, screenY, endX, endY);
+            gradient.addColorStop(0, `rgba(255, 159, 67, ${0.5 * pulse})`);
+            gradient.addColorStop(0.7, `rgba(255, 159, 67, ${0.2 * pulse})`);
+            gradient.addColorStop(1, 'rgba(255, 159, 67, 0)');
+            
+            ctx.strokeStyle = gradient;
+            ctx.lineWidth = 1.5;
             ctx.beginPath();
-            let started = false;
-            for (const seg of track.segments) {
-                if (seg.gap) {
-                    started = false;
-                    continue;
-                }
-                if (!started) {
-                    ctx.moveTo(seg.startX, seg.startY);
-                    started = true;
-                }
-                ctx.lineTo(seg.endX, seg.endY);
-            }
+            ctx.moveTo(screenX, screenY);
+            ctx.lineTo(endX, endY);
             ctx.stroke();
-            ctx.lineWidth = 1;
-            ctx.strokeStyle = 'rgba(0,0,0,0.4)';
+            
+            const hitAlpha = hitDist < rayLength ? 0.8 * pulse : 0.3 * pulse;
+            ctx.fillStyle = `rgba(255, 159, 67, ${hitAlpha})`;
+            ctx.shadowColor = `rgba(255, 159, 67, ${hitAlpha})`;
+            ctx.shadowBlur = 6;
             ctx.beginPath();
-            for (const seg of track.segments) {
-                if (seg.gap) continue;
-                ctx.moveTo(seg.startX, seg.endY);
-                ctx.lineTo(seg.endX, 900);
-            }
-            ctx.stroke();
-        }
-        drawBall(ball, showNormals) {
-            const ctx = this.ctx;
-            const gradient = ctx.createRadialGradient(ball.x - 10, ball.y - 10, 6, ball.x, ball.y, ball.radius);
-            gradient.addColorStop(0, '#ffffff');
-            gradient.addColorStop(1, '#ff9f43');
-            ctx.fillStyle = gradient;
-            ctx.beginPath();
-            ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
+            ctx.arc(endX, endY, 2.5, 0, Math.PI * 2);
             ctx.fill();
-            ctx.lineWidth = 2;
-            ctx.strokeStyle = 'rgba(255,255,255,0.4)';
+            ctx.shadowBlur = 0;
+        }
+    }
+}
+
+class Terrain {
+    constructor() {
+        this.obstacles = [];
+        this.nextObstacleX = config.firstObstacle;
+        this.obstacleIndex = 0;
+        this.generateInitial();
+    }
+    
+    generateInitial() {
+        for (let i = 0; i < 20; i++) {
+            this.addObstacle();
+        }
+    }
+    
+    addObstacle() {
+        const progressFactor = Math.min((this.obstacleIndex / 100) * config.difficultyGrowth, 1.0);
+        const spacing = 300 + (1 - progressFactor * 0.5) * 400 + Math.random() * 150;
+        const baseHeight = (30 + Math.random() * 80) * config.obstacleHeight;
+        const height = baseHeight + progressFactor * 100 * config.obstacleHeight;
+        const width = 25 + Math.random() * 45;
+        
+        this.obstacles.push({ 
+            x: this.nextObstacleX, 
+            y: 500 - height, 
+            width, 
+            height,
+            index: this.obstacleIndex // NYTT: Index för fitness
+        });
+        
+        this.nextObstacleX += spacing;
+        this.obstacleIndex++;
+    }
+    
+    update(leadX) {
+        while (this.nextObstacleX < leadX + 2000) {
+            this.addObstacle();
+        }
+        this.obstacles = this.obstacles.filter(obs => obs.x + obs.width > leadX - 1500);
+    }
+    
+    generate() {
+        this.obstacles = [];
+        this.nextObstacleX = config.firstObstacle;
+        this.obstacleIndex = 0;
+        this.generateInitial();
+    }
+    
+    getHeight(x) {
+        const obs = this.getObstacleAt(x);
+        if (obs) return obs.y;
+        return 500;
+    }
+    
+    // NYTT: OPTIMERAD med BINÄRSÖKNING
+    getObstacleAt(x) {
+        let low = 0;
+        let high = this.obstacles.length - 1;
+        let candidate = null;
+
+        while (low <= high) {
+            const mid = Math.floor((low + high) / 2);
+            const obs = this.obstacles[mid];
+            
+            if (obs.x <= x) {
+                candidate = obs;
+                low = mid + 1;
+            } else {
+                high = mid - 1;
+            }
+        }
+
+        if (candidate && x <= candidate.x + candidate.width) {
+            return candidate;
+        }
+        return null;
+    }
+
+    // NYTT: För fitness-logik
+    getLastObstacleBefore(x) {
+        let low = 0;
+        let high = this.obstacles.length - 1;
+        let candidate = null;
+        while (low <= high) {
+            const mid = Math.floor((low + high) / 2);
+            const obs = this.obstacles[mid];
+            if (obs.x <= x) {
+                candidate = obs;
+                low = mid + 1;
+            } else {
+                high = mid - 1;
+            }
+        }
+        return candidate;
+    }
+    
+    draw(ctx, cameraX) {
+        // ... (Din 'draw'-funktion för terräng är densamma) ...
+        // Enhanced ground with depth
+        const groundGradient = ctx.createLinearGradient(0, 500 * config.zoom, 0, canvas.height);
+        groundGradient.addColorStop(0, '#3a4f2a');
+        groundGradient.addColorStop(0.3, '#2F3E20');
+        groundGradient.addColorStop(1, '#1a2410');
+        ctx.fillStyle = groundGradient;
+        ctx.fillRect(0, 500 * config.zoom, canvas.width, canvas.height);
+        
+        // Ground texture (subtle noise)
+        for (let i = 0; i < 100; i++) {
+            const x = (i * 73 + cameraX) % canvas.width;
+            const y = 500 * config.zoom + Math.random() * (canvas.height - 500 * config.zoom);
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.1)';
+            ctx.fillRect(x, y, 2, 2);
+        }
+        
+        // Grass layer with depth
+        const grassGradient = ctx.createLinearGradient(0, 495 * config.zoom, 0, 505 * config.zoom);
+        grassGradient.addColorStop(0, '#5C7A3F');
+        grassGradient.addColorStop(0.5, '#4A5F3A');
+        grassGradient.addColorStop(1, '#3a4f2a');
+        ctx.fillStyle = grassGradient;
+        ctx.fillRect(0, 500 * config.zoom, canvas.width, 10);
+        
+        // Grass details with variation
+        ctx.strokeStyle = '#5C7A3F';
+        ctx.lineWidth = 2;
+        for (let x = 0; x < canvas.width; x += 6) {
+            const worldX = x / config.zoom + cameraX;
+            const variation = Math.sin(worldX * 0.3) * 2;
+            ctx.globalAlpha = 0.6 + Math.random() * 0.4;
+            ctx.beginPath();
+            ctx.moveTo(x, 500 * config.zoom);
+            ctx.lineTo(x + Math.sin(worldX * 0.1) * 2, 488 * config.zoom + variation);
             ctx.stroke();
-            if (showNormals && ball.onGround) {
-                ctx.strokeStyle = '#6cf';
+        }
+        ctx.globalAlpha = 1;
+        
+        // Obstacles with enhanced 3D effect and texture
+        for (const obs of this.obstacles) {
+            const screenX = (obs.x - cameraX) * config.zoom;
+            if (screenX < -200 || screenX > canvas.width + 200) continue;
+            
+            const w = obs.width * config.zoom;
+            const h = obs.height * config.zoom;
+            const y = obs.y * config.zoom;
+            
+            // ... (Resten av hinder-ritningen är densamma) ...
+            const obsGradient = ctx.createLinearGradient(screenX, y, screenX + w, y);
+            obsGradient.addColorStop(0, '#6d4c2a');
+            obsGradient.addColorStop(0.3, '#8B4513');
+            obsGradient.addColorStop(0.6, '#A0522D');
+            obsGradient.addColorStop(1, '#654321');
+            ctx.fillStyle = obsGradient;
+            ctx.fillRect(screenX, y, w, h);
+            
+            ctx.strokeStyle = 'rgba(0, 0, 0, 0.2)';
+            ctx.lineWidth = 1;
+            for (let i = 0; i < 5; i++) {
+                const lineY = y + (h / 6) * (i + 1);
                 ctx.beginPath();
-                ctx.moveTo(ball.x, ball.y);
-                ctx.lineTo(ball.x + ball.groundNormal.x * 60, ball.y + ball.groundNormal.y * 60);
+                ctx.moveTo(screenX, lineY);
+                ctx.lineTo(screenX + w, lineY + Math.sin(i) * 2);
                 ctx.stroke();
             }
-        }
-        drawHUD(ep, controller, trainer, hudElem, params) {
-            const rewardPerSec = ep.ball.reward / Math.max(ep.elapsed, 0.001);
-            const stuckWarn = ep.ball.stuckCountdown < params.stuckTime * 0.6 ? `<span class="stuck-warning">Stuck: ${ep.ball.stuckCountdown.toFixed(2)}s</span>` : `<span>Stuck: ${ep.ball.stuckCountdown.toFixed(2)}s</span>`;
-            const bestFitness = Number.isFinite(trainer.population.globalBestFitness) ? trainer.population.globalBestFitness.toFixed(2) : 'N/A';
-            hudElem.innerHTML = `
-                <span><strong>Mode:</strong> ${controller.mode.toUpperCase()}</span>
-                <span><strong>Time:</strong> ${ep.elapsed.toFixed(2)}s</span>
-                <span><strong>Distance:</strong> ${ep.ball.x.toFixed(1)}</span>
-                <span><strong>Reward/sec:</strong> ${rewardPerSec.toFixed(2)}</span>
-                ${stuckWarn}
-                <span><strong>Seed:</strong> ${ep.params.seed}</span>
-                <span><strong>Generation:</strong> ${trainer.generation}</span>
-                <span><strong>Best fitness:</strong> ${bestFitness}</span>
-            `;
+            
+            const highlightGradient = ctx.createLinearGradient(screenX, y, screenX + w * 0.3, y);
+            highlightGradient.addColorStop(0, 'rgba(255, 255, 255, 0.15)');
+            highlightGradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
+            ctx.fillStyle = highlightGradient;
+            ctx.fillRect(screenX, y, w * 0.3, h);
+            
+            const darkGradient = ctx.createLinearGradient(screenX + w * 0.7, y, screenX + w, y);
+            darkGradient.addColorStop(0, 'rgba(0, 0, 0, 0)');
+            darkGradient.addColorStop(1, 'rgba(0, 0, 0, 0.3)');
+            ctx.fillStyle = darkGradient;
+            ctx.fillRect(screenX + w * 0.7, y, w * 0.3, h);
+            
+            ctx.strokeStyle = '#3E2723';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(screenX, y, w, h);
+            
+            const topGradient = ctx.createLinearGradient(screenX, y, screenX, y + 6);
+            topGradient.addColorStop(0, '#D2691E');
+            topGradient.addColorStop(1, '#A0522D');
+            ctx.fillStyle = topGradient;
+            ctx.fillRect(screenX, y, w, 6);
         }
     }
+}
 
-    const canvas = document.getElementById('game');
-    const hudElem = document.getElementById('hud');
-    const overlayElem = document.getElementById('overlay');
-    const overlayTitle = document.getElementById('overlay-title');
-    const overlaySubtitle = document.getElementById('overlay-subtitle');
-    const panel = document.getElementById('side-panel');
-    const togglePanelBtn = document.getElementById('toggle-panel');
-    const collapseBtn = document.getElementById('collapse-btn');
-    const saveStatus = document.getElementById('save-status');
-    const panelInputs = panel.querySelectorAll('[data-param]');
+// ============= GAME STATE =============
 
-    const defaultParams = {
-        seed: Math.random().toString(36).slice(2, 9),
-        gravity: 550,
-        groundFriction: 2,
-        accelPower: 180,
-        brakeStrength: 220,
-        slopeForce: 180,
-        stuckTime: 4,
-        stuckDeltaThreshold: 0.6,
-        coyoteTime: 0.1,
-        jumpBufferTime: 0.1,
-        jumpImpulse: 360,
-        jumpCutScale: 2.4,
-        rewardSurvival: 1.4,
-        rewardForward: 0.4,
-        penaltyBrake: 0.5,
-        penaltyStuck: 1.2,
-        targetSpeed: 600,
-        gapFrequency: 0.25,
-        populationSize: 24,
-        mutationRate: 0.2,
-        addNodeRate: 0.03,
-        addConnectionRate: 0.18,
-        elitism: 0.1,
-        c1: 1,
-        c2: 1,
-        c3: 0.4,
-        compatibilityThreshold: 2.6,
-        speciesTarget: 5,
-        showNormals: false,
-        fastTrain: false,
-        autoRestart: true
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+
+// NYTT: Canvas för AI-hjärnan
+const nnCanvas = document.getElementById('nnCanvas');
+const nnCtx = nnCanvas.getContext('2d');
+
+let population = new Population(config.populationSize);
+let terrain = new Terrain();
+let balls = population.genomes.map(g => new Ball(g));
+let bestBall = null;
+
+// ============= KONTROLLER =============
+// ... (Din 'setupControls' är densamma) ...
+function setupControls() {
+    const sliders = {
+        speed: { display: 'speedVal', format: v => v.toFixed(1) + 'x' },
+        zoom: { display: 'zoomVal', format: v => v.toFixed(1) + 'x' },
+        progressTimeout: { display: 'timeoutVal', format: v => v.toFixed(0) + 's' },
+        sensorLength: { display: 'sensorLengthVal', format: v => v.toFixed(0) },
+        showSensors: { display: 'sensorsVal', format: v => v === 1 ? 'Ja' : 'Nej', boolean: true },
+        difficultyGrowth: { display: 'difficultyGrowthVal', format: v => v.toFixed(1) + 'x' },
+        obstacleHeight: { display: 'obstacleHeightVal', format: v => v.toFixed(1) + 'x' },
+        firstObstacle: { display: 'firstObstacleVal', format: v => v.toFixed(0), regenerate: true },
+        ballSize: { display: 'ballSizeVal', format: v => v.toFixed(0), resize: true },
+        gravity: { display: 'gravityVal', format: v => v.toFixed(2) },
+        bounce: { display: 'bounceVal', format: v => v.toFixed(2) },
+        jumpPower: { display: 'jumpVal', format: v => v.toFixed(1) },
+        friction: { display: 'frictionVal', format: v => v.toFixed(2) },
+        maxSpeed: { display: 'maxSpeedVal', format: v => v.toFixed(1) },
+        populationSize: { display: 'popVal', format: v => v.toFixed(0) },
+        mutationRate: { display: 'mutationVal', format: v => v.toFixed(2) },
+        elitism: { display: 'eliteVal', format: v => Math.round(v * 100) + '%' }
     };
-
-    function syncPanel(params) {
-        panel.querySelector('[data-param="seedText"]').value = params.seed;
-    }
-
-    panelInputs.forEach(input => {
-        const key = input.dataset.param;
-        if (key in defaultParams) {
-            if (input.type === 'checkbox') {
-                input.checked = !!defaultParams[key];
-            } else if (input.type !== 'text') {
-                input.value = defaultParams[key];
+    
+    for (const [id, opts] of Object.entries(sliders)) {
+        const slider = document.getElementById(id);
+        const display = document.getElementById(opts.display);
+        
+        slider.addEventListener('input', (e) => {
+            let value = parseFloat(e.target.value);
+            
+            if (opts.boolean) {
+                config[id] = value === 1;
+            } else {
+                config[id] = value;
             }
-        }
-        input.addEventListener('input', () => {
-            applyPanelChange(key, input);
-        });
-    });
-
-    function applyPanelChange(key, input) {
-        const value = input.type === 'checkbox' ? input.checked : (input.type === 'number' ? Number(input.value) : input.value);
-        switch (key) {
-            case 'gravity': currentEpisode.params.gravity = Number(value); break;
-            case 'friction': currentEpisode.params.groundFriction = Number(value); break;
-            case 'accel': currentEpisode.params.accelPower = Number(value); break;
-            case 'brake': currentEpisode.params.brakeStrength = Number(value); break;
-            case 'stuckTime': currentEpisode.params.stuckTime = Number(value); break;
-            case 'gapFreq': currentEpisode.params.gapFrequency = Number(value); break;
-            case 'population': trainer.population.config.populationSize = Number(value); break;
-            case 'mutation': trainer.population.config.mutationRate = Number(value); break;
-            case 'addNode': trainer.population.config.addNodeRate = Number(value); break;
-            case 'addConn': trainer.population.config.addConnectionRate = Number(value); break;
-            case 'elitism': trainer.population.config.elitism = Number(value); break;
-            case 'c1': trainer.population.config.c1 = Number(value); break;
-            case 'c2': trainer.population.config.c2 = Number(value); break;
-            case 'c3': trainer.population.config.c3 = Number(value); break;
-            case 'compatThreshold': trainer.population.config.compatibilityThreshold = Number(value); break;
-            case 'speciesTarget': trainer.population.config.speciesTarget = Number(value); break;
-            case 'showNormals': currentEpisode.params.showNormals = value; break;
-            case 'fastTrain': controllerFastTrain(value); break;
-            case 'autoRestart': currentEpisode.params.autoRestart = value; break;
-            case 'seedText': break;
-            default:
-                currentEpisode.params[key] = value;
-        }
-    }
-
-    togglePanelBtn.addEventListener('click', () => {
-        panel.classList.toggle('collapsed');
-    });
-    collapseBtn.addEventListener('click', () => {
-        panel.classList.toggle('collapsed');
-    });
-
-    panel.querySelectorAll('[data-action]').forEach(btn => {
-        btn.addEventListener('click', () => {
-            const act = btn.dataset.action;
-            if (act === 'new-seed') {
-                newSeed();
-            } else if (act === 'use-seed') {
-                const input = panel.querySelector('[data-param="seedText"]').value.trim();
-                if (input) resetEpisode(input);
-            } else if (act === 'save-best') {
-                saveBest();
-            } else if (act === 'load-best') {
-                loadBest();
-            } else if (act === 'clear-best') {
-                clearBest();
+            
+            display.textContent = opts.format(value);
+            
+            if (opts.regenerate) {
+                terrain.generate();
+            }
+            
+            if (opts.resize) {
+                balls.forEach(b => b.radius = value);
             }
         });
-    });
-
-    overlayElem.querySelectorAll('button').forEach(btn => {
-        btn.addEventListener('click', () => {
-            const act = btn.dataset.action;
-            if (act === 'restart') {
-                resetEpisode(currentEpisode.params.seed);
-            } else if (act === 'new-seed') {
-                newSeed();
-            } else if (act === 'toggle-mode') {
-                toggleMode();
-            }
-        });
-    });
-
-    function showOverlay(title, subtitle) {
-        overlayTitle.textContent = title;
-        overlaySubtitle.textContent = subtitle;
-        overlayElem.hidden = false;
     }
+}
 
-    function hideOverlay() {
-        overlayElem.hidden = true;
+function resetGeneration() {
+    population.evolve();
+    terrain = new Terrain();
+    balls = population.genomes.map(g => new Ball(g));
+    camera.x = 0;
+    camera.vx = 0;
+    lastBestDistance = 0;
+    lastProgressTime = performance.now() / 1000;
+    updateChart();
+}
+
+// ... (Resten av dina kontroller är desamma) ...
+function togglePause() {
+    paused = !paused;
+    if (!paused) {
+        lastTime = performance.now(); // Förhindra massiv dt-hopp
+        requestAnimationFrame(gameLoop); // Starta loopen igen
     }
-
-    const populationConfig = {
-        populationSize: defaultParams.populationSize,
-        mutationRate: defaultParams.mutationRate,
-        addNodeRate: defaultParams.addNodeRate,
-        addConnectionRate: defaultParams.addConnectionRate,
-        elitism: defaultParams.elitism,
-        c1: defaultParams.c1,
-        c2: defaultParams.c2,
-        c3: defaultParams.c3,
-        compatibilityThreshold: defaultParams.compatibilityThreshold,
-        speciesTarget: defaultParams.speciesTarget
-    };
-
-    const population = new Population(populationConfig);
-    const trainer = new Trainer(population, populationConfig);
-    const controller = new Controller();
-    const renderer = new Renderer(canvas, defaultParams);
-
-    const episodeParams = { ...defaultParams };
-    const currentEpisode = new Episode(episodeParams);
-    syncPanel(currentEpisode.params);
-
-    let lastTime = performance.now();
-    let accumulator = 0;
-
-    function controllerFastTrain(flag) {
-        defaultParams.fastTrain = flag;
-        trainer.setFastTrain(flag);
+}
+function showBestOnly() {
+    showOnlyBest = !showOnlyBest;
+    if (showOnlyBest && population.bestGenome) {
+        balls = [new Ball(population.bestGenome)];
+        balls[0].reset();
+    } else {
+        balls = population.genomes.map(g => new Ball(g));
     }
-
-    function update(dt) {
-        const mode = controller.mode;
-        const stepDt = 1 / 120;
-        const clamped = Math.min(dt, 0.05);
-        accumulator += clamped;
-        const iterations = trainer.fastTrain && mode === 'training' ? 3 : 1;
-        for (let i = 0; i < iterations; i++) {
-            while (accumulator >= stepDt) {
-                step(stepDt);
-                accumulator -= stepDt;
-            }
-        }
+}
+function saveBest() {
+    const saveStatus = document.getElementById('saveStatus');
+    if (!population.bestGenome) {
+        saveStatus.textContent = '❌ Ingen bästa AI att spara än';
+        saveStatus.style.color = '#ff6b6b';
+        return;
     }
-
-    function step(dt) {
-        if (currentEpisode.done) {
-            if (currentEpisode.params.autoRestart) {
-                handleEpisodeEnd();
-                return;
-            }
-            return;
-        }
-        const rawState = currentEpisode.getState();
-        const inputs = rawState.normalized;
-        const genome = controller.mode === 'training' ? trainer.currentGenome : controller.mode === 'best' ? trainer.bestGenome : null;
-        const action = controller.getAction(inputs, genome);
-        currentEpisode.update(action, dt);
-        if (typeof window.onStep === 'function') {
-            window.onStep(rawState, action, currentEpisode.lastReward, currentEpisode.done);
-        }
-        if (currentEpisode.done) {
-            handleEpisodeEnd();
-        }
-    }
-
-    function handleEpisodeEnd() {
-        const fitness = currentEpisode.ball.reward;
-        const reason = currentEpisode.reason || 'Finished';
-        const auto = !!currentEpisode.params.autoRestart;
-        const mode = controller.mode;
-        if (mode === 'training') {
-            trainer.recordEpisode(fitness);
-            if (auto) {
-                resetEpisode(currentEpisode.params.seed);
-            }
-        } else if (mode === 'best') {
-            if (auto) {
-                resetEpisode(currentEpisode.params.seed);
-            }
-        }
-        const shouldShowOverlay = !auto || mode === 'manual';
-        if (shouldShowOverlay) {
-            showOverlay(`Episode Over (${reason})`, `Fitness: ${fitness.toFixed(2)}`);
-        }
-    }
-
-    function loop(now) {
-        const dt = (now - lastTime) / 1000;
-        lastTime = now;
-        update(dt);
-        renderer.draw(currentEpisode, controller, trainer, hudElem, currentEpisode.params);
-        requestAnimationFrame(loop);
-    }
-
-    function toggleMode() {
-        const mode = controller.nextMode();
-        if (mode === 'training') {
-            resetEpisode(currentEpisode.params.seed);
-        } else if (mode === 'best') {
-            if (trainer.bestGenome) {
-                resetEpisode(currentEpisode.params.seed);
-            }
-        } else if (mode === 'manual') {
-            resetEpisode(currentEpisode.params.seed);
-        }
-    }
-
-    function resetEpisode(seed, genomeOverride) {
-        const rngSeed = seed || Math.random().toString(36).slice(2, 9);
-        currentEpisode.reset(rngSeed);
-        currentEpisode.params.seed = rngSeed;
-        syncPanel(currentEpisode.params);
-        if (controller.mode === 'training') {
-            trainer.currentGenome = genomeOverride || trainer.population.genomes[trainer.activeIndex];
-        }
-        controller.prevNetwork = [0, 0, 0, 0];
-        controller.currentNetwork = [0, 0, 0, 0];
-        controller.manual.jumpHeld = false;
-        controller.manual.accel = false;
-        controller.manual.brake = false;
-        controller.manual.jumpPressed = false;
-        controller.manual.jumpLatched = false;
-        hideOverlay();
-    }
-
-    function newSeed() {
-        resetEpisode(Math.random().toString(36).slice(2, 9));
-    }
-
-    function saveBest() {
-        if (!trainer.bestGenome) {
-            saveStatus.textContent = 'No best genome yet.';
-            return;
-        }
-        const data = {
-            fitness: trainer.population.globalBestFitness,
-            genome: serializeGenome(trainer.bestGenome)
+    
+    try {
+        const saveData = {
+            weights: population.bestGenome.weights,
+            fitness: population.bestFitness,
+            generation: population.generation,
+            timestamp: new Date().toISOString()
         };
-        localStorage.setItem('rollingBallBest', JSON.stringify(data));
-        saveStatus.textContent = 'Saved best genome to localStorage.';
+        
+        localStorage.setItem('neatBallBest', JSON.stringify(saveData));
+        saveStatus.textContent = '✅ Sparad! Fitness: ' + Math.floor(population.bestFitness);
+        saveStatus.style.color = '#4ade80';
+    } catch (err) {
+        saveStatus.textContent = '❌ Kunde inte spara: ' + err.message;
+        saveStatus.style.color = '#ff6b6b';
     }
+}
+function loadBest() {
+    const saveStatus = document.getElementById('saveStatus');
+    const savedData = localStorage.getItem('neatBallBest');
+    
+    if (!savedData) {
+        saveStatus.textContent = '❌ Ingen sparad AI hittades';
+        saveStatus.style.color = '#ff6b6b';
+        return;
+    }
+    
+    try {
+        const data = JSON.parse(savedData);
+        
+        const genome = new Genome();
+        genome.weights = data.weights;
+        genome.fitness = data.fitness;
+        
+        population.bestGenome = genome;
+        population.bestFitness = data.fitness;
+        
+        showOnlyBest = true;
+        balls = [new Ball(genome)];
+        balls[0].reset();
+        
+        const date = new Date(data.timestamp);
+        saveStatus.textContent = '✅ Laddad! Fitness: ' + Math.floor(data.fitness) + ' (Gen ' + data.generation + ')';
+        saveStatus.style.color = '#4ade80';
+    } catch (err) {
+        saveStatus.textContent = '❌ Kunde inte ladda: ' + err.message;
+        saveStatus.style.color = '#ff6b6b';
+    }
+}
+function updateChart() {
+    const chart = document.getElementById('chart');
+    chart.innerHTML = '';
+    
+    const maxHeight = 90;
+    const maxFitness = Math.max(...population.history.map(h => h.best), 1);
+    
+    for (const h of population.history) {
+        const bar = document.createElement('div');
+        bar.className = 'chart-bar';
+        bar.style.height = (h.best / maxFitness * maxHeight) + 'px';
+        chart.appendChild(bar);
+    }
+}
 
-    function loadBest() {
-        const raw = localStorage.getItem('rollingBallBest');
-        if (!raw) {
-            saveStatus.textContent = 'No saved genome found.';
-            return;
+// ============= NYTT: AI-VISUALISERING =============
+function drawNN(ctx, genome, inputs, outputs) {
+    ctx.clearRect(0, 0, nnCanvas.width, nnCanvas.height);
+    if (!genome) return;
+
+    const w = nnCanvas.width;
+    const h = nnCanvas.height;
+    
+    const nodeRadius = 4;
+    const layerMargin = 50;
+    const inputX = 25;
+    const hiddenX = w / 2;
+    const outputX = w - 25;
+
+    // --- Rita vikter (linjer) ---
+    let w_idx = 0;
+    
+    // Vikter: Input -> Hidden
+    for (let i = 0; i < genome.inputSize; i++) {
+        const inputY = layerMargin + (h - layerMargin*2) * (i / (genome.inputSize - 1));
+        for (let j = 0; j < genome.hiddenSize; j++) {
+            const hiddenY = layerMargin + (h - layerMargin*2) * (j / (genome.hiddenSize - 1));
+            const weight = genome.weights[w_idx++];
+            
+            const alpha = Math.min(Math.abs(weight) * 0.8, 0.8);
+            ctx.strokeStyle = weight > 0 ? `rgba(67, 160, 71, ${alpha})` : `rgba(229, 57, 53, ${alpha})`; // Grön / Röd
+            ctx.lineWidth = Math.min(Math.abs(weight) * 1.5, 2);
+            
+            ctx.beginPath();
+            ctx.moveTo(inputX, inputY);
+            ctx.lineTo(hiddenX, hiddenY);
+            ctx.stroke();
         }
-        try {
-            const data = JSON.parse(raw);
-            const genome = deserializeGenome(data.genome);
-            trainer.population.globalBest = genome;
-            trainer.population.globalBestFitness = data.fitness;
-            trainer.currentGenome = genome;
-            trainer.setFastTrain(false);
-            controller.setMode('best');
-            resetEpisode(currentEpisode.params.seed);
-            saveStatus.textContent = 'Loaded best genome.';
-        } catch (err) {
-            console.error(err);
-            saveStatus.textContent = 'Failed to load genome.';
+    }
+    
+    // Vikter: Hidden -> Output
+    for (let i = 0; i < genome.hiddenSize; i++) {
+        const hiddenY = layerMargin + (h - layerMargin*2) * (i / (genome.hiddenSize - 1));
+        for (let j = 0; j < genome.outputSize; j++) {
+            const outputY = layerMargin + (h - layerMargin*2) * (j / (genome.outputSize - 1));
+            const weight = genome.weights[w_idx++];
+
+            const alpha = Math.min(Math.abs(weight) * 0.8, 0.8);
+            ctx.strokeStyle = weight > 0 ? `rgba(67, 160, 71, ${alpha})` : `rgba(229, 57, 53, ${alpha})`;
+            ctx.lineWidth = Math.min(Math.abs(weight) * 1.5, 2);
+
+            ctx.beginPath();
+            ctx.moveTo(hiddenX, hiddenY);
+            ctx.lineTo(outputX, outputY);
+            ctx.stroke();
         }
     }
 
-    function clearBest() {
-        localStorage.removeItem('rollingBallBest');
-        saveStatus.textContent = 'Cleared saved genome.';
+    // --- Rita noder ---
+    ctx.lineWidth = 1;
+
+    // Input-noder
+    for (let i = 0; i < genome.inputSize; i++) {
+        const y = layerMargin + (h - layerMargin*2) * (i / (genome.inputSize - 1));
+        const activation = inputs ? inputs[i] : 0; // Värdet är 0-1
+        ctx.fillStyle = `rgba(255, 159, 67, ${0.2 + activation * 0.8})`; // Accentfärg
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+        ctx.beginPath();
+        ctx.arc(inputX, y, nodeRadius, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
     }
-
-    function serializeGenome(genome) {
-        return {
-            nodes: Array.from(genome.nodes.values()).map(n => ({ id: n.id, type: n.type, layer: n.layer })),
-            connections: Array.from(genome.connections.values()).map(c => ({ innovation: c.innovation, inNode: c.inNode, outNode: c.outNode, weight: c.weight, enabled: c.enabled }))
-        };
+    
+    // Hidden-noder (Kan ej visa aktivering enkelt utan att köra nätet igen)
+    for (let i = 0; i < genome.hiddenSize; i++) {
+        const y = layerMargin + (h - layerMargin*2) * (i / (genome.hiddenSize - 1));
+        ctx.fillStyle = `rgba(100, 100, 100, 0.5)`;
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+        ctx.beginPath();
+        ctx.arc(hiddenX, y, nodeRadius, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
     }
-
-    function deserializeGenome(data) {
-        const genome = new Genome(population.tracker);
-        let maxNode = 0;
-        let maxInnovation = 0;
-        data.nodes.forEach(n => {
-            genome.addNodeGene(new NodeGene(n.id, n.type, n.layer));
-            maxNode = Math.max(maxNode, n.id);
-        });
-        data.connections.forEach(c => {
-            genome.addConnectionGene(new ConnectionGene(c.innovation, c.inNode, c.outNode, c.weight, c.enabled));
-            maxInnovation = Math.max(maxInnovation, c.innovation);
-            const key = `${c.inNode}->${c.outNode}`;
-            population.tracker.map.set(key, c.innovation);
-        });
-        population.tracker.nextNodeId = Math.max(population.tracker.nextNodeId, maxNode + 1);
-        population.tracker.nextInnovation = Math.max(population.tracker.nextInnovation, maxInnovation + 1);
-        return genome;
+    
+    // Output-noder
+    const outputLabels = ["Hopp", "Gasa", "Broms"];
+    for (let i = 0; i < genome.outputSize; i++) {
+        const y = layerMargin + (h - layerMargin*2) * (i / (genome.outputSize - 1));
+        const activation = outputs ? (outputs[i] + 1) / 2 : 0; // Värdet är -1 till 1
+        ctx.fillStyle = `rgba(245, 87, 108, ${0.2 + activation * 0.8})`; // Annan accentfärg
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+        ctx.beginPath();
+        ctx.arc(outputX, y, nodeRadius + 1, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        
+        ctx.fillStyle = '#9aa7c2';
+        ctx.font = '10px Inter';
+        ctx.fillText(outputLabels[i], outputX + 10, y + 3);
     }
+}
 
-    if (typeof window.onStep !== 'function') {
-        window.onStep = function(state, action, reward, done) {
-            // hook placeholder for analytics
-        };
+
+// ============= NY: FYSIKLOOP =============
+function updatePhysics(dt) {
+    // Uppdatera partiklar
+    for (const p of particlePool) {
+        if (p.isAlive) {
+            p.update(dt);
+        }
     }
+    
+    let alive = 0;
+    let bestNow = 0;
+    let totalDist = 0;
+    let leadX = 0;
+    bestBall = null;
+    let currentBestFitness = -Infinity;
 
-    window.getEpisode = function() {
-        return currentEpisode;
-    };
+    for (const ball of balls) {
+        if (ball.alive) {
+            ball.update(terrain, dt);
+            alive++;
+            bestNow = Math.max(bestNow, ball.distance);
+            totalDist += ball.distance;
+            leadX = Math.max(leadX, ball.x);
+            
+            if (ball.genome.fitness > currentBestFitness) {
+                currentBestFitness = ball.genome.fitness;
+                bestBall = ball; // Spara den bästa bollen för NN-visualisering
+            }
+        }
+    }
+    
+    terrain.update(leadX);
+    
+    // NYTT: Fjädrande kamera-logik
+    const targetX = leadX - 300;
+    const accel = (targetX - camera.x) * camera.spring;
+    camera.vx += accel;
+    camera.vx *= camera.damping;
+    camera.x += camera.vx;
 
-    window.resetEpisode = resetEpisode;
-    window.toggleMode = toggleMode;
-    window.newSeed = newSeed;
+    // NYTT: Minska screen shake
+    screenShake *= 0.9;
+    
+    // Check progress
+    if (bestNow > lastBestDistance + 10) {
+        lastBestDistance = bestNow;
+        lastProgressTime = performance.now() / 1000;
+    }
+    
+    const currentTime = performance.now() / 1000;
+    const timeSinceProgress = currentTime - lastProgressTime;
+    
+    if (alive === 0 || (alive > 0 && timeSinceProgress > config.progressTimeout)) {
+        resetGeneration();
+        lastProgressTime = currentTime;
+        lastBestDistance = 0;
+    }
+    
+    // Uppdatera UI
+    document.getElementById('generation').textContent = population.generation;
+    document.getElementById('alive').textContent = alive;
+    document.getElementById('bestEver').textContent = Math.floor(population.bestFitness);
+    document.getElementById('bestObstacles').textContent = population.bestObstaclesEver;
+    document.getElementById('bestNow').textContent = Math.floor(bestNow);
+    document.getElementById('average').textContent = alive > 0 ? Math.floor(totalDist / alive) : 0;
+}
 
-    requestAnimationFrame(function start(now) {
-        lastTime = now;
-        loop(now);
-    });
-    </script>
+// ============= NY: RITLOOP =============
+function draw() {
+    ctx.save(); // Spara state för screen shake
+
+    // NYTT: Applicera screen shake
+    const shakeX = (Math.random() - 0.5) * screenShake;
+    const shakeY = (Math.random() - 0.5) * screenShake;
+    ctx.translate(shakeX, shakeY);
+
+    // Multi-layer sky gradient
+    const skyGradient1 = ctx.createLinearGradient(0, 0, 0, canvas.height * 0.4);
+    skyGradient1.addColorStop(0, '#2d1b4e');
+    skyGradient1.addColorStop(1, '#1a1f3a');
+    ctx.fillStyle = skyGradient1;
+    ctx.fillRect(0, 0, canvas.width, canvas.height * 0.4);
+    
+    const skyGradient2 = ctx.createLinearGradient(0, canvas.height * 0.4, 0, canvas.height);
+    skyGradient2.addColorStop(0, '#1a1f3a');
+    skyGradient2.addColorStop(0.5, '#0f1419');
+    skyGradient2.addColorStop(1, '#0a0c10');
+    ctx.fillStyle = skyGradient2;
+    ctx.fillRect(0, canvas.height * 0.4, canvas.width, canvas.height * 0.6);
+    
+    // Stars
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+    for (let i = 0; i < 100; i++) {
+        const x = (i * 137 + camera.x * 0.05) % canvas.width;
+        const y = (i * 211) % (canvas.height * 0.5);
+        const twinkle = Math.sin(performance.now() * 0.001 + i) * 0.3 + 0.7;
+        ctx.globalAlpha = twinkle;
+        ctx.fillRect(x, y, 2, 2);
+    }
+    ctx.globalAlpha = 1;
+    
+    // Distant mountains (parallax)
+    ctx.fillStyle = 'rgba(30, 40, 60, 0.6)';
+    ctx.beginPath();
+    ctx.moveTo(0, canvas.height * 0.6);
+    for (let x = 0; x < canvas.width; x += 20) {
+        const mountainX = x + camera.x * 0.1;
+        const y = canvas.height * 0.6 - Math.abs(Math.sin(mountainX * 0.01) * 60) - 40;
+        ctx.lineTo(x, y);
+    }
+    ctx.lineTo(canvas.width, canvas.height);
+    ctx.lineTo(0, canvas.height);
+    ctx.closePath();
+    ctx.fill();
+    
+    // Clouds
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.15)';
+    for (let i = 0; i < 12; i++) {
+        const cloudX = ((i * 300 + camera.x * 0.2) % (canvas.width + 200)) - 100;
+        const cloudY = 40 + (i % 3) * 60;
+        const cloudSize = 40 + (i % 3) * 15;
+        
+        ctx.beginPath();
+        ctx.arc(cloudX, cloudY, cloudSize, 0, Math.PI * 2);
+        ctx.arc(cloudX + cloudSize * 0.7, cloudY, cloudSize * 0.9, 0, Math.PI * 2);
+        ctx.arc(cloudX + cloudSize * 1.4, cloudY, cloudSize * 0.8, 0, Math.PI * 2);
+        ctx.fill();
+    }
+    
+    // Fog
+    const fogGradient = ctx.createLinearGradient(0, canvas.height * 0.7, 0, canvas.height);
+    fogGradient.addColorStop(0, 'rgba(15, 20, 25, 0)');
+    fogGradient.addColorStop(1, 'rgba(15, 20, 25, 0.3)');
+    ctx.fillStyle = fogGradient;
+    ctx.fillRect(0, canvas.height * 0.7, canvas.width, canvas.height * 0.3);
+    
+    ctx.save();
+    terrain.draw(ctx, camera.x);
+    
+    // Rita partiklar
+    ctx.shadowBlur = 10;
+    for (const p of particlePool) {
+        if (p.isAlive) {
+            ctx.shadowColor = p.color;
+            p.draw(ctx, camera.x);
+        }
+    }
+    ctx.shadowBlur = 0;
+    
+    // Rita sensorer
+    for (const ball of balls) {
+        ball.drawSensors(ctx, camera.x, terrain);
+    }
+    
+    // Rita bollar
+    for (const ball of balls) {
+        ball.draw(ctx, camera.x);
+    }
+    
+    ctx.restore();
+    
+    // Animated grass
+    const time = performance.now() * 0.001;
+    ctx.strokeStyle = 'rgba(92, 122, 63, 0.6)';
+    ctx.lineWidth = 1;
+    for (let x = 0; x < canvas.width; x += 12) {
+        const worldX = x / config.zoom + camera.x;
+        const sway = Math.sin(time * 2 + worldX * 0.1) * 2;
+        const screenY = 500 * config.zoom;
+        ctx.beginPath();
+        ctx.moveTo(x, screenY);
+        ctx.lineTo(x + sway, screenY - 8);
+        ctx.stroke();
+    }
+    
+    // Info overlay
+    ctx.save();
+    const gradient = ctx.createLinearGradient(10, 10, 10, 80);
+    gradient.addColorStop(0, 'rgba(0, 0, 0, 0.7)');
+    gradient.addColorStop(1, 'rgba(0, 0, 0, 0.5)');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(10, 10, 220, 70);
+    ctx.strokeStyle = 'rgba(255, 159, 67, 0.3)';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(10, 10, 220, 70);
+    ctx.font = 'bold 14px Inter';
+    ctx.fillStyle = '#ff9f43';
+    ctx.fillText('🏁 Oändlig Bana!', 20, 30);
+    ctx.fillStyle = '#f5f7ff';
+    ctx.font = '12px Inter';
+    ctx.fillText('Hinder genererade: ' + terrain.obstacleIndex, 20, 50);
+    ctx.fillText('Bästa fitness: ' + Math.floor(population.bestFitness), 20, 65);
+    ctx.restore();
+
+    ctx.restore(); // Återställ från screen shake
+
+    // NYTT: Rita AI-hjärnan
+    if (bestBall) {
+        drawNN(nnCtx, bestBall.genome, bestBall.lastInputs, bestBall.genome.activate(bestBall.lastInputs));
+    } else {
+        drawNN(nnCtx, null, null, null); // Rensa canvas
+    }
+}
+
+// ============= HUVUDLOOP (OMSKRIVEN) =============
+
+function gameLoop(now) {
+    if (paused) return;
+
+    const dt = Math.min((now - lastTime) / 1000, 0.1); // Delta time i sekunder
+    lastTime = now;
+    
+    accumulator += dt * config.speed;
+    
+    // Kör fysik-uppdateringar i fasta steg
+    while (accumulator >= FIXED_DT) {
+        updatePhysics(FIXED_DT);
+        accumulator -= FIXED_DT;
+    }
+    
+    // Rita så ofta som möjligt
+    draw();
+    
+    requestAnimationFrame(gameLoop);
+}
+
+// Start
+setupControls();
+initParticlePool(); // NYTT: Initiera partikel-poolen
+updateChart();
+lastTime = performance.now();
+lastProgressTime = performance.now() / 1000;
+gameLoop(lastTime);
+</script>
 </body>
 </html>
