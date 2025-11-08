@@ -273,7 +273,8 @@ const config = {
     difficultyGrowth: 1.0,
     obstacleHeight: 1.0,
     firstObstacle: 800,
-    progressTimeout: 5
+    progressTimeout: 5,
+    slopeEffect: 0.3
 };
 
 let paused = false;
@@ -534,9 +535,10 @@ class Ball {
         this.obstaclesCleared = 0;
         this.lastObstacleIndex = -1;
         this.lastInputs = new Array(24).fill(0);
+        this.lastSensorMeta = Array.from({ length: 24 }, () => ({ distance: config.sensorLength, type: 'None' }));
         this.onGround = false;
     }
-    
+
     // NYTT: OPTIMERAD SENSORFUNKTION
     getSensors(terrain) {
         const angles = [];
@@ -546,91 +548,124 @@ class Ball {
         
         const rayLength = config.sensorLength;
         const sensors = [];
-        
+        const sensorMeta = [];
+
         for (const angle of angles) {
             const rad = (angle * Math.PI) / 180;
             const dx = Math.cos(rad);
             const dy = Math.sin(rad);
-            
-            let hitDist = rayLength;
-            const coarseStep = 20; // Glesa steg
 
-            // Stega glesare
+            let hitDist = rayLength;
+            let hitType = 'None';
+            let holeDist = null;
+            const coarseStep = 15;
+
             for (let dist = coarseStep; dist <= rayLength; dist += coarseStep) {
                 const checkX = this.x + dx * dist;
                 const checkY = this.y + dy * dist;
-                const terrainY = terrain.getHeight(checkX);
-                
-                if (checkY >= terrainY) {
-                    // Träff! Binärsök för exakt avstånd.
+                const surface = terrain.getSurfaceInfo(checkX);
+
+                if (surface.type === 'Hole') {
+                    if (holeDist === null) {
+                        holeDist = dist;
+                    }
+                    continue;
+                }
+
+                const surfaceY = surface.height;
+                if (checkY >= surfaceY - this.radius) {
                     let low = dist - coarseStep;
                     let high = dist;
-                    for (let i = 0; i < 5; i++) { // 5 iterationer räcker
+                    let resolvedType = surface.type === 'Obstacle' ? 'Obstacle' : 'Ground';
+
+                    for (let i = 0; i < 5; i++) {
                         const mid = (low + high) / 2;
                         const midX = this.x + dx * mid;
+                        const midSurface = terrain.getSurfaceInfo(midX);
                         const midY = this.y + dy * mid;
-                        if (midY >= terrain.getHeight(midX)) {
+
+                        if (midSurface.type !== 'Hole' && midY >= midSurface.height - this.radius) {
                             high = mid;
+                            resolvedType = midSurface.type === 'Obstacle' ? 'Obstacle' : 'Ground';
                         } else {
                             low = mid;
                         }
                     }
+
                     hitDist = high;
+                    hitType = resolvedType;
                     break;
                 }
             }
-            sensors.push(1.0 - (hitDist / rayLength)); // Invertera: 1 = nära, 0 = långt borta
+
+            if (holeDist !== null && (hitType === 'None' || holeDist < hitDist)) {
+                const normalizedHole = 1 - (holeDist / rayLength);
+                sensors.push(-normalizedHole);
+                sensorMeta.push({ distance: holeDist, type: 'Hole' });
+            } else {
+                sensors.push(1.0 - (hitDist / rayLength));
+                sensorMeta.push({ distance: hitDist, type: hitType });
+            }
         }
-        
-        this.lastInputs = sensors; // Spara för AI-visualisering
+
+        this.lastInputs = sensors;
+        this.lastSensorMeta = sensorMeta;
         return sensors;
     }
     
     update(terrain, dt) {
         if (!this.alive) return;
-        
+
         const sensors = this.getSensors(terrain);
         const outputs = this.genome.activate(sensors);
-        
-        const wantsJump = outputs[0] > 0.3;
+
+        const jumpActivation = outputs[0];
         const accelerate = outputs[1];
         const brake = outputs[2];
-        
-        this.vy += config.gravity * dt * 60; // dt*60 för att matcha originalskalan
-        
-        const terrainY = terrain.getHeight(this.x);
+
+        const wantsJump = jumpActivation > 0.05;
+        const jumpForceFactor = Math.max(0, Math.min(1, jumpActivation));
+        const actualJumpPower = config.jumpPower * jumpForceFactor;
+
+        this.vy += config.gravity * dt * 60;
+
+        const surface = terrain.getSurfaceInfo(this.x);
+        const terrainY = surface.type === 'Hole' ? Infinity : surface.height;
+        const slopeAngle = surface.slope || 0;
         const wasOnGround = this.onGround;
-        this.onGround = this.y >= terrainY - this.radius;
-        
+        this.onGround = Number.isFinite(terrainY) && this.y >= terrainY - this.radius;
+
+        const slopeAssist = Math.sin(slopeAngle);
+        const slopeMultiplier = this.onGround ? 1.5 : 0.6;
+        this.vx -= slopeAssist * config.slopeEffect * slopeMultiplier * dt * 60;
+
         if (this.onGround) {
             this.y = terrainY - this.radius;
-            
-            // NYTT: Partiklar vid landning
+
             if (!wasOnGround && Math.abs(this.vy) > 2) {
                 spawnParticles(this.x, this.y + this.radius, `hsla(30, 40%, 70%, 1)`, 3, 1);
-                // NYTT: Squash-effekt
                 this.squash = 1.3;
                 this.stretch = 0.8;
             }
 
-            this.vy *= -config.bounce;
-            
-            if (wantsJump && Math.abs(this.vy) < 2) {
-                this.vy = -config.jumpPower;
-                spawnParticles(this.x, this.y + this.radius, `hsla(${this.hue}, 70%, 60%, 1)`, 3);
-                // NYTT: Stretch-effekt
-                this.squash = 0.8;
-                this.stretch = 1.3;
+            if (this.vy > 0) {
+                this.vy *= -config.bounce;
+            }
+
+            if (wantsJump && actualJumpPower > 0.2) {
+                this.vy = -actualJumpPower;
+                const effectScale = actualJumpPower / config.jumpPower;
+                spawnParticles(this.x, this.y + this.radius, `hsla(${this.hue}, 70%, 60%, 1)`, 1 + Math.round(effectScale * 4), 1 + effectScale * 2);
+                this.squash = 1 - 0.2 * effectScale;
+                this.stretch = 1 + 0.3 * effectScale;
             }
         }
-        
-        // NYTT: Återställ S&S
+
         this.squash += (1 - this.squash) * 0.1;
         this.stretch += (1 - this.stretch) * 0.1;
 
         if (accelerate > 0.2) {
             this.vx += accelerate * 0.3 * dt * 60;
-            // NYTT: Partiklar vid acceleration
             if (accelerate > 0.8 && Math.random() < 0.3) {
                 spawnParticles(this.x, this.y, `hsla(180, 70%, 60%, 1)`, 1, 1);
             }
@@ -638,23 +673,30 @@ class Ball {
         if (brake > 0.2) {
             this.vx -= brake * 0.2 * dt * 60;
         }
-        
+
         this.vx *= config.friction;
-        this.vx += 0.15 * dt * 60; 
-        
+        this.vx += 0.12 * dt * 60;
+
         this.vx = Math.max(-config.maxSpeed, Math.min(config.maxSpeed, this.vx));
-        
+
         this.x += this.vx * dt * 60;
         this.y += this.vy * dt * 60;
-        
+
         this.rotation += this.vx * 0.03;
-        
-        if (this.x < camera.x - 200 || this.y > 700) { // Dö om utanför skärmen
+
+        if (surface.type === 'Hole' && this.y - this.radius > 620) {
+            this.alive = false;
+            spawnParticles(this.x, 600, `hsla(0, 50%, 30%, 1)`, 15, 3);
+            triggerScreenShake(10);
+            return;
+        }
+
+        if (this.x < camera.x - 200 || this.y > 700) {
             this.alive = false;
             spawnParticles(this.x, this.y, `hsla(${this.hue}, 70%, 60%, 1)`, 10);
             triggerScreenShake(5);
         }
-        
+
         // Obstacle collision
         const obs = terrain.getObstacleAt(this.x);
         if (obs) {
@@ -790,39 +832,60 @@ class Ball {
         const screenX = (this.x - cameraX) * config.zoom;
         const screenY = this.y * config.zoom;
         const time = performance.now() * 0.001;
-        
+
         for (let i = 0; i < angles.length; i++) {
             const angle = angles[i];
             const rad = (angle * Math.PI) / 180;
             const dx = Math.cos(rad);
             const dy = Math.sin(rad);
-            
-            // Använd det sparade sensorvärdet (inverterat)
-            let hitDist = (1.0 - this.lastInputs[i]) * rayLength;
-            
-            const endX = screenX + dx * hitDist * config.zoom;
-            const endY = screenY + dy * hitDist * config.zoom;
-            
+
+            const reading = this.lastSensorMeta && this.lastSensorMeta[i]
+                ? this.lastSensorMeta[i]
+                : { distance: rayLength, type: 'None' };
+
+            const clampedDist = Math.min(reading.distance, rayLength);
+            const endX = screenX + dx * clampedDist * config.zoom;
+            const endY = screenY + dy * clampedDist * config.zoom;
+
             const pulse = Math.sin(time * 3 + i * 0.3) * 0.2 + 0.6;
-            
+            let startColor = `rgba(255, 159, 67, ${0.5 * pulse})`;
+            let midColor = `rgba(255, 159, 67, ${0.2 * pulse})`;
+            let endColor = 'rgba(255, 159, 67, 0)';
+
+            if (reading.type === 'Hole') {
+                startColor = `rgba(56, 189, 248, ${0.55 * pulse})`;
+                midColor = `rgba(56, 189, 248, ${0.25 * pulse})`;
+                endColor = 'rgba(56, 189, 248, 0)';
+            } else if (reading.type === 'Obstacle') {
+                startColor = `rgba(245, 87, 108, ${0.6 * pulse})`;
+                midColor = `rgba(245, 87, 108, ${0.3 * pulse})`;
+            }
+
             const gradient = ctx.createLinearGradient(screenX, screenY, endX, endY);
-            gradient.addColorStop(0, `rgba(255, 159, 67, ${0.5 * pulse})`);
-            gradient.addColorStop(0.7, `rgba(255, 159, 67, ${0.2 * pulse})`);
-            gradient.addColorStop(1, 'rgba(255, 159, 67, 0)');
-            
+            gradient.addColorStop(0, startColor);
+            gradient.addColorStop(0.7, midColor);
+            gradient.addColorStop(1, endColor);
+
             ctx.strokeStyle = gradient;
-            ctx.lineWidth = 1.5;
+            ctx.lineWidth = reading.type === 'Hole' ? 2.2 : 1.8;
             ctx.beginPath();
             ctx.moveTo(screenX, screenY);
             ctx.lineTo(endX, endY);
             ctx.stroke();
-            
-            const hitAlpha = hitDist < rayLength ? 0.8 * pulse : 0.3 * pulse;
-            ctx.fillStyle = `rgba(255, 159, 67, ${hitAlpha})`;
-            ctx.shadowColor = `rgba(255, 159, 67, ${hitAlpha})`;
-            ctx.shadowBlur = 6;
+
+            const hitAlphaBase = clampedDist < rayLength ? 0.8 : 0.35;
+            const hitAlpha = hitAlphaBase * pulse;
+            const markerColor = reading.type === 'Hole'
+                ? `rgba(56, 189, 248, ${hitAlpha})`
+                : reading.type === 'Obstacle'
+                    ? `rgba(245, 87, 108, ${hitAlpha})`
+                    : `rgba(255, 159, 67, ${hitAlpha})`;
+
+            ctx.fillStyle = markerColor;
+            ctx.shadowColor = markerColor;
+            ctx.shadowBlur = reading.type === 'Hole' ? 8 : 5;
             ctx.beginPath();
-            ctx.arc(endX, endY, 2.5, 0, Math.PI * 2);
+            ctx.arc(endX, endY, reading.type === 'Hole' ? 4 : 3, 0, Math.PI * 2);
             ctx.fill();
             ctx.shadowBlur = 0;
         }
@@ -832,57 +895,151 @@ class Ball {
 class Terrain {
     constructor() {
         this.obstacles = [];
-        this.nextObstacleX = config.firstObstacle;
+        this.surfacePoints = [];
+        this.nextSegmentX = config.firstObstacle;
         this.obstacleIndex = 0;
-        this.generateInitial();
+        this.generate();
     }
-    
-    generateInitial() {
-        for (let i = 0; i < 20; i++) {
-            this.addObstacle();
+
+    getGroundY(x) {
+        const segment = this.getSegmentAt(x);
+        if (!segment) return 500;
+
+        const { p1, p2 } = segment;
+
+        if (p2.type === 'Hole' && x >= p1.x && x < p2.x) {
+            return 1000;
         }
-    }
-    
-    addObstacle() {
-        const progressFactor = Math.min((this.obstacleIndex / 100) * config.difficultyGrowth, 1.0);
-        const spacing = 300 + (1 - progressFactor * 0.5) * 400 + Math.random() * 150;
-        const baseHeight = (30 + Math.random() * 80) * config.obstacleHeight;
-        const height = baseHeight + progressFactor * 100 * config.obstacleHeight;
-        const width = 25 + Math.random() * 45;
-        
-        this.obstacles.push({ 
-            x: this.nextObstacleX, 
-            y: 500 - height, 
-            width, 
-            height,
-            index: this.obstacleIndex // NYTT: Index för fitness
-        });
-        
-        this.nextObstacleX += spacing;
-        this.obstacleIndex++;
-    }
-    
-    update(leadX) {
-        while (this.nextObstacleX < leadX + 2000) {
-            this.addObstacle();
+
+        if (p2.x !== p1.x) {
+            const t = (x - p1.x) / (p2.x - p1.x);
+            return p1.y + t * (p2.y - p1.y);
         }
-        this.obstacles = this.obstacles.filter(obs => obs.x + obs.width > leadX - 1500);
+        return p1.y;
     }
-    
+
+    getHeight(x) {
+        const surface = this.getSurfaceInfo(x);
+        return surface.type === 'Hole' ? 1000 : surface.height;
+    }
+
+    getSurfaceInfo(x) {
+        const obstacle = this.getObstacleAt(x);
+        if (obstacle) {
+            return { height: obstacle.y, type: 'Obstacle', slope: 0 };
+        }
+
+        const segment = this.getSegmentAt(x);
+        if (!segment) {
+            return { height: 500, type: 'Flat', slope: 0 };
+        }
+
+        const { p1, p2 } = segment;
+        const dx = p2.x - p1.x || 0.0001;
+        const slope = Math.atan2(p2.y - p1.y, dx);
+
+        if (p2.type === 'Hole' && x >= p1.x && x < p2.x) {
+            return { height: Infinity, type: 'Hole', slope };
+        }
+
+        const groundY = this.getGroundY(x);
+        return { height: groundY, type: p2.type || 'Flat', slope };
+    }
+
+    getSegmentAt(x) {
+        for (let i = 1; i < this.surfacePoints.length; i++) {
+            const p1 = this.surfacePoints[i - 1];
+            const p2 = this.surfacePoints[i];
+            if (x >= p1.x && x < p2.x) {
+                return { p1, p2, index: i, type: p2.type };
+            }
+        }
+        return null;
+    }
+
+    generateSegment() {
+        const lastPoint = this.surfacePoints[this.surfacePoints.length - 1];
+        let nextX = lastPoint.x;
+        const baseGroundY = lastPoint.y;
+        const progressFactor = Math.min((this.obstacleIndex / 50) * config.difficultyGrowth, 1.0);
+
+        const roll = Math.random();
+
+        if (roll < 0.3) {
+            nextX += 100 + Math.random() * 50;
+            const groundYAtObstacleStart = this.getGroundY(nextX);
+
+            const obsHeight = (30 + Math.random() * 80) * config.obstacleHeight + progressFactor * 100;
+            const obsWidth = 25 + Math.random() * 45;
+
+            this.surfacePoints.push({ x: nextX, y: groundYAtObstacleStart, type: 'Flat' });
+
+            this.obstacles.push({
+                x: nextX,
+                y: groundYAtObstacleStart - obsHeight,
+                width: obsWidth,
+                height: obsHeight,
+                index: this.obstacleIndex++
+            });
+
+            nextX += obsWidth + 150 + Math.random() * 100;
+            this.surfacePoints.push({ x: nextX, y: groundYAtObstacleStart, type: 'Flat' });
+        } else if (roll < 0.65) {
+            nextX += 50 + Math.random() * 50;
+            const uphill = Math.random() < 0.5;
+            const rampLength = 180 + Math.random() * 220;
+            const rampHeight = 40 + Math.random() * 120;
+
+            nextX += rampLength;
+            let nextY = uphill ? baseGroundY - rampHeight : baseGroundY + rampHeight;
+            nextY = Math.max(360, Math.min(580, nextY));
+
+            this.surfacePoints.push({ x: nextX, y: nextY, type: uphill ? 'Uphill' : 'Downhill' });
+        } else {
+            nextX += 120 + Math.random() * 60;
+            const holeWidth = 80 + Math.random() * 80 + progressFactor * 50;
+            const flatLength = 120 + Math.random() * 80;
+
+            this.surfacePoints.push({ x: nextX, y: baseGroundY, type: 'Flat' });
+
+            nextX += holeWidth;
+            this.surfacePoints.push({ x: nextX, y: baseGroundY, type: 'Hole' });
+
+            nextX += flatLength;
+            this.surfacePoints.push({ x: nextX, y: baseGroundY, type: 'Flat' });
+            this.obstacleIndex++;
+        }
+
+        this.nextSegmentX = nextX + 120;
+    }
+
     generate() {
         this.obstacles = [];
-        this.nextObstacleX = config.firstObstacle;
+        this.surfacePoints = [{ x: 0, y: 500, type: 'Flat' }];
+        this.nextSegmentX = config.firstObstacle;
         this.obstacleIndex = 0;
-        this.generateInitial();
+
+        this.surfacePoints.push({ x: config.firstObstacle, y: 500, type: 'Flat' });
+
+        for (let i = 0; i < 25; i++) {
+            this.generateSegment();
+        }
     }
-    
-    getHeight(x) {
-        const obs = this.getObstacleAt(x);
-        if (obs) return obs.y;
-        return 500;
+
+    update(leadX) {
+        while (this.nextSegmentX < leadX + 2600) {
+            this.generateSegment();
+        }
+
+        this.obstacles = this.obstacles.filter(obs => obs.x + obs.width > leadX - 800);
+        this.surfacePoints = this.surfacePoints.filter(p => p.x > leadX - 1200);
+
+        if (this.surfacePoints.length && this.surfacePoints[0].x > leadX - 1200) {
+            const x = leadX - 1200;
+            this.surfacePoints.unshift({ x, y: this.getGroundY(x), type: 'Flat' });
+        }
     }
-    
-    // NYTT: OPTIMERAD med BINÄRSÖKNING
+
     getObstacleAt(x) {
         let low = 0;
         let high = this.obstacles.length - 1;
@@ -891,7 +1048,7 @@ class Terrain {
         while (low <= high) {
             const mid = Math.floor((low + high) / 2);
             const obs = this.obstacles[mid];
-            
+
             if (obs.x <= x) {
                 candidate = obs;
                 low = mid + 1;
@@ -906,7 +1063,6 @@ class Terrain {
         return null;
     }
 
-    // NYTT: För fitness-logik
     getLastObstacleBefore(x) {
         let low = 0;
         let high = this.obstacles.length - 1;
@@ -914,7 +1070,7 @@ class Terrain {
         while (low <= high) {
             const mid = Math.floor((low + high) / 2);
             const obs = this.obstacles[mid];
-            if (obs.x <= x) {
+            if (obs.x + obs.width <= x) {
                 candidate = obs;
                 low = mid + 1;
             } else {
@@ -923,57 +1079,99 @@ class Terrain {
         }
         return candidate;
     }
-    
+
     draw(ctx, cameraX) {
-        // ... (Din 'draw'-funktion för terräng är densamma) ...
-        // Enhanced ground with depth
-        const groundGradient = ctx.createLinearGradient(0, 500 * config.zoom, 0, canvas.height);
-        groundGradient.addColorStop(0, '#3a4f2a');
-        groundGradient.addColorStop(0.3, '#2F3E20');
-        groundGradient.addColorStop(1, '#1a2410');
+        const worldToScreen = (x) => (x - cameraX) * config.zoom;
+        const canvasHeight = canvas.height;
+
+        ctx.save();
+
+        const groundGradient = ctx.createLinearGradient(0, canvasHeight * 0.8, 0, canvasHeight);
+        groundGradient.addColorStop(0, '#5A4A35');
+        groundGradient.addColorStop(0.2, '#4A3B28');
+        groundGradient.addColorStop(1, '#3A2C1C');
         ctx.fillStyle = groundGradient;
-        ctx.fillRect(0, 500 * config.zoom, canvas.width, canvas.height);
-        
-        // Ground texture (subtle noise)
-        for (let i = 0; i < 100; i++) {
-            const x = (i * 73 + cameraX) % canvas.width;
-            const y = 500 * config.zoom + Math.random() * (canvas.height - 500 * config.zoom);
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.1)';
-            ctx.fillRect(x, y, 2, 2);
+
+        ctx.beginPath();
+        ctx.moveTo(worldToScreen(this.surfacePoints[0].x), canvasHeight);
+
+        for (let i = 1; i < this.surfacePoints.length; i++) {
+            const p = this.surfacePoints[i];
+            const screenX = worldToScreen(p.x);
+            const screenY = p.y * config.zoom;
+
+            if (screenX > canvas.width + 50) break;
+
+            if (this.surfacePoints[i - 1].type !== 'Hole') {
+                ctx.lineTo(worldToScreen(this.surfacePoints[i - 1].x), this.surfacePoints[i - 1].y * config.zoom);
+            }
+
+            if (p.type === 'Hole' && this.surfacePoints[i - 1].type !== 'Hole') {
+                const startP = this.surfacePoints[i - 1];
+                ctx.lineTo(worldToScreen(startP.x), startP.y * config.zoom);
+                ctx.lineTo(worldToScreen(startP.x), canvasHeight);
+                ctx.lineTo(screenX, canvasHeight);
+                ctx.lineTo(screenX, screenY);
+            } else if (p.type === 'Hole') {
+                const startP = this.surfacePoints[i - 1];
+                ctx.lineTo(worldToScreen(startP.x), canvasHeight);
+                ctx.lineTo(screenX, canvasHeight);
+            } else {
+                ctx.lineTo(screenX, screenY);
+            }
         }
-        
-        // Grass layer with depth
-        const grassGradient = ctx.createLinearGradient(0, 495 * config.zoom, 0, 505 * config.zoom);
-        grassGradient.addColorStop(0, '#5C7A3F');
-        grassGradient.addColorStop(0.5, '#4A5F3A');
-        grassGradient.addColorStop(1, '#3a4f2a');
-        ctx.fillStyle = grassGradient;
-        ctx.fillRect(0, 500 * config.zoom, canvas.width, 10);
-        
-        // Grass details with variation
-        ctx.strokeStyle = '#5C7A3F';
-        ctx.lineWidth = 2;
-        for (let x = 0; x < canvas.width; x += 6) {
-            const worldX = x / config.zoom + cameraX;
-            const variation = Math.sin(worldX * 0.3) * 2;
-            ctx.globalAlpha = 0.6 + Math.random() * 0.4;
-            ctx.beginPath();
-            ctx.moveTo(x, 500 * config.zoom);
-            ctx.lineTo(x + Math.sin(worldX * 0.1) * 2, 488 * config.zoom + variation);
-            ctx.stroke();
+
+        if (this.surfacePoints.length && this.surfacePoints[this.surfacePoints.length - 1].type !== 'Hole') {
+            ctx.lineTo(canvas.width, this.surfacePoints[this.surfacePoints.length - 1].y * config.zoom);
+        } else {
+            ctx.lineTo(canvas.width, canvasHeight);
         }
-        ctx.globalAlpha = 1;
-        
-        // Obstacles with enhanced 3D effect and texture
+
+        ctx.lineTo(canvas.width, canvasHeight);
+        ctx.closePath();
+        ctx.fill();
+
+        const grassGradient = ctx.createLinearGradient(0, (500 - 5) * config.zoom, 0, 505 * config.zoom);
+        grassGradient.addColorStop(0, '#70A050');
+        grassGradient.addColorStop(0.5, '#5C7A3F');
+        grassGradient.addColorStop(1, '#4A5F3A');
+        ctx.strokeStyle = grassGradient;
+        ctx.lineWidth = 5 * config.zoom;
+
+        ctx.beginPath();
+        if (this.surfacePoints.length) {
+            ctx.moveTo(worldToScreen(this.surfacePoints[0].x), this.surfacePoints[0].y * config.zoom);
+        }
+
+        for (let i = 1; i < this.surfacePoints.length; i++) {
+            const p = this.surfacePoints[i];
+            const screenX = worldToScreen(p.x);
+            const screenY = p.y * config.zoom;
+
+            if (p.type === 'Hole' && this.surfacePoints[i - 1].type !== 'Hole') {
+                const startP = this.surfacePoints[i - 1];
+                ctx.lineTo(worldToScreen(startP.x), startP.y * config.zoom);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(screenX, screenY);
+            } else if (p.type === 'Hole' && this.surfacePoints[i - 1].type === 'Hole') {
+                // Skip drawing inside hole
+            } else {
+                ctx.lineTo(screenX, screenY);
+            }
+
+            if (screenX > canvas.width + 50) break;
+        }
+        ctx.stroke();
+
         for (const obs of this.obstacles) {
-            const screenX = (obs.x - cameraX) * config.zoom;
+            const screenX = worldToScreen(obs.x);
             if (screenX < -200 || screenX > canvas.width + 200) continue;
-            
+
             const w = obs.width * config.zoom;
             const h = obs.height * config.zoom;
             const y = obs.y * config.zoom;
-            
-            // ... (Resten av hinder-ritningen är densamma) ...
+
             const obsGradient = ctx.createLinearGradient(screenX, y, screenX + w, y);
             obsGradient.addColorStop(0, '#6d4c2a');
             obsGradient.addColorStop(0.3, '#8B4513');
@@ -981,41 +1179,23 @@ class Terrain {
             obsGradient.addColorStop(1, '#654321');
             ctx.fillStyle = obsGradient;
             ctx.fillRect(screenX, y, w, h);
-            
-            ctx.strokeStyle = 'rgba(0, 0, 0, 0.2)';
-            ctx.lineWidth = 1;
-            for (let i = 0; i < 5; i++) {
-                const lineY = y + (h / 6) * (i + 1);
-                ctx.beginPath();
-                ctx.moveTo(screenX, lineY);
-                ctx.lineTo(screenX + w, lineY + Math.sin(i) * 2);
-                ctx.stroke();
-            }
-            
-            const highlightGradient = ctx.createLinearGradient(screenX, y, screenX + w * 0.3, y);
-            highlightGradient.addColorStop(0, 'rgba(255, 255, 255, 0.15)');
-            highlightGradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
-            ctx.fillStyle = highlightGradient;
-            ctx.fillRect(screenX, y, w * 0.3, h);
-            
-            const darkGradient = ctx.createLinearGradient(screenX + w * 0.7, y, screenX + w, y);
-            darkGradient.addColorStop(0, 'rgba(0, 0, 0, 0)');
-            darkGradient.addColorStop(1, 'rgba(0, 0, 0, 0.3)');
-            ctx.fillStyle = darkGradient;
-            ctx.fillRect(screenX + w * 0.7, y, w * 0.3, h);
-            
+
             ctx.strokeStyle = '#3E2723';
             ctx.lineWidth = 2;
             ctx.strokeRect(screenX, y, w, h);
-            
+
             const topGradient = ctx.createLinearGradient(screenX, y, screenX, y + 6);
             topGradient.addColorStop(0, '#D2691E');
             topGradient.addColorStop(1, '#A0522D');
             ctx.fillStyle = topGradient;
             ctx.fillRect(screenX, y, w, 6);
         }
+
+        ctx.restore();
     }
 }
+
+
 
 // ============= GAME STATE =============
 
@@ -1025,6 +1205,7 @@ const ctx = canvas.getContext('2d');
 // NYTT: Canvas för AI-hjärnan
 const nnCanvas = document.getElementById('nnCanvas');
 const nnCtx = nnCanvas.getContext('2d');
+const fileLoader = document.getElementById('fileLoader');
 
 let population = new Population(config.populationSize);
 let terrain = new Terrain();
@@ -1040,8 +1221,9 @@ function setupControls() {
         progressTimeout: { display: 'timeoutVal', format: v => v.toFixed(0) + 's' },
         sensorLength: { display: 'sensorLengthVal', format: v => v.toFixed(0) },
         showSensors: { display: 'sensorsVal', format: v => v === 1 ? 'Ja' : 'Nej', boolean: true },
-        difficultyGrowth: { display: 'difficultyGrowthVal', format: v => v.toFixed(1) + 'x' },
-        obstacleHeight: { display: 'obstacleHeightVal', format: v => v.toFixed(1) + 'x' },
+        slopeEffect: { display: 'slopeEffectVal', format: v => v.toFixed(2) },
+        difficultyGrowth: { display: 'difficultyGrowthVal', format: v => v.toFixed(1) + 'x', regenerate: true },
+        obstacleHeight: { display: 'obstacleHeightVal', format: v => v.toFixed(1) + 'x', regenerate: true },
         firstObstacle: { display: 'firstObstacleVal', format: v => v.toFixed(0), regenerate: true },
         ballSize: { display: 'ballSizeVal', format: v => v.toFixed(0), resize: true },
         gravity: { display: 'gravityVal', format: v => v.toFixed(2) },
@@ -1071,6 +1253,7 @@ function setupControls() {
             
             if (opts.regenerate) {
                 terrain.generate();
+                balls.forEach(b => b.reset());
             }
             
             if (opts.resize) {
@@ -1083,7 +1266,11 @@ function setupControls() {
 function resetGeneration() {
     population.evolve();
     terrain = new Terrain();
-    balls = population.genomes.map(g => new Ball(g));
+    if (showOnlyBest && population.bestGenome) {
+        balls = [new Ball(population.bestGenome)];
+    } else {
+        balls = population.genomes.map(g => new Ball(g));
+    }
     camera.x = 0;
     camera.vx = 0;
     lastBestDistance = 0;
@@ -1135,7 +1322,7 @@ function saveBest() {
 function loadBest() {
     const saveStatus = document.getElementById('saveStatus');
     const savedData = localStorage.getItem('neatBallBest');
-    
+
     if (!savedData) {
         saveStatus.textContent = '❌ Ingen sparad AI hittades';
         saveStatus.style.color = '#ff6b6b';
@@ -1163,6 +1350,94 @@ function loadBest() {
         saveStatus.textContent = '❌ Kunde inte ladda: ' + err.message;
         saveStatus.style.color = '#ff6b6b';
     }
+}
+function downloadBest() {
+    const saveStatus = document.getElementById('saveStatus');
+    if (!population.bestGenome) {
+        saveStatus.textContent = '❌ Ingen bästa AI att exportera än';
+        saveStatus.style.color = '#ff6b6b';
+        return;
+    }
+
+    try {
+        const payload = {
+            weights: population.bestGenome.weights,
+            fitness: population.bestFitness,
+            generation: population.generation,
+            timestamp: new Date().toISOString(),
+            config: {
+                populationSize: config.populationSize,
+                mutationRate: config.mutationRate,
+                elitism: config.elitism,
+                jumpPower: config.jumpPower,
+                gravity: config.gravity,
+                bounce: config.bounce
+            }
+        };
+
+        const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const anchor = document.createElement('a');
+        anchor.href = url;
+        anchor.download = `balllab-best-gen-${population.generation}.json`;
+        document.body.appendChild(anchor);
+        anchor.click();
+        document.body.removeChild(anchor);
+        URL.revokeObjectURL(url);
+
+        saveStatus.textContent = '✅ Export klar! Fil nerladdad.';
+        saveStatus.style.color = '#4ade80';
+    } catch (err) {
+        saveStatus.textContent = '❌ Kunde inte exportera: ' + err.message;
+        saveStatus.style.color = '#ff6b6b';
+    }
+}
+function triggerFileLoad() {
+    if (!fileLoader) return;
+    fileLoader.value = '';
+    fileLoader.click();
+}
+function handleFileLoad(event) {
+    const saveStatus = document.getElementById('saveStatus');
+    const file = event.target.files && event.target.files[0];
+    if (!file) {
+        return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        try {
+            const data = JSON.parse(e.target.result);
+            if (!data || !Array.isArray(data.weights)) {
+                throw new Error('Ogiltig AI-fil');
+            }
+
+            const genome = new Genome();
+            genome.weights = data.weights;
+            genome.fitness = data.fitness || 0;
+
+            population.bestGenome = genome;
+            population.bestFitness = genome.fitness;
+
+            showOnlyBest = true;
+            balls = [new Ball(genome)];
+            balls[0].reset();
+
+            const info = data.fitness ? `Fitness: ${Math.floor(data.fitness)}` : 'Ny AI laddad';
+            saveStatus.textContent = '✅ Importerad från fil! ' + info;
+            saveStatus.style.color = '#4ade80';
+        } catch (err) {
+            saveStatus.textContent = '❌ Kunde inte importera: ' + err.message;
+            saveStatus.style.color = '#ff6b6b';
+        }
+    };
+    reader.onerror = () => {
+        const err = reader.error ? reader.error.message : 'Okänt fel';
+        saveStatus.textContent = '❌ Kunde inte läsa filen: ' + err;
+        saveStatus.style.color = '#ff6b6b';
+    };
+    reader.readAsText(file);
+    event.target.value = '';
 }
 function updateChart() {
     const chart = document.getElementById('chart');
@@ -1504,6 +1779,9 @@ function gameLoop(now) {
 }
 
 // Start
+if (fileLoader) {
+    fileLoader.addEventListener('change', handleFileLoad);
+}
 setupControls();
 initParticlePool(); // NYTT: Initiera partikel-poolen
 updateChart();
