@@ -40,6 +40,17 @@
     .stat-label{font-size:12px; text-transform:uppercase; letter-spacing:.12em; color:var(--muted)}
     .stat-value{font-size:26px; font-weight:700; letter-spacing:.02em; color:var(--ink)}
 
+    .chart-panel{display:flex; flex-direction:column; gap:12px; padding:20px 22px; border-radius:20px; background:rgba(11,16,44,.78); border:1px solid var(--silver); box-shadow:0 18px 32px rgba(5,9,25,.45)}
+    .chart-header{display:flex; align-items:center; justify-content:space-between; gap:12px}
+    .chart-header h2{margin:0; font-size:16px; letter-spacing:.02em}
+    .chart-note{font-size:12px; color:var(--muted)}
+    .fitness-chart{position:relative; display:flex; align-items:flex-end; gap:10px; height:160px; padding:14px 16px; border-radius:16px; border:1px dashed rgba(148,163,209,.35); background:rgba(6,12,34,.72); overflow:visible}
+    .fitness-chart.is-empty::after{content:'Training will populate this chart'; position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:13px; color:var(--muted); letter-spacing:.02em}
+    .fitness-bar{flex:1; min-width:12px; background:linear-gradient(180deg, rgba(56,189,248,.85) 0%, rgba(139,92,246,.65) 70%, rgba(15,23,42,.8) 100%); border-radius:12px 12px 0 0; border:1px solid rgba(148,163,209,.45); position:relative; transition:height .35s ease, transform .2s ease}
+    .fitness-bar:hover{transform:translateY(-4px)}
+    .fitness-bar span{position:absolute; bottom:calc(100% + 6px); left:50%; transform:translateX(-50%); font-size:11px; font-weight:600; color:var(--muted); white-space:nowrap; letter-spacing:.02em}
+    .fitness-bar small{position:absolute; bottom:4px; left:50%; transform:translateX(-50%); font-size:10px; color:rgba(241,245,255,.78); letter-spacing:.08em; text-shadow:0 1px 2px rgba(2,6,23,.6)}
+
     .side{width:360px; flex:0 1 360px; display:flex; flex-direction:column; gap:20px}
     .panel{background:var(--panel); border:1px solid var(--silver); padding:22px; border-radius:20px; backdrop-filter:blur(16px); box-shadow:0 18px 45px rgba(5,7,24,.55)}
     .panel h2{margin:0 0 12px; font-size:18px; letter-spacing:.02em}
@@ -243,6 +254,13 @@
           <div class="stat-card"><span class="stat-label">Crossings</span><span class="stat-value" id="stat-crossings">0</span></div>
           <div class="stat-card"><span class="stat-label">Species</span><span class="stat-value" id="stat-species">1</span></div>
           <div class="stat-card"><span class="stat-label">Mut (active)</span><span class="stat-value" id="stat-mutation">0%</span></div>
+        </section>
+        <section class="chart-panel" aria-labelledby="fitness-heading">
+          <div class="chart-header">
+            <h2 id="fitness-heading">Fitness trend</h2>
+            <span class="chart-note" id="fitnessChartNote">Awaiting training data</span>
+          </div>
+          <div class="fitness-chart is-empty" id="fitnessChart" role="list" aria-label="Best fitness per generation"></div>
         </section>
       </div>
     </div>
@@ -794,6 +812,7 @@ const NET_X = FIELD_WIDTH / 2;
 const NET_WIDTH = 14;
 const NET_HEIGHT = 260;
 const NET_TOP = FIELD_HEIGHT - NET_HEIGHT;
+const PLAYER_NET_CLEARANCE = 90;   // hur långt över nätet spelarna får röra sig
 
 const BASE_PLAYER_RADIUS = 32;
 const BASE_GROUND_OFFSET = 30;
@@ -836,7 +855,7 @@ const MAX_BALL_SPEED = 520;
 const GRAVITY = 450;
 
 const PLAYER_GRAVITY = 1550;       // mellan 1500 och 1600
-const PLAYER_JUMP_IMPULSE = 400;   // mellan 420 (orig) och 360 – tillåter block
+const PLAYER_JUMP_IMPULSE = 520;   // boostad för högre block och smashar
 const PLAYER_FAST_FALL = 1100;     // mellan 1200 och 1000
 const PLAYER_MAX_FALL_SPEED = 900;
 const PLAYER_MAX_RISE_SPEED = 660; // mellan 720 och 600
@@ -998,6 +1017,8 @@ const EDGE_PENALTY = 0.004;       // halva 0.008
   let generation = 1;
   let genomeIndex = 0;
   let bestFitness = 0;
+  const MAX_FITNESS_HISTORY = 50;
+  let fitnessHistory = [];
   let totalSpecies = 1;
   let evaluationOrder = [];
   let currentSession = null;
@@ -1045,7 +1066,7 @@ const EDGE_PENALTY = 0.004;       // halva 0.008
 
     reset(x, y){
       this.applyRig();
-      const topLimit = NET_TOP - 40;
+      const topLimit = Math.max(CEILING_Y + PLAYER_RADIUS, NET_TOP - PLAYER_NET_CLEARANCE);
       if(this.side === 'left'){
         this.x = clamp(x, PLAYER_RADIUS + 20, NET_X - NET_WIDTH/2 - PLAYER_RADIUS - 20);
       } else {
@@ -1071,7 +1092,7 @@ const EDGE_PENALTY = 0.004;       // halva 0.008
         this.x = clamp(this.x, NET_X + NET_WIDTH/2 + PLAYER_RADIUS + 20, FIELD_WIDTH - PLAYER_RADIUS - 20);
       }
 
-      const topLimit = NET_TOP - 40;
+      const topLimit = Math.max(CEILING_Y + PLAYER_RADIUS, NET_TOP - PLAYER_NET_CLEARANCE);
       const ground = PLAYER_GROUND_Y;
       const jump = clamp(jumpInput ?? 0, -1, 1);
       const wasGrounded = this.grounded || (this.y >= ground - 1 && this.vy >= -40);
@@ -1888,6 +1909,8 @@ const EDGE_PENALTY = 0.004;       // halva 0.008
     generation = 1;
     genomeIndex = 0;
     bestFitness = 0;
+    fitnessHistory = [];
+    updateFitnessChart();
     totalSpecies = population.species.length || 1;
     evaluationOrder = population.genomes.slice();
     startCurrentGenome();
@@ -1920,6 +1943,8 @@ const EDGE_PENALTY = 0.004;       // halva 0.008
     }
     genomeIndex++;
     if(genomeIndex >= evaluationOrder.length){
+      const generationBest = evaluationOrder.reduce((max, g)=> Math.max(max, g.fitness || 0), 0);
+      recordGenerationFitness(generationBest);
       // (7) Auto-decay mutation slightly each generation, lower-bounded
       const decayFactor = 0.98;
       config.mutationRate = Math.max(10, Math.min(80, config.mutationRate * decayFactor)); // <<< ÄNDRING 2
@@ -1933,6 +1958,47 @@ const EDGE_PENALTY = 0.004;       // halva 0.008
     startCurrentGenome();
   }
 
+  function recordGenerationFitness(value){
+    if(!Number.isFinite(value)) return;
+    const safeValue = Math.max(0, value);
+    fitnessHistory.push(safeValue);
+    if(fitnessHistory.length > MAX_FITNESS_HISTORY){
+      fitnessHistory.splice(0, fitnessHistory.length - MAX_FITNESS_HISTORY);
+    }
+    updateFitnessChart();
+  }
+
+  function updateFitnessChart(){
+    const chart = Q('fitnessChart');
+    if(!chart) return;
+    chart.innerHTML = '';
+    if(!fitnessHistory.length){
+      chart.classList.add('is-empty');
+      chart.setAttribute('aria-label', 'Best fitness per generation (no data yet)');
+      return;
+    }
+    chart.classList.remove('is-empty');
+    chart.setAttribute('aria-label', `Best fitness per generation across ${fitnessHistory.length} completed generations`);
+    const maxValue = Math.max(...fitnessHistory, 0.001);
+    fitnessHistory.forEach((value, index)=>{
+      const bar = document.createElement('div');
+      bar.className = 'fitness-bar';
+      bar.setAttribute('role', 'listitem');
+      const ratio = Math.max(0.04, maxValue > 0 ? value / maxValue : 0);
+      bar.style.height = `${Math.min(100, ratio * 100)}%`;
+      const formattedValue = value >= 100 ? Math.round(value) : Number(value.toFixed(1));
+      bar.title = `Generation ${index + 1}: ${formattedValue}`;
+      bar.setAttribute('aria-label', `Generation ${index + 1} best fitness ${formattedValue}`);
+      const valueEl = document.createElement('span');
+      valueEl.textContent = formattedValue;
+      bar.appendChild(valueEl);
+      const genEl = document.createElement('small');
+      genEl.textContent = index + 1;
+      bar.appendChild(genEl);
+      chart.appendChild(bar);
+    });
+  }
+
   function updateStats(){
     Q('stat-generation').textContent = generation;
     Q('stat-genome').textContent = evaluationOrder.length ? `${genomeIndex + 1} / ${evaluationOrder.length}` : '0 / 0';
@@ -1942,6 +2008,16 @@ const EDGE_PENALTY = 0.004;       // halva 0.008
     Q('stat-crossings').textContent = currentSession ? currentSession.crossings : 0;
     Q('stat-species').textContent = totalSpecies;
     Q('stat-mutation').textContent = `${config.mutationRate.toFixed(1)}%`;
+    const chartNote = Q('fitnessChartNote');
+    if(chartNote){
+      if(fitnessHistory.length){
+        const latest = fitnessHistory[fitnessHistory.length - 1];
+        const latestDisplay = latest >= 100 ? latest.toFixed(0) : latest.toFixed(1);
+        chartNote.textContent = `Latest best: Gen ${fitnessHistory.length} – ${latestDisplay}`;
+      } else {
+        chartNote.textContent = 'Awaiting training data';
+      }
+    }
   }
 
   function drawBackground(){
@@ -2223,7 +2299,8 @@ const EDGE_PENALTY = 0.004;       // halva 0.008
         showSensors: config.showSensors
       },
       population: serializePopulation(population),
-      cumulativeScores
+      cumulativeScores,
+      fitnessHistory: fitnessHistory.slice()
     };
     try{
       const blob = new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'});
@@ -2276,6 +2353,13 @@ const EDGE_PENALTY = 0.004;       // halva 0.008
       cumulativeScores = data.cumulativeScores || {left: 0, right: 0};
       generation = data.generation || 1;
       bestFitness = data.bestFitness || 0;
+      fitnessHistory = Array.isArray(data.fitnessHistory)
+        ? data.fitnessHistory.map((value)=> {
+            const numeric = Number(value);
+            return Number.isFinite(numeric) ? Math.max(0, numeric) : 0;
+          })
+        : [];
+      updateFitnessChart();
       totalSpecies = population.species.length || 1;
       genomeIndex = 0;
       evaluationOrder = population.genomes.slice();
