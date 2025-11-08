@@ -176,6 +176,22 @@
               </div>
               <input id="slHeadPenalty" type="range" min="0" max="5" value="1.5" step="0.1" title="How much fitness to subtract when agents rely on body bumps instead of precise hand or foot control.">
             </div>
+
+            <div class="control">
+              <div class="control-header">
+                <label class="label" for="slPlayerScale">Player size</label>
+                <span class="val" id="lbPlayerScale">100%</span>
+              </div>
+              <input id="slPlayerScale" type="range" min="0.7" max="1.3" step="0.05" value="1" title="Scale the agents' bodies, arms and legs to see how size impacts coverage.">
+            </div>
+
+            <div class="control">
+              <div class="control-header">
+                <label class="label" for="slPlayersPerTeam">Players per team</label>
+                <span class="val" id="lbPlayersPerTeam">2 / side</span>
+              </div>
+              <input id="slPlayersPerTeam" type="range" min="1" max="4" step="1" value="2" title="Number of cooperative agents on each side of the court.">
+            </div>
           </div>
           <div class="control">
             <div class="control-header">
@@ -202,6 +218,7 @@
               <button id="btnSave" class="btn" style="flex:1;">💾 Save</button>
               <button id="btnLoad" class="btn" style="flex:1;">📂 Load</button>
             </div>
+            <input id="fileLoader" type="file" accept="application/json" style="display:none;" aria-hidden="true">
           </div>
 
           <button id="btnRestart" class="btn">Restart training</button>
@@ -367,20 +384,32 @@
 
     // (8) Give useful initial priors to vertical outputs
     primeOutputBias(){
+      const layout = this.population.layout || ioLayout;
+      if(!layout){
+        this._markDirty();
+        return;
+      }
       const outStart = this.population.outputStart;
-      const players = [
-        {outX: outStart + OutputIndex.LEFT1_X, outY: outStart + OutputIndex.LEFT1_Y, dx: InputIndex.LEFT1_DX, dy: InputIndex.LEFT1_DY},
-        {outX: outStart + OutputIndex.LEFT2_X, outY: outStart + OutputIndex.LEFT2_Y, dx: InputIndex.LEFT2_DX, dy: InputIndex.LEFT2_DY},
-        {outX: outStart + OutputIndex.RIGHT1_X, outY: outStart + OutputIndex.RIGHT1_Y, dx: InputIndex.RIGHT1_DX, dy: InputIndex.RIGHT1_DY},
-        {outX: outStart + OutputIndex.RIGHT2_X, outY: outStart + OutputIndex.RIGHT2_Y, dx: InputIndex.RIGHT2_DX, dy: InputIndex.RIGHT2_DY}
-      ];
+      const ballIndices = layout.ball;
+      const playerMappings = layout.players.map((descriptor)=>{
+        const map = descriptor.side === 'left'
+          ? layout.outputs.left[descriptor.slot]
+          : layout.outputs.right[descriptor.slot];
+        if(!map) return null;
+        return {
+          outX: outStart + map.dx,
+          outY: outStart + map.jump,
+          relX: descriptor.relative.x,
+          relY: descriptor.relative.y
+        };
+      }).filter(Boolean);
 
       for(const c of this.connections){
-        for(const player of players){
-          if(c.to === player.outY && (c.from === player.dy || c.from === InputIndex.BALL_VY || c.from === InputIndex.BALL_Y)){
+        for(const player of playerMappings){
+          if(c.to === player.outY && (c.from === player.relY || c.from === ballIndices.vy || c.from === ballIndices.y)){
             c.weight += Math.abs(c.weight) + randRange(0.6, 1.2);
           }
-          if(c.to === player.outX && (c.from === player.dx || c.from === InputIndex.BALL_X || c.from === InputIndex.BALL_VX)){
+          if(c.to === player.outX && (c.from === player.relX || c.from === ballIndices.x || c.from === ballIndices.vx)){
             c.weight += Math.abs(c.weight) + randRange(0.3, 0.8);
           }
         }
@@ -583,6 +612,7 @@
       this.inputCount = config.inputCount;
       this.outputCount = config.outputCount;
       this.biasCount = 1;
+      this.layout = config.layout || null;
       this.innovationTracker = new InnovationTracker();
       this.baseNodes = [];
       for(let i=0;i<this.inputCount;i++){
@@ -764,7 +794,38 @@ const NET_WIDTH = 14;
 const NET_HEIGHT = 260;
 const NET_TOP = FIELD_HEIGHT - NET_HEIGHT;
 
-const PLAYER_RADIUS = 32;
+const BASE_PLAYER_RADIUS = 32;
+const BASE_GROUND_OFFSET = 30;
+const BASE_SHOULDER_SPREAD = 22;
+const BASE_SHOULDER_HEIGHT = -18;
+const BASE_UPPER_ARM_LENGTH = 34;
+const BASE_LOWER_ARM_LENGTH = 38;
+const BASE_HAND_HIT_RADIUS = 13;
+const BASE_ARM_DRAW_WIDTH = 8.5;
+const BASE_HIP_SPREAD = 18;
+const BASE_HIP_HEIGHT = 24;
+const BASE_THIGH_LENGTH = 36;
+const BASE_SHIN_LENGTH = 44;
+const BASE_FOOT_HIT_RADIUS = 18;
+const BASE_LEG_DRAW_WIDTH = 9.5;
+
+let playerScale = 1;
+let PLAYER_RADIUS = BASE_PLAYER_RADIUS;
+let PLAYER_GROUND_Y = FIELD_HEIGHT - (PLAYER_RADIUS + BASE_GROUND_OFFSET);
+let SHOULDER_SPREAD = BASE_SHOULDER_SPREAD;
+let SHOULDER_HEIGHT = BASE_SHOULDER_HEIGHT;
+let UPPER_ARM_LENGTH = BASE_UPPER_ARM_LENGTH;
+let LOWER_ARM_LENGTH = BASE_LOWER_ARM_LENGTH;
+let ARM_TOTAL_REACH = UPPER_ARM_LENGTH + LOWER_ARM_LENGTH;
+let HAND_HIT_RADIUS = BASE_HAND_HIT_RADIUS;
+let ARM_DRAW_WIDTH = BASE_ARM_DRAW_WIDTH;
+let HIP_SPREAD = BASE_HIP_SPREAD;
+let HIP_HEIGHT = BASE_HIP_HEIGHT;
+let THIGH_LENGTH = BASE_THIGH_LENGTH;
+let SHIN_LENGTH = BASE_SHIN_LENGTH;
+let LEG_TOTAL_REACH = THIGH_LENGTH + SHIN_LENGTH;
+let FOOT_HIT_RADIUS = BASE_FOOT_HIT_RADIUS;
+let LEG_DRAW_WIDTH = BASE_LEG_DRAW_WIDTH;
 let ballRadius = 18;
 
 // --- Rörelse & hopp: halvjusterat ---
@@ -772,7 +833,6 @@ const MAX_MOVE_SPEED = 350;        // mellan 320 och 380
 const MAX_BALL_SPEED = 520;
 
 const GRAVITY = 450;
-const PLAYER_GROUND_Y = FIELD_HEIGHT - PLAYER_RADIUS - 30;
 
 const PLAYER_GRAVITY = 1550;       // mellan 1500 och 1600
 const PLAYER_JUMP_IMPULSE = 400;   // mellan 420 (orig) och 360 – tillåter block
@@ -791,31 +851,13 @@ const CROSS_REWARD = 30;
 const TOUCH_REWARD = 4;
 const SURVIVAL_REWARD = 0.06;
 const COMPETITION_VICTORY_BONUS = 50;
+const COVERAGE_REWARD_SCALE = 0.012;
+const CENTER_COVERAGE_RANGE = 220;
 
-// --- Team ---
-const TEAM_SIZE = 3;
-
-// --- Armar: lösare men inte för fladdrigt (halvvägs) ---
-const SHOULDER_SPREAD = 22;
-const SHOULDER_HEIGHT = -18;
-const UPPER_ARM_LENGTH = 34;
-const LOWER_ARM_LENGTH = 38;
-const ARM_TOTAL_REACH = UPPER_ARM_LENGTH + LOWER_ARM_LENGTH;
-const HAND_HIT_RADIUS = 13;                // mellan 14 och 12
 const ARM_SWING_RATE = Math.PI * 3.9;      // mellan 4.2π och 3.6π
 const ARM_FACING_LIMIT = Math.PI * 0.81;   // mellan 0.72π och 0.9π
-const ARM_DRAW_WIDTH = 8.5;
-
-// --- Ben: något lugnare ---
-const HIP_SPREAD = 18;
-const HIP_HEIGHT = 24;
-const THIGH_LENGTH = 36;
-const SHIN_LENGTH = 44;
-const LEG_TOTAL_REACH = THIGH_LENGTH + SHIN_LENGTH;
-const FOOT_HIT_RADIUS = 18;
 const LEG_SWING_RATE = Math.PI * 2.9;      // mellan 3.2π och 2.6π
 const LEG_FACING_LIMIT = Math.PI * 0.275;  // mellan 0.3π och 0.25π
-const LEG_DRAW_WIDTH = 9.5;
 
 // --- Anti-hop cooldown: halverad intensitet ---
 const MIN_GROUNDED_TIME_BEFORE_JUMP = 0.07; // tidigare 0.18
@@ -837,66 +879,6 @@ const EDGE_PENALTY = 0.004;       // halva 0.008
   const DEFAULT_MODE = 'cooperation';
   const DEFAULT_SHOW_SENSORS = false;
 
-  // <<< ÄNDRING 1: Minskade inputs
-  // Increase input count to accommodate additional environment sensors (ceiling, floor, net, wall distances for each player)
-  // Total base inputs (37).
-  const INPUT_COUNT = 37;
-  const OUTPUT_COUNT = 8;
-
-  const InputIndex = Object.freeze({
-    BALL_X: 0,
-    BALL_Y: 1,
-    BALL_VX: 2,
-    BALL_VY: 3,
-    LEFT1_X: 4,
-    LEFT1_Y: 5,
-    LEFT2_X: 6,
-    LEFT2_Y: 7,
-    RIGHT1_X: 8,
-    RIGHT1_Y: 9,
-    RIGHT2_X: 10,
-    RIGHT2_Y: 11,
-    LEFT1_DX: 12,
-    LEFT1_DY: 13,
-    LEFT2_DX: 14,
-    LEFT2_DY: 15,
-    RIGHT1_DX: 16,
-    RIGHT1_DY: 17,
-    RIGHT2_DX: 18,
-    RIGHT2_DY: 19,
-    TOUCH: 20,
-    // Environment sensors per player:
-    // Distances normalized to field dimensions: (y - CEILING_Y)/FIELD_HEIGHT, (FLOOR_Y - y)/FIELD_HEIGHT,
-    // |x - NET_X|/FIELD_WIDTH, and distance to back wall depending on side.
-    LEFT1_CEIL: 21,
-    LEFT1_FLOOR: 22,
-    LEFT1_NET: 23,
-    LEFT1_WALL: 24,
-    LEFT2_CEIL: 25,
-    LEFT2_FLOOR: 26,
-    LEFT2_NET: 27,
-    LEFT2_WALL: 28,
-    RIGHT1_CEIL: 29,
-    RIGHT1_FLOOR: 30,
-    RIGHT1_NET: 31,
-    RIGHT1_WALL: 32,
-    RIGHT2_CEIL: 33,
-    RIGHT2_FLOOR: 34,
-    RIGHT2_NET: 35,
-    RIGHT2_WALL: 36
-  });
-
-  const OutputIndex = Object.freeze({
-    LEFT1_X: 0,
-    LEFT1_Y: 1,
-    LEFT2_X: 2,
-    LEFT2_Y: 3,
-    RIGHT1_X: 4,
-    RIGHT1_Y: 5,
-    RIGHT2_X: 6,
-    RIGHT2_Y: 7
-  });
-
   const config = {
     populationSize: 30,
     mutationRate: 22,
@@ -908,12 +890,103 @@ const EDGE_PENALTY = 0.004;       // halva 0.008
     ballRadius: 18,
     armReward: ARM_STRIKE_BONUS_DEFAULT,
     kickReward: LEG_KICK_BONUS_DEFAULT,
-    headPenalty: HEAD_TOUCH_PENALTY_DEFAULT
-    ,
+    headPenalty: HEAD_TOUCH_PENALTY_DEFAULT,
+    playerScale: 1,
+    playersPerTeam: 2,
     // additional options for rendering sensors and selecting training mode
     mode: DEFAULT_MODE,
     showSensors: DEFAULT_SHOW_SENSORS
   };
+
+  function updatePlayerDimensions(){
+    const scaled = clamp(config.playerScale ?? 1, 0.5, 1.6);
+    playerScale = scaled;
+    PLAYER_RADIUS = BASE_PLAYER_RADIUS * scaled;
+    HAND_HIT_RADIUS = BASE_HAND_HIT_RADIUS * scaled;
+    FOOT_HIT_RADIUS = BASE_FOOT_HIT_RADIUS * scaled;
+    SHOULDER_SPREAD = BASE_SHOULDER_SPREAD * scaled;
+    SHOULDER_HEIGHT = BASE_SHOULDER_HEIGHT * scaled;
+    HIP_SPREAD = BASE_HIP_SPREAD * scaled;
+    HIP_HEIGHT = BASE_HIP_HEIGHT * scaled;
+    UPPER_ARM_LENGTH = BASE_UPPER_ARM_LENGTH * scaled;
+    LOWER_ARM_LENGTH = BASE_LOWER_ARM_LENGTH * scaled;
+    ARM_TOTAL_REACH = UPPER_ARM_LENGTH + LOWER_ARM_LENGTH;
+    THIGH_LENGTH = BASE_THIGH_LENGTH * scaled;
+    SHIN_LENGTH = BASE_SHIN_LENGTH * scaled;
+    LEG_TOTAL_REACH = THIGH_LENGTH + SHIN_LENGTH;
+    const groundOffset = BASE_GROUND_OFFSET * scaled;
+    PLAYER_GROUND_Y = FIELD_HEIGHT - PLAYER_RADIUS - groundOffset;
+    ARM_DRAW_WIDTH = Math.max(4.5, BASE_ARM_DRAW_WIDTH * scaled);
+    LEG_DRAW_WIDTH = Math.max(5, BASE_LEG_DRAW_WIDTH * scaled);
+  }
+
+  updatePlayerDimensions();
+
+  function computeSpawnPositions(side, count){
+    const clampedCount = Math.max(1, Math.floor(count));
+    const margin = PLAYER_RADIUS + 40;
+    if(side === 'left'){
+      const minX = BORDER_PAD + margin;
+      const maxX = NET_X - NET_WIDTH/2 - margin;
+      const span = Math.max(0, maxX - minX);
+      const step = clampedCount > 1 ? span / (clampedCount - 1) : 0;
+      return Array.from({length: clampedCount}, (_, idx)=> clamp(minX + step * idx, minX, maxX));
+    }
+    const minX = NET_X + NET_WIDTH/2 + margin;
+    const maxX = FIELD_WIDTH - BORDER_PAD - margin;
+    const span = Math.max(0, maxX - minX);
+    const step = clampedCount > 1 ? span / (clampedCount - 1) : 0;
+    return Array.from({length: clampedCount}, (_, idx)=> clamp(maxX - step * idx, minX, maxX));
+  }
+
+  function buildIOLayout(playersPerTeam){
+    const perTeam = Math.max(1, Math.floor(playersPerTeam));
+    const descriptors = [];
+    let index = 0;
+    const ball = {x: index++, y: index++, vx: index++, vy: index++};
+    ['left', 'right'].forEach((side)=>{
+      for(let slot=0; slot<perTeam; slot++){
+        const descriptor = {
+          side,
+          slot,
+          position: {x: index++, y: index++}
+        };
+        descriptors.push(descriptor);
+      }
+    });
+    descriptors.forEach((descriptor)=>{
+      descriptor.relative = {x: index++, y: index++};
+    });
+    descriptors.forEach((descriptor)=>{
+      descriptor.environment = {
+        ceil: index++,
+        floor: index++,
+        net: index++,
+        wall: index++
+      };
+    });
+    const touch = index++;
+    const outputs = {left: [], right: []};
+    let outIndex = 0;
+    for(let slot=0; slot<perTeam; slot++){
+      outputs.left.push({dx: outIndex++, jump: outIndex++});
+    }
+    for(let slot=0; slot<perTeam; slot++){
+      outputs.right.push({dx: outIndex++, jump: outIndex++});
+    }
+    return {
+      playersPerTeam: perTeam,
+      totalPlayers: descriptors.length,
+      ball,
+      players: descriptors,
+      touch,
+      inputCount: index,
+      outputCount: outIndex,
+      outputs
+    };
+  }
+
+  let ioLayout = buildIOLayout(config.playersPerTeam);
 
   // Track cumulative points across generations in competition mode.
   // These values persist across rallies and genomes and are incremented
@@ -929,22 +1002,27 @@ const EDGE_PENALTY = 0.004;       // halva 0.008
   let currentSession = null;
   let needsConfigRefresh = false;
   let baseMutationAtStart = config.mutationRate;
+  let topologyNeedsRebuild = false;
 
   class Player {
     constructor(x, y, side, slot){
       this.side = side; // 'left' or 'right'
       this.slot = slot;
-      this.shoulderOffsets = side === 'left'
-        ? [{x: -SHOULDER_SPREAD, y: SHOULDER_HEIGHT}, {x: SHOULDER_SPREAD, y: SHOULDER_HEIGHT}]
-        : [{x: SHOULDER_SPREAD, y: SHOULDER_HEIGHT}, {x: -SHOULDER_SPREAD, y: SHOULDER_HEIGHT}];
       this.armAngles = [0, 0];
       this.armSegments = [{}, {}];
-      this.hipOffsets = side === 'left'
-        ? [{x: -HIP_SPREAD, y: HIP_HEIGHT}, {x: HIP_SPREAD, y: HIP_HEIGHT}]
-        : [{x: HIP_SPREAD, y: HIP_HEIGHT}, {x: -HIP_SPREAD, y: HIP_HEIGHT}];
       this.legAngles = [Math.PI/2, Math.PI/2];
       this.legSegments = [{}, {}];
+      this.applyRig();
       this.reset(x, y);
+    }
+
+    applyRig(){
+      this.shoulderOffsets = this.side === 'left'
+        ? [{x: -SHOULDER_SPREAD, y: SHOULDER_HEIGHT}, {x: SHOULDER_SPREAD, y: SHOULDER_HEIGHT}]
+        : [{x: SHOULDER_SPREAD, y: SHOULDER_HEIGHT}, {x: -SHOULDER_SPREAD, y: SHOULDER_HEIGHT}];
+      this.hipOffsets = this.side === 'left'
+        ? [{x: -HIP_SPREAD, y: HIP_HEIGHT}, {x: HIP_SPREAD, y: HIP_HEIGHT}]
+        : [{x: HIP_SPREAD, y: HIP_HEIGHT}, {x: -HIP_SPREAD, y: HIP_HEIGHT}];
     }
 
     resetArmAngles(){
@@ -965,6 +1043,7 @@ const EDGE_PENALTY = 0.004;       // halva 0.008
     }
 
     reset(x, y){
+      this.applyRig();
       const topLimit = NET_TOP - 40;
       if(this.side === 'left'){
         this.x = clamp(x, PLAYER_RADIUS + 20, NET_X - NET_WIDTH/2 - PLAYER_RADIUS - 20);
@@ -1054,6 +1133,14 @@ const EDGE_PENALTY = 0.004;       // halva 0.008
           const aimAdjust = (jumpInput * -1) * (ballRadius + 10);
           targetY += aimAdjust;
         }
+        const netLimit = this.side === 'left'
+          ? NET_X - NET_WIDTH/2 - (HAND_HIT_RADIUS + 2)
+          : NET_X + NET_WIDTH/2 + (HAND_HIT_RADIUS + 2);
+        if(this.side === 'left'){
+          targetX = Math.min(targetX, netLimit);
+        } else {
+          targetX = Math.max(targetX, netLimit);
+        }
         const dx = targetX - shoulderX;
         const dy = targetY - shoulderY;
         const dist = Math.hypot(dx, dy);
@@ -1062,8 +1149,24 @@ const EDGE_PENALTY = 0.004;       // halva 0.008
         const handLen = Math.min(LOWER_ARM_LENGTH, Math.max(LOWER_ARM_LENGTH * 0.35, reach - elbowLen));
         const elbowX = shoulderX + Math.cos(this.armAngles[i]) * elbowLen;
         const elbowY = shoulderY + Math.sin(this.armAngles[i]) * elbowLen;
-        const handX = elbowX + Math.cos(this.armAngles[i]) * handLen;
-        const handY = elbowY + Math.sin(this.armAngles[i]) * handLen;
+        let handX = elbowX + Math.cos(this.armAngles[i]) * handLen;
+        let handY = elbowY + Math.sin(this.armAngles[i]) * handLen;
+        if((this.side === 'left' && handX > netLimit) || (this.side === 'right' && handX < netLimit)){
+          const denom = handX - shoulderX;
+          if(Math.abs(denom) > 1e-5){
+            const ratio = clamp((netLimit - shoulderX) / denom, 0, 1);
+            const adjust = (value, origin)=> origin + (value - origin) * ratio;
+            handX = adjust(handX, shoulderX);
+            handY = adjust(handY, shoulderY);
+            const elbowRatio = clamp((netLimit - shoulderX) / (elbowX - shoulderX || denom), 0, 1);
+            const adjustElbow = (value, origin)=> origin + (value - origin) * elbowRatio;
+            const newElbowX = adjustElbow(elbowX, shoulderX);
+            const newElbowY = adjustElbow(elbowY, shoulderY);
+            this.armSegments[i] = {shoulderX, shoulderY, elbowX: newElbowX, elbowY: newElbowY, handX, handY, handRadius: HAND_HIT_RADIUS};
+            continue;
+          }
+          handX = netLimit;
+        }
         this.armSegments[i] = {shoulderX, shoulderY, elbowX, elbowY, handX, handY, handRadius: HAND_HIT_RADIUS};
       }
     }
@@ -1088,6 +1191,14 @@ const EDGE_PENALTY = 0.004;       // halva 0.008
           targetX = ball.x;
           targetY = ball.y;
         }
+        const netLimit = this.side === 'left'
+          ? NET_X - NET_WIDTH/2 - (FOOT_HIT_RADIUS + 2)
+          : NET_X + NET_WIDTH/2 + (FOOT_HIT_RADIUS + 2);
+        if(this.side === 'left'){
+          targetX = Math.min(targetX, netLimit);
+        } else {
+          targetX = Math.max(targetX, netLimit);
+        }
         const dx = targetX - hipX;
         const dy = targetY - hipY;
         const dist = Math.hypot(dx, dy);
@@ -1096,8 +1207,24 @@ const EDGE_PENALTY = 0.004;       // halva 0.008
         const shinLen = Math.min(SHIN_LENGTH, Math.max(SHIN_LENGTH * 0.45, reach - thighLen));
         const kneeX = hipX + Math.cos(this.legAngles[i]) * thighLen;
         const kneeY = hipY + Math.sin(this.legAngles[i]) * thighLen;
-        const footX = kneeX + Math.cos(this.legAngles[i]) * shinLen;
-        const footY = kneeY + Math.sin(this.legAngles[i]) * shinLen;
+        let footX = kneeX + Math.cos(this.legAngles[i]) * shinLen;
+        let footY = kneeY + Math.sin(this.legAngles[i]) * shinLen;
+        if((this.side === 'left' && footX > netLimit) || (this.side === 'right' && footX < netLimit)){
+          const denom = footX - hipX;
+          if(Math.abs(denom) > 1e-5){
+            const ratio = clamp((netLimit - hipX) / denom, 0, 1);
+            const adjust = (value, origin)=> origin + (value - origin) * ratio;
+            footX = adjust(footX, hipX);
+            footY = adjust(footY, hipY);
+            const kneeRatio = clamp((netLimit - hipX) / (kneeX - hipX || denom), 0, 1);
+            const adjustKnee = (value, origin)=> origin + (value - origin) * kneeRatio;
+            const newKneeX = adjustKnee(kneeX, hipX);
+            const newKneeY = adjustKnee(kneeY, hipY);
+            this.legSegments[i] = {hipX, hipY, kneeX: newKneeX, kneeY: newKneeY, footX, footY, footRadius: FOOT_HIT_RADIUS};
+            continue;
+          }
+          footX = netLimit;
+        }
         this.legSegments[i] = {hipX, hipY, kneeX, kneeY, footX, footY, footRadius: FOOT_HIT_RADIUS};
       }
     }
@@ -1211,14 +1338,10 @@ const EDGE_PENALTY = 0.004;       // halva 0.008
   class VolleyballSession {
     constructor(genome){
       this.genome = genome;
-      this.leftTeam = [
-        new Player(NET_X - 260, PLAYER_GROUND_Y, 'left', 0),
-        new Player(NET_X - 150, PLAYER_GROUND_Y, 'left', 1)
-      ];
-      this.rightTeam = [
-        new Player(NET_X + 260, PLAYER_GROUND_Y, 'right', 0),
-        new Player(NET_X + 150, PLAYER_GROUND_Y, 'right', 1)
-      ];
+      const leftStarts = computeSpawnPositions('left', config.playersPerTeam);
+      const rightStarts = computeSpawnPositions('right', config.playersPerTeam);
+      this.leftTeam = leftStarts.map((x, idx)=> new Player(x, PLAYER_GROUND_Y, 'left', idx));
+      this.rightTeam = rightStarts.map((x, idx)=> new Player(x, PLAYER_GROUND_Y, 'right', idx));
       this.players = [...this.leftTeam, ...this.rightTeam];
       this.done = false;
       this.steps = 0;
@@ -1247,10 +1370,10 @@ const EDGE_PENALTY = 0.004;       // halva 0.008
     }
 
     resetPlayers(){
-      const leftStarts = [NET_X - 260, NET_X - 150];
-      const rightStarts = [NET_X + 260, NET_X + 150];
-      this.leftTeam.forEach((player, idx)=> player.reset(leftStarts[idx], PLAYER_GROUND_Y));
-      this.rightTeam.forEach((player, idx)=> player.reset(rightStarts[idx], PLAYER_GROUND_Y));
+      const leftStarts = computeSpawnPositions('left', this.leftTeam.length);
+      const rightStarts = computeSpawnPositions('right', this.rightTeam.length);
+      this.leftTeam.forEach((player, idx)=> player.reset(leftStarts[idx] ?? player.x, PLAYER_GROUND_Y));
+      this.rightTeam.forEach((player, idx)=> player.reset(rightStarts[idx] ?? player.x, PLAYER_GROUND_Y));
     }
 
     createBallForIndex(index, baseSide){
@@ -1295,6 +1418,17 @@ const EDGE_PENALTY = 0.004;       // halva 0.008
       this.coordinationTouched.right.clear();
     }
 
+    onPlayerScaleChanged(){
+      const leftStarts = computeSpawnPositions('left', this.leftTeam.length);
+      const rightStarts = computeSpawnPositions('right', this.rightTeam.length);
+      this.leftTeam.forEach((player, idx)=>{
+        player.reset(leftStarts[idx] ?? player.x, PLAYER_GROUND_Y);
+      });
+      this.rightTeam.forEach((player, idx)=>{
+        player.reset(rightStarts[idx] ?? player.x, PLAYER_GROUND_Y);
+      });
+    }
+
     endCurrentRally(){
       // in competition mode, finalize team scores and award bonus before resetting rally
       if(config.mode === 'competition'){
@@ -1322,56 +1456,39 @@ const EDGE_PENALTY = 0.004;       // halva 0.008
     }
 
     getInputs(){
+      const layout = this.genome.population?.layout || ioLayout;
+      const inputs = new Array(layout.inputCount).fill(0);
       const ball = this.primaryBall;
       if(!ball){
-        return new Array(INPUT_COUNT).fill(0);
+        return inputs;
       }
-      const bx = ball.x / FIELD_WIDTH;
-      const by = ball.y / FIELD_HEIGHT;
-      const bvx = ball.vx / MAX_BALL_SPEED;
-      const bvy = ball.vy / MAX_BALL_SPEED;
-      const players = [...this.leftTeam, ...this.rightTeam];
-      const positions = players.map((p)=> [p.x / FIELD_WIDTH, p.y / FIELD_HEIGHT]);
-      const relatives = players.map((p)=> [(ball.x - p.x) / FIELD_WIDTH, (ball.y - p.y) / FIELD_HEIGHT]);
-      // compute environment sensors for each player: distances to ceiling, floor, net and back wall
-      const env = players.map((p)=> {
-        // distance from player to ceiling normalized (0 at ceiling, increases downward)
-        const ceilDist = Math.max(0, (p.y - CEILING_Y)) / FIELD_HEIGHT;
-        // distance from player to floor normalized (0 at floor, increases upward)
-        const floorDist = Math.max(0, (FLOOR_Y - p.y)) / FIELD_HEIGHT;
-        // horizontal distance to net normalized
-        const netDist = Math.abs(NET_X - p.x) / FIELD_WIDTH;
-        // horizontal distance to the back wall depending on side normalized
-        let wallDist;
-        if(p.side === 'left'){
-          wallDist = Math.max(0, p.x - BORDER_PAD) / FIELD_WIDTH;
+      inputs[layout.ball.x] = ball.x / FIELD_WIDTH;
+      inputs[layout.ball.y] = ball.y / FIELD_HEIGHT;
+      inputs[layout.ball.vx] = clamp(ball.vx / MAX_BALL_SPEED, -1, 1);
+      inputs[layout.ball.vy] = clamp(ball.vy / MAX_BALL_SPEED, -1, 1);
+
+      layout.players.forEach((descriptor)=>{
+        const team = descriptor.side === 'left' ? this.leftTeam : this.rightTeam;
+        const player = team[descriptor.slot];
+        if(!player) return;
+        inputs[descriptor.position.x] = player.x / FIELD_WIDTH;
+        inputs[descriptor.position.y] = player.y / FIELD_HEIGHT;
+        inputs[descriptor.relative.x] = (ball.x - player.x) / FIELD_WIDTH;
+        inputs[descriptor.relative.y] = (ball.y - player.y) / FIELD_HEIGHT;
+        const env = descriptor.environment;
+        inputs[env.ceil] = Math.max(0, (player.y - CEILING_Y)) / FIELD_HEIGHT;
+        inputs[env.floor] = Math.max(0, (FLOOR_Y - player.y)) / FIELD_HEIGHT;
+        inputs[env.net] = Math.abs(NET_X - player.x) / FIELD_WIDTH;
+        if(descriptor.side === 'left'){
+          inputs[env.wall] = Math.max(0, player.x - BORDER_PAD) / FIELD_WIDTH;
         } else {
-          wallDist = Math.max(0, (FIELD_WIDTH - BORDER_PAD) - p.x) / FIELD_WIDTH;
+          inputs[env.wall] = Math.max(0, (FIELD_WIDTH - BORDER_PAD) - player.x) / FIELD_WIDTH;
         }
-        return [ceilDist, floorDist, netDist, wallDist];
       });
+
       const touch = this.lastTouchSide === 'left' ? -1 : this.lastTouchSide === 'right' ? 1 : 0;
-      
-      // <<< ÄNDRING 1: All logik för "limbSensors" borttagen
-      
-      return [
-        bx, by, bvx, bvy,
-        positions[0][0], positions[0][1],
-        positions[1][0], positions[1][1],
-        positions[2][0], positions[2][1],
-        positions[3][0], positions[3][1],
-        relatives[0][0], relatives[0][1],
-        relatives[1][0], relatives[1][1],
-        relatives[2][0], relatives[2][1],
-        relatives[3][0], relatives[3][1],
-        // add environment sensor readings for each player
-        env[0][0], env[0][1], env[0][2], env[0][3],
-        env[1][0], env[1][1], env[1][2], env[1][3],
-        env[2][0], env[2][1], env[2][2], env[2][3],
-        env[3][0], env[3][1], env[3][2], env[3][3],
-        touch
-        // <<< ÄNDRING 1: ...limbSensors borttagen
-      ];
+      inputs[layout.touch] = touch;
+      return inputs;
     }
 
     getClosestBall(player){
@@ -1389,27 +1506,34 @@ const EDGE_PENALTY = 0.004;       // halva 0.008
     }
 
     applyOutputs(outputs, dt){
-      const commands = [
-        {dx: outputs[OutputIndex.LEFT1_X] ?? 0, jump: outputs[OutputIndex.LEFT1_Y] ?? 0},
-        {dx: outputs[OutputIndex.LEFT2_X] ?? 0, jump: outputs[OutputIndex.LEFT2_Y] ?? 0},
-        {dx: outputs[OutputIndex.RIGHT1_X] ?? 0, jump: outputs[OutputIndex.RIGHT1_Y] ?? 0},
-        {dx: outputs[OutputIndex.RIGHT2_X] ?? 0, jump: outputs[OutputIndex.RIGHT2_Y] ?? 0}
-      ];
+      const layout = this.genome.population?.layout || ioLayout;
+      const leftMappings = layout.outputs.left;
+      const rightMappings = layout.outputs.right;
+      const leftCommands = this.leftTeam.map((_, idx)=>{
+        const map = leftMappings[idx];
+        return {
+          dx: map ? (outputs[map.dx] ?? 0) : 0,
+          jump: map ? (outputs[map.jump] ?? 0) : 0
+        };
+      });
+      const rightCommands = this.rightTeam.map((_, idx)=>{
+        const map = rightMappings[idx];
+        return {
+          dx: map ? (outputs[map.dx] ?? 0) : 0,
+          jump: map ? (outputs[map.jump] ?? 0) : 0
+        };
+      });
 
-      let leftCommands = [commands[0], commands[1]];
-      let rightCommands = [commands[2], commands[3]];
-      if(this.mirrored){
-        leftCommands = [commands[2], commands[3]];
-        rightCommands = [commands[0], commands[1]];
-      }
+      const activeLeft = this.mirrored ? rightCommands : leftCommands;
+      const activeRight = this.mirrored ? leftCommands : rightCommands;
 
       this.leftTeam.forEach((player, idx)=>{
-        const cmd = leftCommands[idx] ?? {dx: 0, jump: 0};
+        const cmd = activeLeft[idx] ?? {dx: 0, jump: 0};
         const focusBall = this.getClosestBall(player);
         player.update(cmd.dx, cmd.jump, dt, focusBall);
       });
       this.rightTeam.forEach((player, idx)=>{
-        const cmd = rightCommands[idx] ?? {dx: 0, jump: 0};
+        const cmd = activeRight[idx] ?? {dx: 0, jump: 0};
         const focusBall = this.getClosestBall(player);
         player.update(cmd.dx, cmd.jump, dt, focusBall);
       });
@@ -1578,10 +1702,10 @@ const EDGE_PENALTY = 0.004;       // halva 0.008
           if(this.coordinationTouched.left.size >= 1 && this.coordinationTouched.right.size >= 1){
             this.fitness += 10;
           }
-          if(this.coordinationTouched.left.size >= TEAM_SIZE){
+          if(this.coordinationTouched.left.size >= config.playersPerTeam){
             this.fitness += 4;
           }
-          if(this.coordinationTouched.right.size >= TEAM_SIZE){
+          if(this.coordinationTouched.right.size >= config.playersPerTeam){
             this.fitness += 4;
           }
           this.coordinationTouched.left.clear();
@@ -1642,14 +1766,25 @@ const EDGE_PENALTY = 0.004;       // halva 0.008
         }
         this.lastBallX = primary.x;
 
-        // <<< ÄNDRING 3: Belöna aktiv positionering
-        this.players.forEach(player => {
-            const distToBall = Math.hypot(player.x - primary.x, player.y - primary.y);
-            const distToNet = Math.abs(player.x - NET_X);
-            // Om spelaren är nära bollen OCH på den "aktiva" planhalvan
-            if (distToBall < 300 && distToNet < 400) {
-                 this.fitness += 0.005; // Liten bonus för att vara "redo"
-            }
+        // Belöning för att täcka sannolikt nedslagsområde och förbereda sig
+        const timeEstimate = Math.max(0.12, Math.min(0.8, (FLOOR_Y - primary.y) / Math.max(140, Math.abs(primary.vy) + 40)));
+        const predictedX = clamp(primary.x + primary.vx * timeEstimate, BORDER_PAD + ballRadius, FIELD_WIDTH - BORDER_PAD - ballRadius);
+        const predictedSide = predictedX < NET_X ? 'left' : 'right';
+        const centerBoost = Math.max(0.6, 1.6 - Math.abs(predictedX - NET_X) / CENTER_COVERAGE_RANGE);
+        this.players.forEach((player)=> {
+          const horizontalGap = Math.abs(player.x - predictedX);
+          const coverage = Math.max(0, 1 - horizontalGap / 420);
+          const readiness = Math.max(0, 1 - Math.abs(player.y - PLAYER_GROUND_Y) / Math.max(60, PLAYER_RADIUS * 4));
+          if(coverage <= 0 || readiness <= 0) return;
+          let reward = coverage * readiness * centerBoost;
+          if(player.side === predictedSide){
+            reward *= 1.4;
+          }
+          const scaledReward = reward * COVERAGE_REWARD_SCALE;
+          this.fitness += scaledReward;
+          if(config.mode === 'competition'){
+            this.teamScores[player.side] = (this.teamScores[player.side] || 0) + scaledReward;
+          }
         });
       }
 
@@ -1679,6 +1814,8 @@ const EDGE_PENALTY = 0.004;       // halva 0.008
   function readControls(){
     const prevBallCount = config.ballCount;
     const prevBallRadius = config.ballRadius;
+    const prevPlayerScale = config.playerScale;
+    const prevPlayersPerTeam = config.playersPerTeam;
     config.populationSize = Number(Q('slPopulation').value);
     config.initialHidden = Number(Q('slHidden').value);
     config.mutationRate = Number(Q('slMutRate').value);
@@ -1690,6 +1827,14 @@ const EDGE_PENALTY = 0.004;       // halva 0.008
     config.armReward = Number(Q('slArmBonus').value);
     config.kickReward = Number(Q('slKickBonus').value);
     config.headPenalty = Number(Q('slHeadPenalty').value);
+    const scaleSlider = Q('slPlayerScale');
+    if(scaleSlider){
+      config.playerScale = Number(scaleSlider.value);
+    }
+    const teamSlider = Q('slPlayersPerTeam');
+    if(teamSlider){
+      config.playersPerTeam = Number(teamSlider.value);
+    }
     armStrikeBonus = config.armReward;
     legKickBonus = config.kickReward;
     headTouchPenalty = config.headPenalty;
@@ -1707,7 +1852,18 @@ const EDGE_PENALTY = 0.004;       // halva 0.008
 
     const radiusChanged = prevBallRadius !== config.ballRadius;
     const countChanged = prevBallCount !== config.ballCount;
+    const scaleChanged = prevPlayerScale !== config.playerScale;
+    const teamChanged = prevPlayersPerTeam !== config.playersPerTeam;
     ballRadius = config.ballRadius;
+    if(scaleChanged){
+      updatePlayerDimensions();
+      if(currentSession){
+        currentSession.onPlayerScaleChanged();
+      }
+    }
+    if(teamChanged){
+      topologyNeedsRebuild = true;
+    }
     if(currentSession){
       if(radiusChanged){
         currentSession.onBallRadiusChanged();
@@ -1718,12 +1874,13 @@ const EDGE_PENALTY = 0.004;       // halva 0.008
     }
   }
 
-  function restartTraining(){
-    readControls();
+  function rebuildPopulation(){
+    ioLayout = buildIOLayout(config.playersPerTeam);
     population = new Population({
       populationSize: config.populationSize,
-      inputCount: INPUT_COUNT,
-      outputCount: OUTPUT_COUNT
+      inputCount: ioLayout.inputCount,
+      outputCount: ioLayout.outputCount,
+      layout: ioLayout
     });
     population.injectHiddenNodes(config.initialHidden);
     population.speciate();
@@ -1734,6 +1891,12 @@ const EDGE_PENALTY = 0.004;       // halva 0.008
     evaluationOrder = population.genomes.slice();
     startCurrentGenome();
     updateStats();
+  }
+
+  function restartTraining(){
+    readControls();
+    topologyNeedsRebuild = false;
+    rebuildPopulation();
   }
 
   function startCurrentGenome(){
@@ -1988,11 +2151,12 @@ const EDGE_PENALTY = 0.004;       // halva 0.008
   }
 
   // Deserialize a population from saved data
-  function deserializePopulation(data){
+  function deserializePopulation(data, layout){
     const pop = new Population({
       populationSize: data.size,
       inputCount: data.inputCount,
-      outputCount: data.outputCount
+      outputCount: data.outputCount,
+      layout
     });
     // restore innovation tracker
     pop.innovationTracker.next = data.innovation.next;
@@ -2032,10 +2196,12 @@ const EDGE_PENALTY = 0.004;       // halva 0.008
     return pop;
   }
 
-  // Save current training progress to localStorage
+  // Save current training progress to a downloadable file
   function saveProgress(){
     if(!population) return;
     const data = {
+      version: 2,
+      savedAt: new Date().toISOString(),
       generation,
       bestFitness,
       config: {
@@ -2050,6 +2216,8 @@ const EDGE_PENALTY = 0.004;       // halva 0.008
         armReward: config.armReward,
         kickReward: config.kickReward,
         headPenalty: config.headPenalty,
+        playerScale: config.playerScale,
+        playersPerTeam: config.playersPerTeam,
         mode: config.mode,
         showSensors: config.showSensors
       },
@@ -2057,21 +2225,24 @@ const EDGE_PENALTY = 0.004;       // halva 0.008
       cumulativeScores
     };
     try{
-      localStorage.setItem('volleySave', JSON.stringify(data));
-      alert('Progress saved.');
+      const blob = new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'});
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      const timestamp = data.savedAt.replace(/[:.]/g, '-');
+      anchor.href = url;
+      anchor.download = `volley-save-${timestamp}.json`;
+      document.body.appendChild(anchor);
+      anchor.click();
+      document.body.removeChild(anchor);
+      URL.revokeObjectURL(url);
     } catch(err){
       console.error(err);
-      alert('Failed to save progress.');
+      alert('Failed to save progress to file.');
     }
   }
 
-  // Load training progress from localStorage
-  function loadProgress(){
-    const raw = localStorage.getItem('volleySave');
-    if(!raw){
-      alert('No saved progress found.');
-      return;
-    }
+  // Load training progress from provided file contents
+  function loadProgressFromData(raw){
     try{
       const data = JSON.parse(raw);
       // restore config
@@ -2086,6 +2257,8 @@ const EDGE_PENALTY = 0.004;       // halva 0.008
       config.armReward = data.config.armReward;
       config.kickReward = data.config.kickReward;
       config.headPenalty = data.config.headPenalty;
+      config.playerScale = data.config.playerScale ?? config.playerScale;
+      config.playersPerTeam = data.config.playersPerTeam ?? config.playersPerTeam;
       config.mode = data.config.mode || config.mode;
       config.showSensors = data.config.showSensors || false;
       // update related variables
@@ -2094,8 +2267,10 @@ const EDGE_PENALTY = 0.004;       // halva 0.008
       headTouchPenalty = config.headPenalty;
       ballRadius = config.ballRadius;
       baseMutationAtStart = config.mutationRate;
+      updatePlayerDimensions();
+      ioLayout = buildIOLayout(config.playersPerTeam);
       // restore population
-      population = deserializePopulation(data.population);
+      population = deserializePopulation(data.population, ioLayout);
       // restore cumulative scores if saved
       cumulativeScores = data.cumulativeScores || {left: 0, right: 0};
       generation = data.generation || 1;
@@ -2115,6 +2290,10 @@ const EDGE_PENALTY = 0.004;       // halva 0.008
       Q('slArmBonus').value = config.armReward;
       Q('slKickBonus').value = config.kickReward;
       Q('slHeadPenalty').value = config.headPenalty;
+      const scaleControl = Q('slPlayerScale');
+      if(scaleControl) scaleControl.value = config.playerScale;
+      const teamControl = Q('slPlayersPerTeam');
+      if(teamControl) teamControl.value = config.playersPerTeam;
       // update labels
       scheduleConfigRefresh();
       // update mode and sensors UI
@@ -2125,9 +2304,10 @@ const EDGE_PENALTY = 0.004;       // halva 0.008
       // restart training from loaded state
       startCurrentGenome();
       updateStats();
+      topologyNeedsRebuild = false;
     } catch(err){
       console.error(err);
-      alert('Failed to load progress.');
+      alert('Failed to load progress from file.');
     }
   }
 
@@ -2177,6 +2357,12 @@ const EDGE_PENALTY = 0.004;       // halva 0.008
     if(needsConfigRefresh){
       readControls();
       needsConfigRefresh = false;
+      if(topologyNeedsRebuild){
+        topologyNeedsRebuild = false;
+        rebuildPopulation();
+        render();
+        return;
+      }
     }
     if(!currentSession){
       render();
@@ -2205,6 +2391,8 @@ const EDGE_PENALTY = 0.004;       // halva 0.008
   bindRange('slArmBonus','lbArmBonus',(v)=> `${Number(v).toFixed(1)}`);
   bindRange('slKickBonus','lbKickBonus',(v)=> `${Number(v).toFixed(1)}`);
   bindRange('slHeadPenalty','lbHeadPenalty',(v)=> `${Number(v).toFixed(1)}`);
+  bindRange('slPlayerScale','lbPlayerScale',(v)=> `${Math.round(v*100)}%`);
+  bindRange('slPlayersPerTeam','lbPlayersPerTeam',(v)=> `${v} / side`);
 
   Q('btnRestart').addEventListener('click', restartTraining);
 
@@ -2229,8 +2417,32 @@ const EDGE_PENALTY = 0.004;       // halva 0.008
     saveBtn.addEventListener('click', saveProgress);
   }
   const loadBtn = Q('btnLoad');
-  if(loadBtn){
-    loadBtn.addEventListener('click', loadProgress);
+  const fileLoader = Q('fileLoader');
+  if(loadBtn && fileLoader){
+    loadBtn.addEventListener('click', ()=> {
+      fileLoader.value = '';
+      fileLoader.click();
+    });
+    fileLoader.addEventListener('change', (event)=> {
+      const file = event.target.files && event.target.files[0];
+      if(!file) return;
+      const reader = new FileReader();
+      reader.onload = ()=> {
+        if(typeof reader.result === 'string'){
+          loadProgressFromData(reader.result);
+        } else if(reader.result){
+          const decoder = new TextDecoder();
+          loadProgressFromData(decoder.decode(reader.result));
+        }
+      };
+      reader.onerror = ()=> {
+        console.error(reader.error);
+        alert('Failed to read the selected file.');
+      };
+      reader.readAsText(file);
+    });
+  } else if(loadBtn){
+    loadBtn.addEventListener('click', ()=> alert('File loading not supported in this environment.'));
   }
 
   restartTraining();
