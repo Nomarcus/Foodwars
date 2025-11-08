@@ -716,11 +716,19 @@ class Ball {
             }
         }
 
-        if (currentlyInHole && this.y - this.radius > activeHole.ground + 120) {
-            this.alive = false;
-            spawnParticles(this.x, activeHole.ground + 100, `hsla(0, 50%, 30%, 1)`, 15, 3);
-            triggerScreenShake(10);
-            return;
+        if (currentlyInHole) {
+            const holeWidth = activeHole.end - activeHole.start;
+            const innerStart = activeHole.start + this.radius * 1.1;
+            const innerEnd = activeHole.end - this.radius * 1.1;
+            const fullyInsideHorizontally = holeWidth > 0 && this.x > innerStart && this.x < innerEnd;
+            const deepEnough = this.y + this.radius > activeHole.ground + 140;
+
+            if (fullyInsideHorizontally && deepEnough) {
+                this.alive = false;
+                spawnParticles(this.x, activeHole.ground + 100, `hsla(0, 50%, 30%, 1)`, 15, 3);
+                triggerScreenShake(10);
+                return;
+            }
         }
 
         if (this.x < camera.x - 200 || this.y > 700) {
