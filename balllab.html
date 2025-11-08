@@ -636,7 +636,7 @@ class Ball {
 
         const surface = terrain.getSurfaceInfo(this.x);
         const holeInfo = terrain.getHoleAt(this.x);
-        const insideHole = !!(holeInfo && this.x >= holeInfo.start && this.x <= holeInfo.end);
+        const insideHole = !!(holeInfo && this.x >= holeInfo.start && this.x <= holeInfo.end && this.y + this.radius > holeInfo.ground - 4);
         const terrainY = surface.type === 'Hole' ? Infinity : surface.height;
         const slopeAngle = surface.slope || 0;
         const wasOnGround = this.onGround;
@@ -696,7 +696,7 @@ class Ball {
         this.rotation += this.vx * 0.03;
 
         const activeHole = terrain.getHoleAt(this.x);
-        const currentlyInHole = !!(activeHole && this.x >= activeHole.start && this.x <= activeHole.end);
+        const currentlyInHole = !!(activeHole && this.x >= activeHole.start && this.x <= activeHole.end && this.y + this.radius > activeHole.ground - 4);
 
         if (currentlyInHole) {
             const leftLimit = activeHole.start + this.radius * 0.6;
