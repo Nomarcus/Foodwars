@@ -106,7 +106,7 @@
                 <label class="label" for="slPopulation">Population size</label>
                 <span class="val" id="lbPopulation">30 genomes</span>
               </div>
-              <input id="slPopulation" type="range" min="10" max="80" value="30" title="How many genomes evolve each generation. Larger populations explore more behaviours at once.">
+              <input id="slPopulation" type="range" min="1" max="80" value="30" title="How many genomes evolve each generation. Larger populations explore more behaviours at once.">
             </div>
 
             <div class="control">
@@ -123,6 +123,14 @@
                 <span class="val" id="lbMutRate">22%</span>
               </div>
               <input id="slMutRate" type="range" min="5" max="80" value="22" title="Base probability of mutating weights or structure each generation.">
+            </div>
+
+            <div class="control">
+              <div class="control-header">
+                <label class="label" for="slElite">Elite keep %</label>
+                <span class="val" id="lbElite">25%</span>
+              </div>
+              <input id="slElite" type="range" min="0" max="60" value="25" title="Percentage of the best genomes carried directly into the next generation.">
             </div>
 
             <div class="control">
@@ -195,6 +203,14 @@
                 <span class="val" id="lbPlayerScale">100%</span>
               </div>
               <input id="slPlayerScale" type="range" min="0.7" max="1.3" step="0.05" value="1" title="Scale the agents' bodies, arms and legs to see how size impacts coverage.">
+            </div>
+
+            <div class="control">
+              <div class="control-header">
+                <label class="label" for="slJumpScale">Jump boost</label>
+                <span class="val" id="lbJumpScale">100%</span>
+              </div>
+              <input id="slJumpScale" type="range" min="0.6" max="1.6" step="0.05" value="1" title="Scale how powerfully players jump and accelerate upward.">
             </div>
 
             <div class="control">
@@ -774,9 +790,12 @@
       if(!this.species.length){
         return;
       }
-      // Keep best
-      const bestOverall = this.genomes.slice().sort((a,b)=> b.fitness - a.fitness)[0];
-      nextGen.push(bestOverall.clone());
+      const eliteRatio = clamp(typeof config.elitism === 'number' ? config.elitism : 0.25, 0, 0.95);
+      const sorted = this.genomes.slice().sort((a,b)=> b.fitness - a.fitness);
+      const eliteCount = Math.max(1, Math.min(sorted.length, Math.round(this.size * eliteRatio)));
+      for(let i=0;i<eliteCount && nextGen.length < this.size;i++){
+        nextGen.push(sorted[i].clone());
+      }
       while(nextGen.length < this.size){
         const species = this.pickSpeciesByAdjusted(totalAdjusted || this.species.length);
         const parentA = this.pickParent(species);
@@ -847,6 +866,7 @@ let LEG_TOTAL_REACH = THIGH_LENGTH + SHIN_LENGTH;
 let FOOT_HIT_RADIUS = BASE_FOOT_HIT_RADIUS;
 let LEG_DRAW_WIDTH = BASE_LEG_DRAW_WIDTH;
 let ballRadius = 18;
+let jumpScale = 1;
 
 // --- Rörelse & hopp: halvjusterat ---
 const MAX_MOVE_SPEED = 350;        // mellan 320 och 380
@@ -855,10 +875,14 @@ const MAX_BALL_SPEED = 520;
 const GRAVITY = 450;
 
 const PLAYER_GRAVITY = 1550;       // mellan 1500 och 1600
-const PLAYER_JUMP_IMPULSE = 520;   // boostad för högre block och smashar
-const PLAYER_FAST_FALL = 1100;     // mellan 1200 och 1000
+const BASE_PLAYER_JUMP_IMPULSE = 520;   // boostad för högre block och smashar
+const BASE_PLAYER_FAST_FALL = 1100;     // mellan 1200 och 1000
 const PLAYER_MAX_FALL_SPEED = 900;
-const PLAYER_MAX_RISE_SPEED = 660; // mellan 720 och 600
+const BASE_PLAYER_MAX_RISE_SPEED = 660; // mellan 720 och 600
+
+let PLAYER_JUMP_IMPULSE = BASE_PLAYER_JUMP_IMPULSE;
+let PLAYER_FAST_FALL = BASE_PLAYER_FAST_FALL;
+let PLAYER_MAX_RISE_SPEED = BASE_PLAYER_MAX_RISE_SPEED;
 
 const NET_BOUNCE_DAMPING = 0.75;
 const WALL_BOUNCE_DAMPING = 0.82;
@@ -905,6 +929,7 @@ const EDGE_PENALTY = 0.004;       // halva 0.008
     addConnectionRate: 8,
     addNodeRate: 3,
     initialHidden: 4,
+    elitism: 0.25,
     simSpeed: 2,
     ballCount: 1,
     ballRadius: 18,
@@ -912,6 +937,7 @@ const EDGE_PENALTY = 0.004;       // halva 0.008
     kickReward: LEG_KICK_BONUS_DEFAULT,
     headPenalty: HEAD_TOUCH_PENALTY_DEFAULT,
     playerScale: 1,
+    jumpScale: 1,
     playersPerTeam: 2,
     // additional options for rendering sensors and selecting training mode
     mode: DEFAULT_MODE,
@@ -942,6 +968,98 @@ const EDGE_PENALTY = 0.004;       // halva 0.008
 
   updatePlayerDimensions();
 
+  function updateJumpPhysics(){
+    const scale = clamp(config.jumpScale ?? 1, 0.6, 1.6);
+    jumpScale = scale;
+    PLAYER_JUMP_IMPULSE = BASE_PLAYER_JUMP_IMPULSE * scale;
+    PLAYER_MAX_RISE_SPEED = BASE_PLAYER_MAX_RISE_SPEED * Math.max(0.7, Math.min(1.4, scale));
+    const fallScale = 1 / Math.max(0.7, Math.min(1.3, scale));
+    PLAYER_FAST_FALL = BASE_PLAYER_FAST_FALL * Math.max(0.6, Math.min(1.4, fallScale));
+  }
+
+  updateJumpPhysics();
+
+  function predictLandingWithBounce(ball){
+    if(!ball) return null;
+    const leftWall = BORDER_PAD + ballRadius;
+    const rightWall = FIELD_WIDTH - BORDER_PAD - ballRadius;
+    const floorY = FLOOR_Y - ballRadius;
+    const g = GRAVITY;
+
+    const solveTimeToFloor = (y, vy)=>{
+      const a = 0.5 * g;
+      const b = vy;
+      const c = y - floorY;
+      const disc = b*b - 4*a*c;
+      if(disc < 0) return null;
+      const sqrt = Math.sqrt(disc);
+      const t1 = (-b - sqrt) / (2*a);
+      const t2 = (-b + sqrt) / (2*a);
+      let result = Infinity;
+      if(t1 > 1e-4) result = Math.min(result, t1);
+      if(t2 > 1e-4) result = Math.min(result, t2);
+      if(!Number.isFinite(result) || result === Infinity) return null;
+      return result;
+    };
+
+    const timeToWall = (x, vx)=>{
+      if(Math.abs(vx) < 1e-5) return null;
+      if(vx < 0){
+        const dist = x - leftWall;
+        if(dist <= 0) return 0;
+        return dist / -vx;
+      }
+      if(vx > 0){
+        const dist = rightWall - x;
+        if(dist <= 0) return 0;
+        return dist / vx;
+      }
+      return null;
+    };
+
+    let x = ball.x;
+    let y = ball.y;
+    let vx = ball.vx;
+    let vy = ball.vy;
+    let time = 0;
+    let bounceSide = null;
+    let bounceTime = 0;
+
+    const floorFirst = solveTimeToFloor(y, vy);
+    const wallFirst = timeToWall(x, vx);
+
+    if(wallFirst != null && floorFirst != null && wallFirst > 1e-4 && wallFirst < floorFirst){
+      time += wallFirst;
+      bounceTime = wallFirst;
+      y += vy * wallFirst + 0.5 * g * wallFirst * wallFirst;
+      vy += g * wallFirst;
+      y = clamp(y, CEILING_Y + ballRadius, floorY);
+      if(vx < 0){
+        x = leftWall;
+        vx = Math.abs(vx) * WALL_BOUNCE_DAMPING;
+        bounceSide = 'left';
+      } else {
+        x = rightWall;
+        vx = -Math.abs(vx) * WALL_BOUNCE_DAMPING;
+        bounceSide = 'right';
+      }
+      const after = solveTimeToFloor(y, vy);
+      if(after == null){
+        return {x: clamp(x, leftWall, rightWall), time, bounce: bounceSide, bounceTime};
+      }
+      time += after;
+      x = clamp(x + vx * after, leftWall, rightWall);
+      return {x, time, bounce: bounceSide, bounceTime};
+    }
+
+    if(floorFirst == null){
+      return null;
+    }
+    time += floorFirst;
+    x = clamp(x + vx * floorFirst, leftWall, rightWall);
+    return {x, time, bounce: null, bounceTime};
+  }
+
   function computeSpawnPositions(side, count){
     const clampedCount = Math.max(1, Math.floor(count));
     const margin = PLAYER_RADIUS + 40;
@@ -963,7 +1081,16 @@ const EDGE_PENALTY = 0.004;       // halva 0.008
     const perTeam = Math.max(1, Math.floor(playersPerTeam));
     const descriptors = [];
     let index = 0;
-    const ball = {x: index++, y: index++, vx: index++, vy: index++};
+    const ball = {
+      x: index++,
+      y: index++,
+      vx: index++,
+      vy: index++,
+      landing: index++,
+      landingTime: index++,
+      bounce: index++,
+      bounceTime: index++
+    };
     ['left', 'right'].forEach((side)=>{
       for(let slot=0; slot<perTeam; slot++){
         const descriptor = {
@@ -1489,6 +1616,18 @@ const EDGE_PENALTY = 0.004;       // halva 0.008
       inputs[layout.ball.vx] = clamp(ball.vx / MAX_BALL_SPEED, -1, 1);
       inputs[layout.ball.vy] = clamp(ball.vy / MAX_BALL_SPEED, -1, 1);
 
+      const landing = predictLandingWithBounce(ball);
+      const landingSpan = FIELD_WIDTH - 2 * BORDER_PAD;
+      const landingXNorm = landing ? clamp((landing.x - BORDER_PAD) / landingSpan, 0, 1) : ball.x / FIELD_WIDTH;
+      const landingTimeNorm = landing ? clamp(landing.time / 2.5, 0, 1) : 0;
+      const bounceIndicator = landing?.bounce === 'left' ? -1 : landing?.bounce === 'right' ? 1 : 0;
+      const bounceTimeNorm = landing ? clamp(landing.bounceTime / 1.5, 0, 1) : 0;
+
+      inputs[layout.ball.landing] = landingXNorm;
+      inputs[layout.ball.landingTime] = landingTimeNorm;
+      inputs[layout.ball.bounce] = bounceIndicator;
+      inputs[layout.ball.bounceTime] = bounceTimeNorm;
+
       layout.players.forEach((descriptor)=>{
         const team = descriptor.side === 'left' ? this.leftTeam : this.rightTeam;
         const player = team[descriptor.slot];
@@ -1789,16 +1928,19 @@ const EDGE_PENALTY = 0.004;       // halva 0.008
         this.lastBallX = primary.x;
 
         // Belöning för att täcka sannolikt nedslagsområde och förbereda sig
-        const timeEstimate = Math.max(0.12, Math.min(0.8, (FLOOR_Y - primary.y) / Math.max(140, Math.abs(primary.vy) + 40)));
-        const predictedX = clamp(primary.x + primary.vx * timeEstimate, BORDER_PAD + ballRadius, FIELD_WIDTH - BORDER_PAD - ballRadius);
+        const landing = predictLandingWithBounce(primary);
+        const predictedX = landing ? landing.x : clamp(primary.x, BORDER_PAD + ballRadius, FIELD_WIDTH - BORDER_PAD - ballRadius);
         const predictedSide = predictedX < NET_X ? 'left' : 'right';
         const centerBoost = Math.max(0.6, 1.6 - Math.abs(predictedX - NET_X) / CENTER_COVERAGE_RANGE);
+        const landingTime = landing ? landing.time : 0.6;
         this.players.forEach((player)=> {
           const horizontalGap = Math.abs(player.x - predictedX);
           const coverage = Math.max(0, 1 - horizontalGap / 420);
-          const readiness = Math.max(0, 1 - Math.abs(player.y - PLAYER_GROUND_Y) / Math.max(60, PLAYER_RADIUS * 4));
+          const readinessRange = Math.max(60, PLAYER_RADIUS * 3 + landingTime * 160);
+          const readiness = Math.max(0, 1 - Math.abs(player.y - PLAYER_GROUND_Y) / readinessRange);
           if(coverage <= 0 || readiness <= 0) return;
-          let reward = coverage * readiness * centerBoost;
+          const bounceFavor = landing?.bounce ? (player.side === landing.bounce ? 1.35 : 0.85) : 1;
+          let reward = coverage * readiness * centerBoost * bounceFavor;
           if(player.side === predictedSide){
             reward *= 1.4;
           }
@@ -1841,6 +1983,7 @@ const EDGE_PENALTY = 0.004;       // halva 0.008
     config.populationSize = Number(Q('slPopulation').value);
     config.initialHidden = Number(Q('slHidden').value);
     config.mutationRate = Number(Q('slMutRate').value);
+    config.elitism = Number(Q('slElite').value) / 100;
     config.addConnectionRate = Number(Q('slAddConn').value);
     config.addNodeRate = Number(Q('slAddNode').value);
     config.simSpeed = Number(Q('slSimSpeed').value);
@@ -1853,6 +1996,10 @@ const EDGE_PENALTY = 0.004;       // halva 0.008
     if(scaleSlider){
       config.playerScale = Number(scaleSlider.value);
     }
+    const jumpSlider = Q('slJumpScale');
+    if(jumpSlider){
+      config.jumpScale = Number(jumpSlider.value);
+    }
     const teamSlider = Q('slPlayersPerTeam');
     if(teamSlider){
       config.playersPerTeam = Number(teamSlider.value);
@@ -1861,6 +2008,7 @@ const EDGE_PENALTY = 0.004;       // halva 0.008
     legKickBonus = config.kickReward;
     headTouchPenalty = config.headPenalty;
     baseMutationAtStart = config.mutationRate;
+    updateJumpPhysics();
 
     // update mode and sensor visibility from controls if present
     const modeSelect = Q('selMode');
@@ -2287,6 +2435,7 @@ const EDGE_PENALTY = 0.004;       // halva 0.008
         addConnectionRate: config.addConnectionRate,
         addNodeRate: config.addNodeRate,
         initialHidden: config.initialHidden,
+        elitism: config.elitism,
         simSpeed: config.simSpeed,
         ballCount: config.ballCount,
         ballRadius: config.ballRadius,
@@ -2294,6 +2443,7 @@ const EDGE_PENALTY = 0.004;       // halva 0.008
         kickReward: config.kickReward,
         headPenalty: config.headPenalty,
         playerScale: config.playerScale,
+        jumpScale: config.jumpScale,
         playersPerTeam: config.playersPerTeam,
         mode: config.mode,
         showSensors: config.showSensors
@@ -2329,6 +2479,7 @@ const EDGE_PENALTY = 0.004;       // halva 0.008
       config.addConnectionRate = data.config.addConnectionRate;
       config.addNodeRate = data.config.addNodeRate;
       config.initialHidden = data.config.initialHidden;
+      config.elitism = data.config.elitism ?? config.elitism;
       config.simSpeed = data.config.simSpeed;
       config.ballCount = data.config.ballCount;
       config.ballRadius = data.config.ballRadius;
@@ -2336,6 +2487,7 @@ const EDGE_PENALTY = 0.004;       // halva 0.008
       config.kickReward = data.config.kickReward;
       config.headPenalty = data.config.headPenalty;
       config.playerScale = data.config.playerScale ?? config.playerScale;
+      config.jumpScale = data.config.jumpScale ?? config.jumpScale;
       config.playersPerTeam = data.config.playersPerTeam ?? config.playersPerTeam;
       config.mode = data.config.mode || config.mode;
       config.showSensors = data.config.showSensors || false;
@@ -2346,6 +2498,7 @@ const EDGE_PENALTY = 0.004;       // halva 0.008
       ballRadius = config.ballRadius;
       baseMutationAtStart = config.mutationRate;
       updatePlayerDimensions();
+      updateJumpPhysics();
       ioLayout = buildIOLayout(config.playersPerTeam);
       // restore population
       population = deserializePopulation(data.population, ioLayout);
@@ -2367,6 +2520,7 @@ const EDGE_PENALTY = 0.004;       // halva 0.008
       Q('slPopulation').value = config.populationSize;
       Q('slHidden').value = config.initialHidden;
       Q('slMutRate').value = config.mutationRate;
+      Q('slElite').value = Math.round(config.elitism * 100);
       Q('slAddConn').value = config.addConnectionRate;
       Q('slAddNode').value = config.addNodeRate;
       Q('slSimSpeed').value = config.simSpeed;
@@ -2377,6 +2531,8 @@ const EDGE_PENALTY = 0.004;       // halva 0.008
       Q('slHeadPenalty').value = config.headPenalty;
       const scaleControl = Q('slPlayerScale');
       if(scaleControl) scaleControl.value = config.playerScale;
+      const jumpControl = Q('slJumpScale');
+      if(jumpControl) jumpControl.value = config.jumpScale;
       const teamControl = Q('slPlayersPerTeam');
       if(teamControl) teamControl.value = config.playersPerTeam;
       // update labels
@@ -2468,6 +2624,7 @@ const EDGE_PENALTY = 0.004;       // halva 0.008
   bindRange('slPopulation','lbPopulation',(v)=> `${v} genomes`);
   bindRange('slHidden','lbHidden',(v)=> `${v} node${v===1?'':'s'}`);
   bindRange('slMutRate','lbMutRate',(v)=> `${v}%`);
+  bindRange('slElite','lbElite',(v)=> `${Math.round(v)}%`);
   bindRange('slAddConn','lbAddConn',(v)=> `${v}%`);
   bindRange('slAddNode','lbAddNode',(v)=> `${v}%`);
   bindRange('slSimSpeed','lbSimSpeed',(v)=> `${v}×`);
@@ -2477,6 +2634,7 @@ const EDGE_PENALTY = 0.004;       // halva 0.008
   bindRange('slKickBonus','lbKickBonus',(v)=> `${Number(v).toFixed(1)}`);
   bindRange('slHeadPenalty','lbHeadPenalty',(v)=> `${Number(v).toFixed(1)}`);
   bindRange('slPlayerScale','lbPlayerScale',(v)=> `${Math.round(v*100)}%`);
+  bindRange('slJumpScale','lbJumpScale',(v)=> `${Math.round(v*100)}%`);
   bindRange('slPlayersPerTeam','lbPlayersPerTeam',(v)=> `${v} / side`);
 
   Q('btnRestart').addEventListener('click', restartTraining);
