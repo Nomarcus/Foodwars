@@ -928,6 +928,9 @@
       });
     }
 
+    const simSpeedInput = document.getElementById('slSimSpeed');
+    let simSpeed = simSpeedInput ? parseInt(simSpeedInput.value, 10) : 1;
+
     const controlMap = [
       ['slQLearningRate','lbQLearningRate', value => { qAgent.learningRate = parseFloat(value); }],
       ['slQDiscount','lbQDiscount', value => { qAgent.gamma = parseFloat(value); }],
@@ -973,8 +976,6 @@
       input.addEventListener('input', update);
       update();
     });
-
-    let simSpeed = parseInt(document.getElementById('slSimSpeed').value, 10);
 
     document.getElementById('btnToggleTraining').addEventListener('click', ()=>{
       training = !training;
