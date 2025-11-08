@@ -321,13 +321,45 @@
       }
       draw(context){
         context.save();
-        context.fillStyle = this.side === 'left' ? '#38bdf8' : '#f472b6';
+        context.translate(this.x, this.y);
+
+        const baseColor = this.side === 'left' ? '#38bdf8' : '#f472b6';
+        const accentColor = this.side === 'left' ? '#bae6fd' : '#fbcfe8';
+
+        // body
+        context.fillStyle = baseColor;
         context.beginPath();
-        context.arc(this.x, this.y, PLAYER_RADIUS, 0, Math.PI * 2);
+        context.arc(0, 0, PLAYER_RADIUS, 0, Math.PI * 2);
         context.fill();
         context.lineWidth = 4;
         context.strokeStyle = 'rgba(15,23,61,0.55)';
         context.stroke();
+
+        // highlight
+        context.fillStyle = 'rgba(255,255,255,0.18)';
+        context.beginPath();
+        context.ellipse(-PLAYER_RADIUS * 0.3, -PLAYER_RADIUS * 0.35, PLAYER_RADIUS * 0.45, PLAYER_RADIUS * 0.35, -0.35, 0, Math.PI * 2);
+        context.fill();
+
+        // head
+        context.fillStyle = accentColor;
+        context.beginPath();
+        context.arc(0, -PLAYER_RADIUS * 0.6, PLAYER_RADIUS * 0.45, 0, Math.PI * 2);
+        context.fill();
+
+        // arms
+        context.lineWidth = 10;
+        context.lineCap = 'round';
+        context.strokeStyle = accentColor;
+        const armOffsetY = -PLAYER_RADIUS * 0.15;
+        const armReach = PLAYER_RADIUS + 30;
+        context.beginPath();
+        context.moveTo(-PLAYER_RADIUS + 8, armOffsetY);
+        context.lineTo(-armReach, armOffsetY + 8);
+        context.moveTo(PLAYER_RADIUS - 8, armOffsetY);
+        context.lineTo(armReach, armOffsetY + 8);
+        context.stroke();
+
         context.restore();
       }
     }
@@ -336,12 +368,35 @@
       constructor(){
         this.reset('left');
       }
-      reset(side){
-        this.x = side === 'left' ? FIELD_WIDTH * 0.35 : FIELD_WIDTH * 0.65;
-        this.y = FLOOR_Y - 180;
-        this.vx = (Math.random() * 180 + 160) * (side === 'left' ? 1 : -1);
-        this.vy = -Math.random() * 260 - 80;
-        this.lastSide = side;
+      reset(server){
+        let servingSide = 'left';
+        let referencePlayer = null;
+
+        if(typeof server === 'string'){
+          servingSide = server;
+          referencePlayer = server === 'left' ? leftPlayer : rightPlayer;
+        } else if(server && typeof server === 'object'){
+          referencePlayer = server;
+          if(server.side){
+            servingSide = server.side;
+          }
+        }
+
+        if(referencePlayer){
+          const jitter = (Math.random() - 0.5) * 18;
+          const minX = referencePlayer.side === 'left' ? 90 + BALL_RADIUS : NET_X + NET_WIDTH/2 + BALL_RADIUS + 6;
+          const maxX = referencePlayer.side === 'left' ? NET_X - NET_WIDTH/2 - BALL_RADIUS - 6 : FIELD_WIDTH - 90 - BALL_RADIUS;
+          this.x = clamp(referencePlayer.x + jitter, minX, maxX);
+          const dropY = referencePlayer.y - PLAYER_RADIUS - BALL_RADIUS - 40;
+          this.y = Math.max(BALL_RADIUS + 20, dropY);
+        } else {
+          this.x = FIELD_WIDTH * 0.5;
+          this.y = FLOOR_Y - 200;
+        }
+
+        this.vx = 0;
+        this.vy = 0;
+        this.lastSide = servingSide;
       }
       step(){
         this.vy += GRAVITY * DT;
