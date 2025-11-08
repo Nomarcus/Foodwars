@@ -360,6 +360,10 @@ const config = {
     progressTimeout: 5
 };
 
+function clamp(value, min, max) {
+    return Math.max(min, Math.min(max, value));
+}
+
 let paused = false;
 let showOnlyBest = false;
 let lastProgressTime = 0;
@@ -389,8 +393,8 @@ function triggerScreenShake(amount) {
 class Genome {
     constructor() {
         this.weights = [];
-        // 24 sensorer -> hidden layer -> 3 outputs (hoppa, gasa, bromsa)
-        this.inputSize = 24;
+        // 24 sensorer + 7 extra tillstånd -> hidden layer -> 3 outputs (hoppa, gasa, bromsa)
+        this.inputSize = 31;
         this.hiddenSize = 16;
         this.outputSize = 3;
         
@@ -599,7 +603,7 @@ class Ball {
         this.hue = Math.random() * 360;
         this.reset();
     }
-    
+
     reset() {
         this.x = 100;
         this.y = 100;
@@ -609,18 +613,21 @@ class Ball {
         this.alive = true;
         this.distance = 0;
         this.radius = config.ballSize;
-        
+
         // NYTT: För S&S
         this.squash = 1.0;
         this.stretch = 1.0;
-        
+
         // NYTT: För fitness & AI-visualisering
         this.obstaclesCleared = 0;
         this.lastObstacleIndex = -1;
-        this.lastInputs = new Array(24).fill(0);
+        this.lastInputs = new Array(this.genome.inputSize).fill(0);
+        this.lastSensorInputs = new Array(24).fill(0);
+        this.lastOutputs = [0, 0, 0];
         this.onGround = false;
+        this.speedScore = 0;
     }
-    
+
     // NYTT: OPTIMERAD SENSORFUNKTION
     getSensors(terrain) {
         const angles = [];
@@ -665,21 +672,56 @@ class Ball {
             }
             sensors.push(1.0 - (hitDist / rayLength)); // Invertera: 1 = nära, 0 = långt borta
         }
-        
-        this.lastInputs = sensors; // Spara för AI-visualisering
+
+        this.lastSensorInputs = sensors; // Spara för sensorvisualisering
         return sensors;
     }
-    
+
+    getExtraInputs(terrain) {
+        const normalizedVX = (clamp(this.vx / config.maxSpeed, -1, 1) + 1) / 2;
+        const normalizedVY = (clamp(this.vy / config.jumpPower, -1, 1) + 1) / 2;
+        const groundState = this.y >= terrain.getHeight(this.x) - this.radius - 2 ? 1 : 0;
+
+        const nextObstacle = terrain.getNextObstacleAfter(this.x + this.radius);
+        let distanceNorm = 1;
+        let heightNorm = 0;
+        let widthNorm = 0;
+        if (nextObstacle) {
+            const frontGap = nextObstacle.x - (this.x + this.radius);
+            distanceNorm = clamp(frontGap / config.sensorLength, 0, 1);
+            heightNorm = clamp(nextObstacle.height / (180 * config.obstacleHeight), 0, 1);
+            widthNorm = clamp(nextObstacle.width / 80, 0, 1);
+        }
+
+        const slopeSampleNear = terrain.getHeight(this.x + 40);
+        const slopeSampleFar = terrain.getHeight(this.x + 120);
+        const slopeDelta = clamp((slopeSampleNear - slopeSampleFar) / 120, -1, 1);
+        const slopeNorm = (slopeDelta + 1) / 2;
+
+        return [
+            normalizedVX,
+            normalizedVY,
+            groundState,
+            distanceNorm,
+            heightNorm,
+            widthNorm,
+            slopeNorm
+        ];
+    }
+
     update(terrain, dt) {
         if (!this.alive) return;
-        
+
         const sensors = this.getSensors(terrain);
-        const outputs = this.genome.activate(sensors);
-        
+        const inputs = sensors.concat(this.getExtraInputs(terrain));
+        this.lastInputs = inputs;
+        const outputs = this.genome.activate(inputs);
+        this.lastOutputs = outputs;
+
         const wantsJump = outputs[0] > 0.3;
         const accelerate = outputs[1];
         const brake = outputs[2];
-        
+
         this.vy += config.gravity * dt * 60; // dt*60 för att matcha originalskalan
         
         const terrainY = terrain.getHeight(this.x);
@@ -722,17 +764,19 @@ class Ball {
         if (brake > 0.2) {
             this.vx -= brake * 0.2 * dt * 60;
         }
-        
+
         this.vx *= config.friction;
-        this.vx += 0.15 * dt * 60; 
-        
+        this.vx += 0.15 * dt * 60;
+
         this.vx = Math.max(-config.maxSpeed, Math.min(config.maxSpeed, this.vx));
-        
+
         this.x += this.vx * dt * 60;
         this.y += this.vy * dt * 60;
-        
+
         this.rotation += this.vx * 0.03;
-        
+
+        this.speedScore += Math.max(0, this.vx) * dt;
+
         if (this.x < camera.x - 200 || this.y > 700) { // Dö om utanför skärmen
             this.alive = false;
             spawnParticles(this.x, this.y, `hsla(${this.hue}, 70%, 60%, 1)`, 10);
@@ -781,10 +825,10 @@ class Ball {
                  this.lastObstacleIndex = lastObs.index;
             }
         }
-        
+
         this.distance = Math.max(this.distance, this.x);
         // NYTT: Uppdaterad fitness-funktion
-        this.genome.fitness = this.distance + (this.obstaclesCleared * 150); // Ge 150p per hinder
+        this.genome.fitness = this.distance + (this.obstaclesCleared * 150) + (this.speedScore * 20); // Uppmuntra fart
     }
     
     draw(ctx, cameraX) {
@@ -864,25 +908,26 @@ class Ball {
     // NYTT: Sensor-ritning använder nu den optimerade metoden
     drawSensors(ctx, cameraX, terrain) {
         if (!this.alive || !config.showSensors) return;
-        
+
         const angles = [];
         for (let i = 0; i < 24; i++) {
             angles.push(i * 15);
         }
-        
+
         const rayLength = config.sensorLength;
         const screenX = (this.x - cameraX) * config.zoom;
         const screenY = this.y * config.zoom;
         const time = performance.now() * 0.001;
-        
+
         for (let i = 0; i < angles.length; i++) {
             const angle = angles[i];
             const rad = (angle * Math.PI) / 180;
             const dx = Math.cos(rad);
             const dy = Math.sin(rad);
-            
+
             // Använd det sparade sensorvärdet (inverterat)
-            let hitDist = (1.0 - this.lastInputs[i]) * rayLength;
+            const sensorValue = this.lastSensorInputs ? this.lastSensorInputs[i] : 0;
+            let hitDist = (1.0 - sensorValue) * rayLength;
             
             const endX = screenX + dx * hitDist * config.zoom;
             const endY = screenY + dy * hitDist * config.zoom;
@@ -975,7 +1020,7 @@ class Terrain {
         while (low <= high) {
             const mid = Math.floor((low + high) / 2);
             const obs = this.obstacles[mid];
-            
+
             if (obs.x <= x) {
                 candidate = obs;
                 low = mid + 1;
@@ -988,6 +1033,26 @@ class Terrain {
             return candidate;
         }
         return null;
+    }
+
+    getNextObstacleAfter(x) {
+        let low = 0;
+        let high = this.obstacles.length - 1;
+        let candidate = null;
+
+        while (low <= high) {
+            const mid = Math.floor((low + high) / 2);
+            const obs = this.obstacles[mid];
+
+            if (obs.x + obs.width < x) {
+                low = mid + 1;
+            } else {
+                candidate = obs;
+                high = mid - 1;
+            }
+        }
+
+        return candidate;
     }
 
     // NYTT: För fitness-logik
@@ -1230,9 +1295,15 @@ function loadBest() {
         const data = JSON.parse(savedData);
         
         const genome = new Genome();
-        genome.weights = data.weights;
+        const expectedWeights = genome.weights.length;
+        if (Array.isArray(data.weights)) {
+            genome.weights = data.weights.slice(0, expectedWeights);
+            while (genome.weights.length < expectedWeights) {
+                genome.weights.push(Math.random() * 2 - 1);
+            }
+        }
         genome.fitness = data.fitness;
-        
+
         population.bestGenome = genome;
         population.bestFitness = data.fitness;
         
@@ -1559,7 +1630,7 @@ function draw() {
 
     // NYTT: Rita AI-hjärnan
     if (bestBall) {
-        drawNN(nnCtx, bestBall.genome, bestBall.lastInputs, bestBall.genome.activate(bestBall.lastInputs));
+        drawNN(nnCtx, bestBall.genome, bestBall.lastInputs, bestBall.lastOutputs);
     } else {
         drawNN(nnCtx, null, null, null); // Rensa canvas
     }
