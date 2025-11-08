@@ -1,0 +1,1013 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VolleyLab – Q-Learning & Double Deep RL</title>
+  <style>
+    :root {
+      --bg1:#050516;
+      --panel:rgba(18,24,56,.82);
+      --ink:#f1f5ff;
+      --muted:#a1a9d8;
+      --accent:#f472b6;
+      --accent-cyan:#38bdf8;
+      --accent-emerald:#2dd4bf;
+      --silver:rgba(222,231,255,.55);
+      --ok:#34d399;
+      --warn:#f59e0b;
+    }
+    *{box-sizing:border-box}
+    body{margin:0; min-height:100vh; display:flex; flex-direction:column; background:radial-gradient(circle at 42% 18%, rgba(87,51,183,.55) 0%, rgba(39,56,121,.78) 40%, var(--bg1) 100%); color:var(--ink); font-family:"Inter",system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;}
+
+    .main-nav{position:sticky; top:0; z-index:100; padding:22px 48px; display:flex; align-items:center; justify-content:space-between; background:linear-gradient(120deg, rgba(15,20,48,.92) 0%, rgba(10,14,34,.75) 60%, rgba(10,14,34,.35) 100%); backdrop-filter:blur(14px); border-bottom:1px solid var(--silver); box-shadow:0 22px 45px rgba(5,9,25,.55)}
+    .brand{display:flex; align-items:center; gap:12px; font-size:22px; font-weight:700; letter-spacing:.02em; color:var(--ink)}
+    .brand-dot{width:14px; height:14px; border-radius:50%; background:linear-gradient(135deg, var(--accent) 0%, #8b5cf6 100%); box-shadow:0 0 18px rgba(244,114,182,.6)}
+    .nav-links{display:flex; align-items:center; gap:12px; flex-wrap:wrap}
+    .pill-link,.pill-button{display:inline-flex; align-items:center; justify-content:center; padding:10px 20px; border-radius:999px; border:1px solid rgba(56,189,248,.45); background:linear-gradient(120deg, rgba(56,189,248,.18), rgba(139,92,246,.18)); color:var(--ink); text-decoration:none; font-size:14px; font-weight:600; letter-spacing:.03em; transition:transform .2s ease, box-shadow .2s ease, filter .2s ease}
+    .pill-link.secondary{border-color:rgba(139,92,246,.45); background:linear-gradient(120deg, rgba(139,92,246,.18), rgba(244,114,182,.18))}
+    .pill-link:hover,.pill-button:hover{transform:translateY(-1px); filter:brightness(1.05); box-shadow:0 16px 32px rgba(56,189,248,.25)}
+    .pill-link:focus-visible,.pill-button:focus-visible{outline:2px solid rgba(56,189,248,.65); outline-offset:3px}
+    .pill-button{cursor:pointer; border-color:rgba(244,114,182,.45); background:linear-gradient(120deg, rgba(244,114,182,.25), rgba(59,130,246,.22))}
+    .pill-link[aria-current="page"]{border-color:rgba(244,114,182,.65); background:linear-gradient(120deg, rgba(244,114,182,.22), rgba(59,130,246,.22)); box-shadow:0 18px 38px rgba(244,114,182,.28)}
+
+    main{flex:1; display:flex; justify-content:center; align-items:flex-start; padding:40px 48px 64px}
+    .wrap{display:flex; width:100%; max-width:2000px; gap:40px; align-items:flex-start; justify-content:center}
+    .field-area{flex:1 1 auto; display:flex; flex-direction:column; align-items:stretch; gap:18px; min-width:0}
+    .playfield-frame{position:relative; padding:18px; border-radius:30px; background:rgba(4,8,26,.85); box-shadow:0 18px 36px rgba(9,14,36,.55); border:1px solid rgba(148,163,209,.22)}
+    canvas{width:100%; height:auto; max-width:1100px; border-radius:24px; background:#04091f; box-shadow:0 0 45px rgba(15,23,61,.65), inset 0 0 22px rgba(118,133,255,.12); border:1px solid var(--silver)}
+
+    .stats-bar{display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:16px; padding:18px 22px; border-radius:18px; background:rgba(11,16,44,.78); border:1px solid var(--silver); box-shadow:0 18px 32px rgba(5,9,25,.45)}
+    .stat-card{display:flex; flex-direction:column; gap:6px}
+    .stat-label{font-size:12px; text-transform:uppercase; letter-spacing:.12em; color:var(--muted)}
+    .stat-value{font-size:26px; font-weight:700; letter-spacing:.02em; color:var(--ink)}
+
+    .chart-panel{display:flex; flex-direction:column; gap:12px; padding:20px 22px; border-radius:20px; background:rgba(11,16,44,.78); border:1px solid var(--silver); box-shadow:0 18px 32px rgba(5,9,25,.45)}
+    .chart-header{display:flex; align-items:center; justify-content:space-between; gap:12px}
+    .chart-header h2{margin:0; font-size:16px; letter-spacing:.02em}
+    .chart-note{font-size:12px; color:var(--muted)}
+    .fitness-chart{position:relative; display:flex; align-items:flex-end; gap:10px; height:160px; padding:14px 16px; border-radius:16px; border:1px dashed rgba(148,163,209,.35); background:rgba(6,12,34,.72); overflow:visible}
+    .fitness-chart.is-empty::after{content:'Training will populate this chart'; position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:13px; color:var(--muted); letter-spacing:.02em}
+    .fitness-bar{flex:1; min-width:12px; background:linear-gradient(180deg, rgba(56,189,248,.85) 0%, rgba(139,92,246,.65) 70%, rgba(15,23,42,.8) 100%); border-radius:12px 12px 0 0; border:1px solid rgba(148,163,209,.45); position:relative; transition:height .35s ease, transform .2s ease}
+    .fitness-bar--emerald{background:linear-gradient(180deg, rgba(45,212,191,.85) 0%, rgba(34,197,94,.65) 70%, rgba(15,23,42,.8) 100%); border-color:rgba(52,211,153,.45)}
+    .fitness-bar span{position:absolute; bottom:calc(100% + 6px); left:50%; transform:translateX(-50%); font-size:11px; font-weight:600; color:var(--muted); white-space:nowrap; letter-spacing:.02em}
+    .fitness-bar small{position:absolute; bottom:4px; left:50%; transform:translateX(-50%); font-size:10px; color:rgba(241,245,255,.78); letter-spacing:.08em; text-shadow:0 1px 2px rgba(2,6,23,.6)}
+
+    .side{width:360px; flex:0 1 360px; display:flex; flex-direction:column; gap:20px}
+    .panel{background:var(--panel); border:1px solid var(--silver); padding:22px; border-radius:20px; backdrop-filter:blur(16px); box-shadow:0 18px 45px rgba(5,7,24,.55)}
+    .panel h2{margin:0 0 12px; font-size:18px; letter-spacing:.02em}
+    .panel p{margin:0 0 14px; font-size:13px; line-height:1.6; color:var(--muted)}
+    .control-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:16px}
+    .control{display:flex; flex-direction:column; gap:10px; padding:12px 14px; border-radius:14px; border:1px solid rgba(148,163,209,.24); background:rgba(10,16,46,.55); box-shadow:inset 0 0 12px rgba(56,189,248,.08)}
+    .control-header{display:flex; align-items:center; justify-content:space-between; gap:12px}
+    .label{font-size:13px; color:var(--muted); letter-spacing:.02em}
+    .val{font-family:ui-monospace,Menlo,Consolas,monospace; font-size:12px; padding:4px 8px; border-radius:8px; background:rgba(10,16,46,.7); border:1px solid var(--silver); color:var(--accent-cyan); box-shadow:inset 0 0 12px rgba(56,189,248,.12)}
+    input[type=range]{width:100%; accent-color:var(--accent-cyan)}
+    input[type=number]{width:100%; padding:6px 10px; border-radius:10px; border:1px solid rgba(148,163,209,.28); background:rgba(10,16,46,.55); color:var(--ink); font-family:inherit}
+    .btn{display:block; width:100%; padding:12px 14px; border-radius:12px; border:1px solid rgba(45,212,191,.45); background:linear-gradient(120deg, rgba(45,212,191,.18), rgba(59,130,246,.18)); color:var(--ink); cursor:pointer; text-align:center; margin-top:14px; font-weight:600; letter-spacing:.02em; transition:transform .2s ease, box-shadow .2s ease, filter .2s ease}
+    .btn:hover{filter:brightness(1.08); transform:translateY(-1px); box-shadow:0 20px 36px rgba(45,212,191,.28)}
+    .btn:disabled{opacity:.55; cursor:not-allowed; filter:saturate(.5); box-shadow:none}
+
+    .legend{border-radius:18px; border:1px solid rgba(148,163,209,.28); background:rgba(11,16,44,.72); padding:18px; display:grid; gap:10px; font-size:12px; color:var(--muted)}
+    .legend strong{color:var(--ink)}
+    .sr-only{position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0}
+
+    @media (max-width:1200px){
+      .wrap{flex-direction:column; align-items:center}
+      .side{width:100%; max-width:720px}
+    }
+    @media (max-width:900px){
+      main{padding:32px 28px 56px}
+    }
+    @media (max-width:768px){
+      .main-nav{flex-direction:column; align-items:flex-start; gap:16px; padding:18px 24px}
+      main{padding:28px 20px 52px}
+      .wrap{gap:28px}
+      .stats-bar{grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:12px; padding:16px 18px}
+      .stat-value{font-size:22px}
+      canvas{width:100%; height:auto}
+    }
+  </style>
+</head>
+<body>
+  <header class="main-nav">
+    <div class="brand"><span class="brand-dot"></span>VolleyLab RL</div>
+    <nav class="nav-links" aria-label="Primary navigation">
+      <a class="pill-link" href="index.html">Food arena</a>
+      <a class="pill-link" href="volleyball.html">Volley NEAT lab</a>
+      <a class="pill-link secondary" href="volleyball-rl.html" aria-current="page">Volley RL lab</a>
+      <a class="pill-link" href="balllab.html">BallLab</a>
+      <a class="pill-link" href="learn-neat.html">How NEAT works</a>
+    </nav>
+  </header>
+  <main>
+    <div class="wrap">
+      <aside class="side">
+        <section class="panel" aria-labelledby="rl-overview">
+          <h2 id="rl-overview">Reinforcement learners</h2>
+          <p>Train a cooperative Q-learning squad on the left side against a Double Deep Q-network squad on the right. Same physics and art style as the NEAT arena, but every decision now comes from temporal-difference updates.</p>
+          <div class="legend">
+            <div><strong>Left team:</strong> Tabular Q-learning with discretised court states.</div>
+            <div><strong>Right team:</strong> Double Deep Q-network with experience replay and target sync.</div>
+            <div>Rewards encourage clean rallies, aerial control and finishing points on the opponent.</div>
+          </div>
+        </section>
+
+        <section class="panel" aria-labelledby="q-controls">
+          <h2 id="q-controls">Q-learning controls</h2>
+          <div class="control">
+            <div class="control-header">
+              <label class="label" for="slQLearningRate">Learning rate</label>
+              <span class="val" id="lbQLearningRate">0.22</span>
+            </div>
+            <input id="slQLearningRate" type="range" min="0.05" max="0.6" step="0.01" value="0.22">
+          </div>
+          <div class="control">
+            <div class="control-header">
+              <label class="label" for="slQDiscount">Discount γ</label>
+              <span class="val" id="lbQDiscount">0.92</span>
+            </div>
+            <input id="slQDiscount" type="range" min="0.6" max="0.99" step="0.01" value="0.92">
+          </div>
+          <div class="control">
+            <div class="control-header">
+              <label class="label" for="slQEpsilon">Exploration ε</label>
+              <span class="val" id="lbQEpsilon">0.30</span>
+            </div>
+            <input id="slQEpsilon" type="range" min="0.01" max="1" step="0.01" value="0.30">
+          </div>
+          <div class="control">
+            <div class="control-header">
+              <label class="label" for="slQEpsilonDecay">ε decay per episode</label>
+              <span class="val" id="lbQEpsilonDecay">0.992</span>
+            </div>
+            <input id="slQEpsilonDecay" type="range" min="0.90" max="0.999" step="0.001" value="0.992">
+          </div>
+        </section>
+
+        <section class="panel" aria-labelledby="ddqn-controls">
+          <h2 id="ddqn-controls">Double Deep Q controls</h2>
+          <div class="control">
+            <div class="control-header">
+              <label class="label" for="slDqnLearningRate">Learning rate</label>
+              <span class="val" id="lbDqnLearningRate">0.0015</span>
+            </div>
+            <input id="slDqnLearningRate" type="range" min="0.0005" max="0.01" step="0.0005" value="0.0015">
+          </div>
+          <div class="control">
+            <div class="control-header">
+              <label class="label" for="slDqnGamma">Discount γ</label>
+              <span class="val" id="lbDqnGamma">0.97</span>
+            </div>
+            <input id="slDqnGamma" type="range" min="0.7" max="0.999" step="0.001" value="0.97">
+          </div>
+          <div class="control">
+            <div class="control-header">
+              <label class="label" for="slDqnEpsilon">Exploration ε</label>
+              <span class="val" id="lbDqnEpsilon">0.35</span>
+            </div>
+            <input id="slDqnEpsilon" type="range" min="0.01" max="1" step="0.01" value="0.35">
+          </div>
+          <div class="control">
+            <div class="control-header">
+              <label class="label" for="slDqnEpsilonDecay">ε decay per episode</label>
+              <span class="val" id="lbDqnEpsilonDecay">0.994</span>
+            </div>
+            <input id="slDqnEpsilonDecay" type="range" min="0.90" max="0.999" step="0.001" value="0.994">
+          </div>
+          <div class="control">
+            <div class="control-header">
+              <label class="label" for="slTargetSync">Target sync (steps)</label>
+              <span class="val" id="lbTargetSync">600</span>
+            </div>
+            <input id="slTargetSync" type="range" min="60" max="2000" step="20" value="600">
+          </div>
+          <div class="control">
+            <div class="control-header">
+              <label class="label" for="slBatchSize">Batch size</label>
+              <span class="val" id="lbBatchSize">48</span>
+            </div>
+            <input id="slBatchSize" type="range" min="8" max="96" step="4" value="48">
+          </div>
+        </section>
+
+        <section class="panel" aria-labelledby="sim-controls">
+          <h2 id="sim-controls">Simulation</h2>
+          <div class="control">
+            <div class="control-header">
+              <label class="label" for="slSimSpeed">Sim speed</label>
+              <span class="val" id="lbSimSpeed">6×</span>
+            </div>
+            <input id="slSimSpeed" type="range" min="1" max="20" step="1" value="6">
+          </div>
+          <button class="btn" id="btnToggleTraining">Start training</button>
+          <button class="btn" id="btnReset">Reset learners</button>
+        </section>
+      </aside>
+
+      <div class="field-area">
+        <section class="playfield-frame" aria-labelledby="canvas-heading">
+          <h2 class="sr-only" id="canvas-heading">VolleyLab arena</h2>
+          <canvas id="playfield" width="1100" height="620" role="img" aria-label="VolleyLab RL simulation"></canvas>
+        </section>
+
+        <section class="stats-bar" aria-live="polite">
+          <div class="stat-card">
+            <span class="stat-label">Episodes</span>
+            <span class="stat-value" id="lbEpisodes">0</span>
+          </div>
+          <div class="stat-card">
+            <span class="stat-label">Left avg reward</span>
+            <span class="stat-value" id="lbLeftReward">0.00</span>
+          </div>
+          <div class="stat-card">
+            <span class="stat-label">Right avg reward</span>
+            <span class="stat-value" id="lbRightReward">0.00</span>
+          </div>
+          <div class="stat-card">
+            <span class="stat-label">Left ε</span>
+            <span class="stat-value" id="lbLeftEpsilon">0.30</span>
+          </div>
+          <div class="stat-card">
+            <span class="stat-label">Right ε</span>
+            <span class="stat-value" id="lbRightEpsilon">0.35</span>
+          </div>
+        </section>
+
+        <section class="chart-panel" aria-labelledby="chart-heading">
+          <div class="chart-header">
+            <h2 id="chart-heading">Episode reward history</h2>
+            <span class="chart-note">Rolling 24 most recent episodes</span>
+          </div>
+          <div class="fitness-chart" id="rewardChart">
+          </div>
+        </section>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    const canvas = document.getElementById('playfield');
+    const ctx = canvas.getContext('2d');
+
+    const FIELD_WIDTH = canvas.width;
+    const FIELD_HEIGHT = canvas.height;
+    const FLOOR_Y = FIELD_HEIGHT - 70;
+    const NET_X = FIELD_WIDTH / 2;
+    const NET_WIDTH = 14;
+    const NET_HEIGHT = 220;
+    const GRAVITY = 940;
+    const DT = 1 / 60;
+    const PLAYER_RADIUS = 36;
+    const BALL_RADIUS = 22;
+    const MAX_PLAYER_SPEED = 360;
+    const JUMP_SPEED = 520;
+    const MOVE_ACCEL = 1200;
+
+    const ACTIONS = [
+      {name: 'idle', vx: 0, jump: false},
+      {name: 'left', vx: -1, jump: false},
+      {name: 'right', vx: 1, jump: false},
+      {name: 'jump', vx: 0, jump: true},
+      {name: 'left+jump', vx: -1, jump: true},
+      {name: 'right+jump', vx: 1, jump: true}
+    ];
+
+    function clamp(value, min, max){
+      return Math.max(min, Math.min(max, value));
+    }
+
+    class Player {
+      constructor(side){
+        this.side = side;
+        this.reset();
+      }
+      reset(){
+        this.x = this.side === 'left' ? FIELD_WIDTH * 0.25 : FIELD_WIDTH * 0.75;
+        this.y = FLOOR_Y - PLAYER_RADIUS;
+        this.vx = 0;
+        this.vy = 0;
+        this.grounded = true;
+        this.lastTouch = 0;
+      }
+      applyAction(action){
+        if(action.vx !== 0){
+          this.vx += action.vx * MOVE_ACCEL * DT;
+        } else {
+          this.vx *= 0.85;
+        }
+        this.vx = clamp(this.vx, -MAX_PLAYER_SPEED, MAX_PLAYER_SPEED);
+        if(action.jump && this.grounded){
+          this.vy = -JUMP_SPEED;
+          this.grounded = false;
+        }
+      }
+      step(){
+        this.vy += GRAVITY * DT;
+        this.x += this.vx * DT;
+        this.y += this.vy * DT;
+
+        const minX = this.side === 'left' ? 90 : NET_X + NET_WIDTH/2 + PLAYER_RADIUS;
+        const maxX = this.side === 'left' ? NET_X - NET_WIDTH/2 - PLAYER_RADIUS : FIELD_WIDTH - 90;
+        this.x = clamp(this.x, minX, maxX);
+
+        if(this.y + PLAYER_RADIUS >= FLOOR_Y){
+          this.y = FLOOR_Y - PLAYER_RADIUS;
+          this.vy = 0;
+          this.grounded = true;
+        } else {
+          this.grounded = false;
+        }
+      }
+      draw(context){
+        context.save();
+        context.fillStyle = this.side === 'left' ? '#38bdf8' : '#f472b6';
+        context.beginPath();
+        context.arc(this.x, this.y, PLAYER_RADIUS, 0, Math.PI * 2);
+        context.fill();
+        context.lineWidth = 4;
+        context.strokeStyle = 'rgba(15,23,61,0.55)';
+        context.stroke();
+        context.restore();
+      }
+    }
+
+    class Ball {
+      constructor(){
+        this.reset('left');
+      }
+      reset(side){
+        this.x = side === 'left' ? FIELD_WIDTH * 0.35 : FIELD_WIDTH * 0.65;
+        this.y = FLOOR_Y - 180;
+        this.vx = (Math.random() * 180 + 160) * (side === 'left' ? 1 : -1);
+        this.vy = -Math.random() * 260 - 80;
+        this.lastSide = side;
+      }
+      step(){
+        this.vy += GRAVITY * DT;
+        this.x += this.vx * DT;
+        this.y += this.vy * DT;
+
+        if(this.x - BALL_RADIUS < 0){
+          this.x = BALL_RADIUS;
+          this.vx *= -0.9;
+        }
+        if(this.x + BALL_RADIUS > FIELD_WIDTH){
+          this.x = FIELD_WIDTH - BALL_RADIUS;
+          this.vx *= -0.9;
+        }
+        if(this.y - BALL_RADIUS < 0){
+          this.y = BALL_RADIUS;
+          this.vy *= -0.7;
+        }
+      }
+      draw(context){
+        context.save();
+        const gradient = context.createRadialGradient(this.x - 6, this.y - 6, 6, this.x, this.y, BALL_RADIUS + 4);
+        gradient.addColorStop(0, '#f8fafc');
+        gradient.addColorStop(0.6, '#94a3b8');
+        gradient.addColorStop(1, '#1e293b');
+        context.fillStyle = gradient;
+        context.beginPath();
+        context.arc(this.x, this.y, BALL_RADIUS, 0, Math.PI * 2);
+        context.fill();
+        context.restore();
+      }
+    }
+
+    function resolvePlayerBall(player, ball){
+      const dx = ball.x - player.x;
+      const dy = ball.y - player.y;
+      const distSq = dx*dx + dy*dy;
+      const minDist = PLAYER_RADIUS + BALL_RADIUS - 4;
+      if(distSq >= minDist*minDist) return false;
+      const dist = Math.sqrt(distSq) || 0.0001;
+      const nx = dx / dist;
+      const ny = dy / dist;
+      const penetration = minDist - dist;
+      ball.x += nx * penetration;
+      ball.y += ny * penetration;
+      const relativeVx = ball.vx - player.vx;
+      const relativeVy = ball.vy - player.vy;
+      const dot = relativeVx * nx + relativeVy * ny;
+      if(dot < 0){
+        const bounce = 1.12;
+        ball.vx -= (1 + bounce) * dot * nx;
+        ball.vy -= (1 + bounce) * dot * ny;
+      }
+      ball.vx += player.vx * 0.2;
+      ball.vy += player.vy * 0.05 - 20;
+      ball.lastSide = player.side;
+      player.lastTouch = performance.now();
+      return true;
+    }
+
+    function resolveNet(ball){
+      const netLeft = NET_X - NET_WIDTH/2;
+      const netRight = NET_X + NET_WIDTH/2;
+      const netTop = FLOOR_Y - NET_HEIGHT;
+      if(ball.y + BALL_RADIUS < netTop) return false;
+      if(ball.x + BALL_RADIUS < netLeft || ball.x - BALL_RADIUS > netRight) return false;
+      if(ball.y > FLOOR_Y) return false;
+      if(ball.x < NET_X){
+        ball.x = netLeft - BALL_RADIUS;
+        ball.vx = -Math.abs(ball.vx) * 0.75;
+      } else {
+        ball.x = netRight + BALL_RADIUS;
+        ball.vx = Math.abs(ball.vx) * 0.75;
+      }
+      ball.vy *= 0.92;
+      return true;
+    }
+
+    function drawEnvironment(){
+      ctx.clearRect(0,0,FIELD_WIDTH,FIELD_HEIGHT);
+      ctx.save();
+      const grd = ctx.createLinearGradient(0,0,0,FIELD_HEIGHT);
+      grd.addColorStop(0,'rgba(15,23,61,0.95)');
+      grd.addColorStop(1,'rgba(2,6,23,0.95)');
+      ctx.fillStyle = grd;
+      ctx.fillRect(0,0,FIELD_WIDTH,FIELD_HEIGHT);
+
+      ctx.fillStyle = '#0f172a';
+      ctx.fillRect(0,FLOOR_Y,FIELD_WIDTH,FIELD_HEIGHT-FLOOR_Y);
+      ctx.strokeStyle = 'rgba(148,163,209,0.32)';
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.moveTo(40,FLOOR_Y);
+      ctx.lineTo(FIELD_WIDTH-40,FLOOR_Y);
+      ctx.stroke();
+
+      ctx.fillStyle = 'rgba(59,130,246,0.15)';
+      ctx.fillRect(40,FLOOR_Y-8,FIELD_WIDTH-80,8);
+
+      ctx.fillStyle = 'rgba(148,163,209,0.65)';
+      ctx.fillRect(NET_X - NET_WIDTH/2, FLOOR_Y - NET_HEIGHT, NET_WIDTH, NET_HEIGHT);
+      ctx.strokeStyle = 'rgba(241,245,255,0.45)';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(NET_X - NET_WIDTH/2, FLOOR_Y - NET_HEIGHT, NET_WIDTH, NET_HEIGHT);
+      ctx.restore();
+    }
+
+    class QLearningAgent {
+      constructor(){
+        this.q = new Map();
+        this.learningRate = 0.22;
+        this.gamma = 0.92;
+        this.epsilon = 0.30;
+        this.epsilonDecay = 0.992;
+        this.minEpsilon = 0.02;
+        this.episodes = 0;
+        this.totalReward = 0;
+      }
+      setParams({learningRate, gamma, epsilon, epsilonDecay}){
+        this.learningRate = learningRate;
+        this.gamma = gamma;
+        this.epsilon = epsilon;
+        this.epsilonDecay = epsilonDecay;
+      }
+      stateKey(player, ball){
+        const px = Math.floor(clamp((player.x - 40) / (FIELD_WIDTH - 80), 0, 0.999) * 6);
+        const py = player.grounded ? 0 : 1;
+        const pvx = player.vx > 80 ? 2 : player.vx < -80 ? 0 : 1;
+        const bx = Math.floor(clamp((ball.x - 40) / (FIELD_WIDTH - 80), 0, 0.999) * 6);
+        const by = Math.floor(clamp((ball.y) / FLOOR_Y, 0, 0.999) * 6);
+        const bvx = ball.vx > 120 ? 2 : ball.vx < -120 ? 0 : 1;
+        const bvy = ball.vy > 60 ? 2 : ball.vy < -60 ? 0 : 1;
+        const last = ball.lastSide === 'left' ? 1 : 0;
+        return `${px}|${py}|${pvx}|${bx}|${by}|${bvx}|${bvy}|${last}`;
+      }
+      ensureState(key){
+        if(!this.q.has(key)){
+          this.q.set(key, new Float32Array(ACTIONS.length).fill(0));
+        }
+        return this.q.get(key);
+      }
+      pickAction(stateKey, training){
+        const values = this.ensureState(stateKey);
+        if(training && Math.random() < this.epsilon){
+          return Math.floor(Math.random() * ACTIONS.length);
+        }
+        let best = 0;
+        let bestVal = values[0];
+        for(let i=1;i<values.length;i++){
+          if(values[i] > bestVal){
+            bestVal = values[i];
+            best = i;
+          }
+        }
+        return best;
+      }
+      learn(stateKey, action, reward, nextKey, done){
+        const values = this.ensureState(stateKey);
+        const current = values[action];
+        let target = reward;
+        if(!done){
+          const nextValues = this.ensureState(nextKey);
+          let maxNext = nextValues[0];
+          for(let i=1;i<nextValues.length;i++){
+            if(nextValues[i] > maxNext) maxNext = nextValues[i];
+          }
+          target += this.gamma * maxNext;
+        }
+        values[action] = current + this.learningRate * (target - current);
+      }
+      endEpisode(totalReward){
+        this.episodes++;
+        this.totalReward += totalReward;
+        this.epsilon = Math.max(this.minEpsilon, this.epsilon * this.epsilonDecay);
+      }
+      reset(){
+        this.q.clear();
+        this.episodes = 0;
+        this.totalReward = 0;
+      }
+    }
+    function randomWeight(scale){
+      return (Math.random() * 2 - 1) * scale;
+    }
+
+    function zeroMatrix(rows, cols){
+      const matrix = new Array(rows);
+      for(let r=0;r<rows;r++){
+        matrix[r] = new Float32Array(cols);
+      }
+      return matrix;
+    }
+
+    class DenseNetwork {
+      constructor(inputSize, hiddenSize, outputSize, learningRate){
+        this.inputSize = inputSize;
+        this.hiddenSize = hiddenSize;
+        this.outputSize = outputSize;
+        this.learningRate = learningRate;
+        this.W1 = zeroMatrix(hiddenSize, inputSize);
+        this.b1 = new Float32Array(hiddenSize);
+        this.W2 = zeroMatrix(outputSize, hiddenSize);
+        this.b2 = new Float32Array(outputSize);
+        const scale1 = Math.sqrt(2 / (inputSize + hiddenSize));
+        const scale2 = Math.sqrt(2 / (hiddenSize + outputSize));
+        for(let i=0;i<hiddenSize;i++){
+          for(let j=0;j<inputSize;j++){
+            this.W1[i][j] = randomWeight(scale1);
+          }
+        }
+        for(let k=0;k<outputSize;k++){
+          for(let i=0;i<hiddenSize;i++){
+            this.W2[k][i] = randomWeight(scale2);
+          }
+        }
+      }
+      forward(input){
+        const hiddenRaw = new Float32Array(this.hiddenSize);
+        const hidden = new Float32Array(this.hiddenSize);
+        for(let i=0;i<this.hiddenSize;i++){
+          let sum = this.b1[i];
+          const row = this.W1[i];
+          for(let j=0;j<this.inputSize;j++){
+            sum += row[j] * input[j];
+          }
+          hiddenRaw[i] = sum;
+          hidden[i] = sum > 0 ? sum : 0;
+        }
+        const output = new Float32Array(this.outputSize);
+        for(let k=0;k<this.outputSize;k++){
+          let sum = this.b2[k];
+          const row = this.W2[k];
+          for(let i=0;i<this.hiddenSize;i++){
+            sum += row[i] * hidden[i];
+          }
+          output[k] = sum;
+        }
+        return {output, hidden, hiddenRaw, input};
+      }
+      predict(input){
+        return this.forward(input).output;
+      }
+      train(batch){
+        if(batch.length === 0) return;
+        const gradW1 = zeroMatrix(this.hiddenSize, this.inputSize);
+        const gradB1 = new Float32Array(this.hiddenSize);
+        const gradW2 = zeroMatrix(this.outputSize, this.hiddenSize);
+        const gradB2 = new Float32Array(this.outputSize);
+
+        for(const sample of batch){
+          const {cache, target} = sample;
+          const {output, hidden, hiddenRaw, input} = cache;
+          const gradOut = new Float32Array(this.outputSize);
+          for(let k=0;k<this.outputSize;k++){
+            gradOut[k] = (output[k] - target[k]);
+            gradB2[k] += gradOut[k];
+            const row = gradW2[k];
+            for(let i=0;i<this.hiddenSize;i++){
+              row[i] += gradOut[k] * hidden[i];
+            }
+          }
+          const gradHidden = new Float32Array(this.hiddenSize);
+          for(let i=0;i<this.hiddenSize;i++){
+            let sum = 0;
+            for(let k=0;k<this.outputSize;k++){
+              sum += gradOut[k] * this.W2[k][i];
+            }
+            gradHidden[i] = hiddenRaw[i] > 0 ? sum : 0;
+            gradB1[i] += gradHidden[i];
+            const row = gradW1[i];
+            for(let j=0;j<this.inputSize;j++){
+              row[j] += gradHidden[i] * input[j];
+            }
+          }
+        }
+
+        const scale = this.learningRate / batch.length;
+        for(let i=0;i<this.hiddenSize;i++){
+          this.b1[i] -= gradB1[i] * scale;
+          const row = this.W1[i];
+          for(let j=0;j<this.inputSize;j++){
+            row[j] -= gradW1[i][j] * scale;
+          }
+        }
+        for(let k=0;k<this.outputSize;k++){
+          this.b2[k] -= gradB2[k] * scale;
+          const row = this.W2[k];
+          for(let i=0;i<this.hiddenSize;i++){
+            row[i] -= gradW2[k][i] * scale;
+          }
+        }
+      }
+      copyFrom(other){
+        for(let i=0;i<this.hiddenSize;i++){
+          this.b1[i] = other.b1[i];
+          for(let j=0;j<this.inputSize;j++){
+            this.W1[i][j] = other.W1[i][j];
+          }
+        }
+        for(let k=0;k<this.outputSize;k++){
+          this.b2[k] = other.b2[k];
+          for(let i=0;i<this.hiddenSize;i++){
+            this.W2[k][i] = other.W2[k][i];
+          }
+        }
+      }
+    }
+
+    class DoubleDQNAgent {
+      constructor(){
+        this.inputSize = 8;
+        this.actions = ACTIONS.length;
+        this.gamma = 0.97;
+        this.epsilon = 0.35;
+        this.epsilonDecay = 0.994;
+        this.minEpsilon = 0.05;
+        this.learningRate = 0.0015;
+        this.batchSize = 48;
+        this.targetSync = 600;
+        this.replay = [];
+        this.maxReplay = 4000;
+        this.online = new DenseNetwork(this.inputSize, 48, this.actions, this.learningRate);
+        this.target = new DenseNetwork(this.inputSize, 48, this.actions, this.learningRate);
+        this.target.copyFrom(this.online);
+        this.stepCounter = 0;
+        this.episodes = 0;
+        this.totalReward = 0;
+      }
+      setParams({learningRate, gamma, epsilon, epsilonDecay, batchSize, targetSync}){
+        this.learningRate = learningRate;
+        this.gamma = gamma;
+        this.epsilon = epsilon;
+        this.epsilonDecay = epsilonDecay;
+        this.batchSize = Math.max(4, Math.floor(batchSize));
+        this.targetSync = Math.max(20, Math.floor(targetSync));
+        this.online.learningRate = learningRate;
+        this.target.learningRate = learningRate;
+      }
+      stateVector(player, ball){
+        return new Float32Array([
+          (player.x / FIELD_WIDTH) * 2 - 1,
+          (player.y / FLOOR_Y) * 2 - 1,
+          clamp(player.vx / MAX_PLAYER_SPEED, -1, 1),
+          clamp(player.vy / JUMP_SPEED, -1, 1),
+          (ball.x / FIELD_WIDTH) * 2 - 1,
+          (ball.y / FLOOR_Y) * 2 - 1,
+          clamp(ball.vx / 480, -1, 1),
+          clamp(ball.vy / 640, -1, 1)
+        ]);
+      }
+      pickAction(state, training){
+        if(training && Math.random() < this.epsilon){
+          return Math.floor(Math.random() * this.actions);
+        }
+        const q = this.online.predict(state);
+        let best = 0;
+        let bestVal = q[0];
+        for(let i=1;i<q.length;i++){
+          if(q[i] > bestVal){
+            bestVal = q[i];
+            best = i;
+          }
+        }
+        return best;
+      }
+      remember(experience){
+        if(this.replay.length >= this.maxReplay){
+          this.replay.shift();
+        }
+        this.replay.push({
+          state: Float32Array.from(experience.state),
+          action: experience.action,
+          reward: experience.reward,
+          nextState: Float32Array.from(experience.nextState),
+          done: experience.done
+        });
+      }
+      sampleBatch(){
+        if(this.replay.length < this.batchSize) return null;
+        const batch = [];
+        for(let i=0;i<this.batchSize;i++){
+          const idx = Math.floor(Math.random() * this.replay.length);
+          batch.push(this.replay[idx]);
+        }
+        return batch;
+      }
+      train(){
+        const batch = this.sampleBatch();
+        if(!batch) return;
+        const trainingBatch = [];
+        for(const exp of batch){
+          const cache = this.online.forward(exp.state);
+          const qValues = cache.output;
+          const target = qValues.slice();
+          let targetValue = exp.reward;
+          if(!exp.done){
+            const nextQOnline = this.online.predict(exp.nextState);
+            let best = 0;
+            for(let i=1;i<nextQOnline.length;i++){
+              if(nextQOnline[i] > nextQOnline[best]) best = i;
+            }
+            const nextQTarget = this.target.predict(exp.nextState);
+            targetValue += this.gamma * nextQTarget[best];
+          }
+          target[exp.action] = targetValue;
+          trainingBatch.push({cache, target});
+        }
+        this.online.train(trainingBatch);
+        this.stepCounter += batch.length;
+        if(this.stepCounter >= this.targetSync){
+          this.target.copyFrom(this.online);
+          this.stepCounter = 0;
+        }
+      }
+      endEpisode(totalReward){
+        this.episodes++;
+        this.totalReward += totalReward;
+        this.epsilon = Math.max(this.minEpsilon, this.epsilon * this.epsilonDecay);
+      }
+      reset(){
+        this.replay = [];
+        this.online = new DenseNetwork(this.inputSize, 48, this.actions, this.learningRate);
+        this.target = new DenseNetwork(this.inputSize, 48, this.actions, this.learningRate);
+        this.target.copyFrom(this.online);
+        this.stepCounter = 0;
+        this.episodes = 0;
+        this.totalReward = 0;
+      }
+    }
+    const leftPlayer = new Player('left');
+    const rightPlayer = new Player('right');
+    const ball = new Ball();
+    const qAgent = new QLearningAgent();
+    const dqnAgent = new DoubleDQNAgent();
+
+    let training = false;
+    let episodes = 0;
+    const maxSteps = 3000;
+    let stepCount = 0;
+    let episodeLeftReward = 0;
+    let episodeRightReward = 0;
+    let rewardHistory = [];
+
+    function resetEnvironment(servingSide = Math.random() < 0.5 ? 'left' : 'right'){
+      leftPlayer.reset();
+      rightPlayer.reset();
+      ball.reset(servingSide);
+      stepCount = 0;
+      episodeLeftReward = 0;
+      episodeRightReward = 0;
+    }
+
+    resetEnvironment('left');
+
+    function simulateStep(){
+      const stateLeft = qAgent.stateKey(leftPlayer, ball);
+      const stateRight = dqnAgent.stateVector(rightPlayer, ball);
+      const leftAction = qAgent.pickAction(stateLeft, training);
+      const rightAction = dqnAgent.pickAction(stateRight, training);
+
+      leftPlayer.applyAction(ACTIONS[leftAction]);
+      rightPlayer.applyAction(ACTIONS[rightAction]);
+
+      leftPlayer.step();
+      rightPlayer.step();
+      ball.step();
+
+      let leftReward = -0.004;
+      let rightReward = -0.004;
+
+      if(resolvePlayerBall(leftPlayer, ball)){
+        leftReward += 0.22;
+        rightReward -= 0.05;
+      }
+      if(resolvePlayerBall(rightPlayer, ball)){
+        rightReward += 0.22;
+        leftReward -= 0.05;
+      }
+      if(resolveNet(ball)){
+        if(ball.lastSide === 'left'){
+          leftReward -= 0.25;
+          rightReward += 0.12;
+        } else {
+          rightReward -= 0.25;
+          leftReward += 0.12;
+        }
+      }
+
+      let done = false;
+      let servingSide = ball.lastSide === 'left' ? 'right' : 'left';
+      if(ball.y + BALL_RADIUS >= FLOOR_Y){
+        done = true;
+        if(ball.x < NET_X){
+          leftReward -= 2;
+          rightReward += 2;
+          servingSide = 'right';
+        } else {
+          rightReward -= 2;
+          leftReward += 2;
+          servingSide = 'left';
+        }
+      }
+
+      const nextStateLeft = qAgent.stateKey(leftPlayer, ball);
+      const nextStateRight = dqnAgent.stateVector(rightPlayer, ball);
+
+      if(training){
+        qAgent.learn(stateLeft, leftAction, leftReward, nextStateLeft, done);
+        dqnAgent.remember({state: stateRight, action: rightAction, reward: rightReward, nextState: nextStateRight, done});
+        dqnAgent.train();
+      }
+
+      episodeLeftReward += leftReward;
+      episodeRightReward += rightReward;
+      stepCount++;
+
+      if(done || stepCount >= maxSteps){
+        episodes++;
+        qAgent.endEpisode(episodeLeftReward);
+        dqnAgent.endEpisode(episodeRightReward);
+        rewardHistory.push({left: episodeLeftReward, right: episodeRightReward});
+        if(rewardHistory.length > 24){
+          rewardHistory.shift();
+        }
+        resetEnvironment(servingSide);
+        updateStats();
+        renderChart();
+      }
+    }
+
+    function renderChart(){
+      const chart = document.getElementById('rewardChart');
+      chart.innerHTML = '';
+      if(rewardHistory.length === 0){
+        chart.classList.add('is-empty');
+        return;
+      }
+      chart.classList.remove('is-empty');
+      const maxReward = Math.max(...rewardHistory.map(entry => Math.max(Math.abs(entry.left), Math.abs(entry.right), 0.1)));
+      rewardHistory.forEach((entry, index)=>{
+        const leftBar = document.createElement('div');
+        leftBar.className = 'fitness-bar';
+        const heightLeft = clamp(Math.abs(entry.left) / (maxReward || 1), 0, 1) * 100;
+        leftBar.style.height = `${heightLeft}%`;
+        leftBar.title = `Episode ${episodes - rewardHistory.length + index + 1} – Left reward ${entry.left.toFixed(2)}`;
+        leftBar.innerHTML = `<span>L${episodes - rewardHistory.length + index + 1}</span><small>${entry.left.toFixed(1)}</small>`;
+        chart.appendChild(leftBar);
+
+        const rightBar = document.createElement('div');
+        rightBar.className = 'fitness-bar fitness-bar--emerald';
+        const heightRight = clamp(Math.abs(entry.right) / (maxReward || 1), 0, 1) * 100;
+        rightBar.style.height = `${heightRight}%`;
+        rightBar.title = `Episode ${episodes - rewardHistory.length + index + 1} – Right reward ${entry.right.toFixed(2)}`;
+        rightBar.innerHTML = `<span>R${episodes - rewardHistory.length + index + 1}</span><small>${entry.right.toFixed(1)}</small>`;
+        chart.appendChild(rightBar);
+      });
+    }
+
+    function updateStats(){
+      document.getElementById('lbEpisodes').textContent = episodes.toString();
+      const leftAvg = qAgent.episodes ? qAgent.totalReward / qAgent.episodes : 0;
+      const rightAvg = dqnAgent.episodes ? dqnAgent.totalReward / dqnAgent.episodes : 0;
+      document.getElementById('lbLeftReward').textContent = leftAvg.toFixed(2);
+      document.getElementById('lbRightReward').textContent = rightAvg.toFixed(2);
+      document.getElementById('lbLeftEpsilon').textContent = qAgent.epsilon.toFixed(2);
+      document.getElementById('lbRightEpsilon').textContent = dqnAgent.epsilon.toFixed(2);
+    }
+
+    function drawScene(){
+      drawEnvironment();
+      leftPlayer.draw(ctx);
+      rightPlayer.draw(ctx);
+      ball.draw(ctx);
+    }
+
+    function syncDqnParams(overrides = {}){
+      dqnAgent.setParams({
+        learningRate: overrides.learningRate ?? dqnAgent.learningRate,
+        gamma: overrides.gamma ?? dqnAgent.gamma,
+        epsilon: overrides.epsilon ?? dqnAgent.epsilon,
+        epsilonDecay: overrides.epsilonDecay ?? dqnAgent.epsilonDecay,
+        batchSize: overrides.batchSize ?? dqnAgent.batchSize,
+        targetSync: overrides.targetSync ?? dqnAgent.targetSync
+      });
+    }
+
+    const simSpeedInput = document.getElementById('slSimSpeed');
+    let simSpeed = simSpeedInput ? parseInt(simSpeedInput.value, 10) : 1;
+
+    const controlMap = [
+      ['slQLearningRate','lbQLearningRate', value => { qAgent.learningRate = parseFloat(value); }],
+      ['slQDiscount','lbQDiscount', value => { qAgent.gamma = parseFloat(value); }],
+      ['slQEpsilon','lbQEpsilon', value => { qAgent.epsilon = parseFloat(value); }],
+      ['slQEpsilonDecay','lbQEpsilonDecay', value => { qAgent.epsilonDecay = parseFloat(value); }],
+      ['slDqnLearningRate','lbDqnLearningRate', value => { syncDqnParams({learningRate: parseFloat(value)}); }],
+      ['slDqnGamma','lbDqnGamma', value => { syncDqnParams({gamma: parseFloat(value)}); }],
+      ['slDqnEpsilon','lbDqnEpsilon', value => { syncDqnParams({epsilon: parseFloat(value)}); }],
+      ['slDqnEpsilonDecay','lbDqnEpsilonDecay', value => { syncDqnParams({epsilonDecay: parseFloat(value)}); }],
+      ['slTargetSync','lbTargetSync', value => { syncDqnParams({targetSync: Math.max(20, parseInt(value, 10))}); }],
+      ['slBatchSize','lbBatchSize', value => { syncDqnParams({batchSize: Math.max(4, parseInt(value, 10))}); }],
+      ['slSimSpeed','lbSimSpeed', value => {
+        simSpeed = parseInt(value, 10);
+      }]
+    ];
+
+    controlMap.forEach(([inputId, labelId, handler]) => {
+      const input = document.getElementById(inputId);
+      const label = document.getElementById(labelId);
+      if(!input || !label) return;
+      const update = () => {
+        if(input.type === 'range' && inputId === 'slSimSpeed'){
+          label.textContent = `${input.value}×`;
+        } else {
+          const step = Math.abs(parseFloat(input.step || '1'));
+          let decimals = 0;
+          if(step && step < 1){
+            if(step < 0.001){
+              decimals = 4;
+            } else if(step < 0.01){
+              decimals = 3;
+            } else if(step < 0.1){
+              decimals = 2;
+            } else {
+              decimals = 1;
+            }
+          }
+          label.textContent = parseFloat(input.value).toFixed(decimals);
+        }
+        handler(input.value);
+        updateStats();
+      };
+      input.addEventListener('input', update);
+      update();
+    });
+
+    document.getElementById('btnToggleTraining').addEventListener('click', ()=>{
+      training = !training;
+      document.getElementById('btnToggleTraining').textContent = training ? 'Pause training' : 'Start training';
+    });
+
+    document.getElementById('btnReset').addEventListener('click', ()=>{
+      training = false;
+      document.getElementById('btnToggleTraining').textContent = 'Start training';
+      qAgent.reset();
+      dqnAgent.reset();
+      episodes = 0;
+      rewardHistory = [];
+      resetEnvironment('left');
+      updateStats();
+      renderChart();
+    });
+
+    updateStats();
+    renderChart();
+
+    function loop(){
+      requestAnimationFrame(loop);
+      for(let i=0;i<simSpeed;i++){
+        if(training){
+          simulateStep();
+        }
+      }
+      drawScene();
+    }
+
+    loop();
+  </script>
+</body>
+</html>
