@@ -1007,7 +1007,8 @@ class Terrain {
         const roll = Math.random();
 
         if (roll < 0.3) {
-            nextX += 100 + Math.random() * 50;
+            const preObstacleGap = 90 + Math.random() * 160 + Math.random() * 140;
+            nextX += preObstacleGap;
             const groundYAtObstacleStart = this.getGroundY(nextX);
 
             const obsHeight = (30 + Math.random() * 80) * config.obstacleHeight + progressFactor * 100;
@@ -1023,7 +1024,12 @@ class Terrain {
                 index: this.obstacleIndex++
             });
 
-            nextX += obsWidth + 150 + Math.random() * 100;
+            let postObstacleGap = obsWidth + 180 + Math.random() * 220;
+            if (Math.random() < 0.35) {
+                postObstacleGap += 120 + Math.random() * 250;
+            }
+
+            nextX += postObstacleGap;
             this.surfacePoints.push({ x: nextX, y: groundYAtObstacleStart, type: 'Flat' });
         } else if (roll < 0.65) {
             nextX += 50 + Math.random() * 50;
@@ -1037,9 +1043,10 @@ class Terrain {
 
             this.surfacePoints.push({ x: nextX, y: nextY, type: uphill ? 'Uphill' : 'Downhill' });
         } else {
-            nextX += 120 + Math.random() * 60;
-            const holeWidth = 80 + Math.random() * 80 + progressFactor * 50;
-            const flatLength = 120 + Math.random() * 80;
+            const preHoleGap = 140 + Math.random() * 220;
+            nextX += preHoleGap;
+            const holeWidth = 80 + Math.random() * 110 + progressFactor * 60;
+            let flatLength = 160 + Math.random() * 240;
 
             this.surfacePoints.push({ x: nextX, y: baseGroundY, type: 'Flat' });
 
@@ -1054,12 +1061,17 @@ class Terrain {
                 ground: baseGroundY
             });
 
+            if (Math.random() < 0.4) {
+                flatLength += 120 + Math.random() * 220;
+            }
+
             nextX += flatLength;
             this.surfacePoints.push({ x: nextX, y: baseGroundY, type: 'Flat' });
             this.obstacleIndex++;
         }
 
-        this.nextSegmentX = nextX + 120;
+        const trailingBuffer = 120 + Math.random() * 120;
+        this.nextSegmentX = nextX + trailingBuffer;
     }
 
     generate() {
