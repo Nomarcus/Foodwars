@@ -133,8 +133,8 @@
             <div class="value" id="bestEver">0</div>
           </div>
           <div class="stat-box">
-            <div class="label">Best Obstacles</div>
-            <div class="value" id="bestObstacles">0</div>
+            <div class="label">Longest Distance</div>
+            <div class="value" id="bestDistance">0</div>
           </div>
           <div class="stat-box">
             <div class="label">Current Best</div>
@@ -260,6 +260,9 @@
   </main>
 
   <script>
+// ============= HELPERS =============
+const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+
 // ============= CONFIG =============
 const config = {
     populationSize: 30,
@@ -311,8 +314,8 @@ function triggerScreenShake(amount) {
 class Genome {
     constructor() {
         this.weights = [];
-        // 24 sensors -> hidden layer -> 3 outputs (jump, accelerate, brake)
-        this.inputSize = 24;
+        // 24 sensor directions with dual-channel data -> hidden layer -> 3 outputs (jump, accelerate, brake)
+        this.inputSize = 48;
         this.hiddenSize = 16;
         this.outputSize = 3;
         
@@ -379,7 +382,7 @@ class Population {
         this.bestFitness = 0;
         this.bestGenome = null;
         this.history = [];
-        this.bestObstaclesEver = 0; // Track best obstacle count
+        this.longestDistance = 0; // Track best distance ever
     }
     
     evolve() {
@@ -393,12 +396,9 @@ class Population {
         if (best > this.bestFitness) {
             this.bestFitness = best;
             this.bestGenome = this.genomes[0];
-            // Update record for obstacles cleared
-            const bestBall = balls.find(b => b.genome === this.bestGenome);
-            if (bestBall) {
-                this.bestObstaclesEver = Math.max(this.bestObstaclesEver, bestBall.obstaclesCleared);
-            }
         }
+
+        this.longestDistance = Math.max(this.longestDistance, best);
         
         const newGenomes = [];
         const eliteCount = Math.floor(config.elitism * this.genomes.length);
@@ -539,8 +539,13 @@ class Ball {
         // Track obstacle stats and sensor history
         this.obstaclesCleared = 0;
         this.lastObstacleIndex = -1;
-        this.lastInputs = new Array(24).fill(0);
-        this.lastSensorMeta = Array.from({ length: 24 }, () => ({ distance: config.sensorLength, type: 'None' }));
+        this.lastInputs = new Array(this.genome.inputSize).fill(0);
+        this.lastSensorMeta = Array.from({ length: 24 }, () => ({
+            distance: config.sensorLength,
+            landingDistance: config.sensorLength,
+            holeWidth: 0,
+            type: 'None'
+        }));
         this.onGround = false;
     }
 
@@ -550,7 +555,7 @@ class Ball {
         for (let i = 0; i < 24; i++) {
             angles.push(i * 15);
         }
-        
+
         const rayLength = config.sensorLength;
         const sensors = [];
         const sensorMeta = [];
@@ -560,9 +565,9 @@ class Ball {
             const dx = Math.cos(rad);
             const dy = Math.sin(rad);
 
-            let hitDist = rayLength;
-            let hitType = 'None';
-            let holeDist = null;
+            let solidDist = rayLength;
+            let solidType = 'None';
+            let holeStart = null;
             const coarseStep = 15;
 
             for (let dist = coarseStep; dist <= rayLength; dist += coarseStep) {
@@ -571,8 +576,8 @@ class Ball {
                 const surface = terrain.getSurfaceInfo(checkX);
 
                 if (surface.type === 'Hole') {
-                    if (holeDist === null) {
-                        holeDist = dist;
+                    if (holeStart === null) {
+                        holeStart = dist;
                     }
                     continue;
                 }
@@ -597,20 +602,39 @@ class Ball {
                         }
                     }
 
-                    hitDist = high;
-                    hitType = resolvedType;
+                    solidDist = high;
+                    solidType = resolvedType;
                     break;
                 }
             }
 
-            if (holeDist !== null && (hitType === 'None' || holeDist < hitDist)) {
-                const normalizedHole = 1 - (holeDist / rayLength);
-                sensors.push(-normalizedHole);
-                sensorMeta.push({ distance: holeDist, type: 'Hole' });
-            } else {
-                sensors.push(1.0 - (hitDist / rayLength));
-                sensorMeta.push({ distance: hitDist, type: hitType });
+            let eventDist = solidDist;
+            let landingDist = solidDist;
+            let holeWidth = 0;
+            let eventType = solidType;
+
+            if (holeStart !== null) {
+                eventDist = holeStart;
+                landingDist = solidType === 'None' ? rayLength : solidDist;
+                holeWidth = Math.max(0, landingDist - holeStart);
+                eventType = 'Hole';
             }
+
+            const normalizedEvent = holeStart !== null || solidType !== 'None'
+                ? clamp(1 - (eventDist / rayLength), 0, 1)
+                : 0;
+            const normalizedWidth = clamp(holeWidth / rayLength, 0, 1);
+
+            const primaryValue = holeStart !== null ? -normalizedEvent : normalizedEvent;
+            sensors.push(primaryValue); // Channel A: nearest surface or hole start (negative = hole)
+            sensors.push(normalizedWidth); // Channel B: normalized hole width (0 when none)
+
+            sensorMeta.push({
+                distance: eventDist,
+                landingDistance: landingDist,
+                holeWidth,
+                type: eventType
+            });
         }
 
         this.lastInputs = sensors;
@@ -781,8 +805,8 @@ class Ball {
         }
         
         this.distance = Math.max(this.distance, this.x);
-        // Updated fitness function
-        this.genome.fitness = this.distance + (this.obstaclesCleared * 150); // Bonus for each cleared obstacle
+        // Updated fitness function: reward pure distance travelled
+        this.genome.fitness = this.distance;
     }
     
     draw(ctx, cameraX) {
@@ -881,9 +905,10 @@ class Ball {
 
             const reading = this.lastSensorMeta && this.lastSensorMeta[i]
                 ? this.lastSensorMeta[i]
-                : { distance: rayLength, type: 'None' };
+                : { distance: rayLength, landingDistance: rayLength, holeWidth: 0, type: 'None' };
 
-            const clampedDist = Math.min(reading.distance, rayLength);
+            const targetDist = reading.type === 'Hole' ? reading.landingDistance : reading.distance;
+            const clampedDist = Math.min(targetDist, rayLength);
             const endX = screenX + dx * clampedDist * config.zoom;
             const endY = screenY + dy * clampedDist * config.zoom;
 
@@ -928,6 +953,31 @@ class Ball {
             ctx.arc(endX, endY, reading.type === 'Hole' ? 4 : 3, 0, Math.PI * 2);
             ctx.fill();
             ctx.shadowBlur = 0;
+
+            if (reading.type === 'Hole') {
+                const startDist = Math.min(reading.distance, rayLength);
+                const startX = screenX + dx * startDist * config.zoom;
+                const startY = screenY + dy * startDist * config.zoom;
+
+                ctx.fillStyle = `rgba(56, 189, 248, ${0.7 * pulse})`;
+                ctx.beginPath();
+                ctx.arc(startX, startY, 3, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.strokeStyle = 'rgba(56, 189, 248, 0.4)';
+                ctx.setLineDash([4, 6]);
+                ctx.beginPath();
+                ctx.moveTo(startX, startY);
+                ctx.lineTo(endX, endY);
+                ctx.stroke();
+                ctx.setLineDash([]);
+
+                if (reading.holeWidth > 0 && Number.isFinite(reading.holeWidth)) {
+                    ctx.fillStyle = 'rgba(56, 189, 248, 0.45)';
+                    ctx.font = '10px Inter';
+                    ctx.fillText(reading.holeWidth.toFixed(0) + 'px', startX + 6, startY + 12);
+                }
+            }
         }
     }
 }
@@ -1643,7 +1693,7 @@ function updatePhysics(dt) {
     document.getElementById('generation').textContent = population.generation;
     document.getElementById('alive').textContent = alive;
     document.getElementById('bestEver').textContent = Math.floor(population.bestFitness);
-    document.getElementById('bestObstacles').textContent = population.bestObstaclesEver;
+    document.getElementById('bestDistance').textContent = Math.floor(population.longestDistance);
     document.getElementById('bestNow').textContent = Math.floor(bestNow);
     document.getElementById('average').textContent = alive > 0 ? Math.floor(totalDist / alive) : 0;
 }
