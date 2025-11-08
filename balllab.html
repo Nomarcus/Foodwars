@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="sv">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>BallLab – NEAT Studsboll</title>
+  <title>BallLab – NEAT Bouncing Ball Lab</title>
   <style>
     :root {
       --bg1:#050516;
@@ -61,6 +61,10 @@
     .stat-box .label{font-size:12px; text-transform:uppercase; letter-spacing:.12em; color:var(--muted);}
     .stat-box .value{font-size:28px; font-weight:700; letter-spacing:.02em; background:linear-gradient(135deg, var(--accent) 0%, var(--accent-hot) 100%); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text;}
 
+    .insight-panels{display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:20px; margin-top:18px;}
+    .insight-panel{background:var(--panel); border:1px solid rgba(148,163,209,.24); padding:22px; border-radius:22px; backdrop-filter:blur(16px); box-shadow:0 18px 45px rgba(5,7,24,.55);}
+    .insight-panel h3{margin:0 0 14px; font-size:15px; text-transform:uppercase; letter-spacing:.08em; color:var(--accent);}
+
     .side-panel{width:380px; flex:0 1 380px; display:flex; flex-direction:column; gap:20px;}
     .panel-section{background:var(--panel); border:1px solid rgba(148,163,209,.24); padding:22px; border-radius:22px; backdrop-filter:blur(16px); box-shadow:0 18px 45px rgba(5,7,24,.55);}
     .panel-section h3{margin:0 0 14px; font-size:15px; text-transform:uppercase; letter-spacing:.08em; color:var(--accent);}
@@ -103,9 +107,9 @@
   <header class="main-nav">
     <div class="brand"><span class="brand-dot"></span>BallLab NEAT Arena</div>
     <nav class="nav-links" aria-label="Primary navigation">
-      <a class="pill-link" href="index.html">Food arena</a>
-      <a class="pill-link" href="volleyball.html">Volley lab</a>
-      <a class="pill-link" href="learn-neat.html">How NEAT works</a>
+      <a class="pill-link" href="index.html">Food Arena</a>
+      <a class="pill-link" href="volleyball.html">Volley Lab</a>
+      <a class="pill-link" href="learn-neat.html">How NEAT Works</a>
       <a class="pill-link secondary" href="balllab.html" aria-current="page">BallLab</a>
     </nav>
   </header>
@@ -121,42 +125,53 @@
             <div class="value" id="generation">1</div>
           </div>
           <div class="stat-box">
-            <div class="label">Levande</div>
+          <div class="label">Alive</div>
             <div class="value" id="alive">0</div>
           </div>
           <div class="stat-box">
-            <div class="label">Bästa Fitness</div>
+            <div class="label">Best Fitness</div>
             <div class="value" id="bestEver">0</div>
           </div>
           <div class="stat-box">
-            <div class="label">Bästa Hinder</div>
+            <div class="label">Best Obstacles</div>
             <div class="value" id="bestObstacles">0</div>
           </div>
           <div class="stat-box">
-            <div class="label">Bästa Nu</div>
+            <div class="label">Current Best</div>
             <div class="value" id="bestNow">0</div>
           </div>
           <div class="stat-box">
-            <div class="label">Genomsnitt Nu</div>
+            <div class="label">Current Average</div>
             <div class="value" id="average">0</div>
           </div>
+        </div>
+        <div class="insight-panels">
+          <section class="insight-panel">
+            <h3>🧠 Neural Network (Top Agent)</h3>
+            <canvas id="nnCanvas" width="300" height="180"></canvas>
+          </section>
+          <section class="insight-panel">
+            <h3>📊 Training History</h3>
+            <div class="chart" id="chart"></div>
+          </section>
         </div>
       </section>
       <aside class="side-panel">
         <section class="panel-section">
-          <h3>🎮 Kontroller</h3>
-          <button onclick="resetGeneration()">🔄 Ny Generation</button>
-          <button onclick="togglePause()">⏯️ Pausa/Fortsätt</button>
-          <button onclick="showBestOnly()">⭐ Visa Bara Bästa</button>
-          <button onclick="saveBest()">💾 Spara Bästa AI</button>
-          <button onclick="loadBest()">📂 Ladda Sparad AI</button>
+          <h3>🎮 Controls</h3>
+          <button onclick="resetGeneration()">🔄 New Generation</button>
+          <button onclick="togglePause()">⏯️ Pause / Resume</button>
+          <button onclick="showBestOnly()">⭐ Toggle Best Only</button>
+          <button onclick="saveBest()">💾 Save Best to File</button>
+          <button onclick="loadBest()">📂 Load Best from File</button>
+          <input type="file" id="fileLoader" accept="application/json" style="display:none">
           <div id="saveStatus"></div>
         </section>
 
         <section class="panel-section">
-          <h3>⚡ Simulering</h3>
+          <h3>⚡ Simulation</h3>
           <div class="control-group">
-            <label>Hastighet <span class="value-display" id="speedVal">1.0x</span></label>
+            <label>Speed <span class="value-display" id="speedVal">1.0x</span></label>
             <input type="range" id="speed" min="0.1" max="5" step="0.1" value="1">
           </div>
           <div class="control-group">
@@ -168,59 +183,59 @@
             <input type="range" id="progressTimeout" min="2" max="15" step="1" value="5">
           </div>
           <div class="control-group">
-            <label>Sensorlängd <span class="value-display" id="sensorLengthVal">150</span></label>
+            <label>Sensor Length <span class="value-display" id="sensorLengthVal">150</span></label>
             <input type="range" id="sensorLength" min="50" max="500" step="10" value="150">
           </div>
           <div class="control-group">
-            <label>Visa Sensorer <span class="value-display" id="sensorsVal">Ja</span></label>
+            <label>Show Sensors <span class="value-display" id="sensorsVal">Yes</span></label>
             <input type="range" id="showSensors" min="0" max="1" step="1" value="1">
           </div>
         </section>
 
         <section class="panel-section">
-          <h3>🌍 Bana (Dynamisk)</h3>
+          <h3>🌍 Track (Dynamic)</h3>
           <div class="control-group">
-            <label>Backeffekt <span class="value-display" id="slopeEffectVal">0.3</span></label>
+            <label>Slope Assist <span class="value-display" id="slopeEffectVal">0.3</span></label>
             <input type="range" id="slopeEffect" min="0" max="1" step="0.05" value="0.3">
           </div>
           <div class="control-group">
-            <label>Svårighetstillväxt <span class="value-display" id="difficultyGrowthVal">1.0x</span></label>
+            <label>Difficulty Growth <span class="value-display" id="difficultyGrowthVal">1.0x</span></label>
             <input type="range" id="difficultyGrowth" min="0.3" max="2" step="0.1" value="1">
           </div>
           <div class="control-group">
-            <label>Hinderhöjd <span class="value-display" id="obstacleHeightVal">1.0x</span></label>
+            <label>Obstacle Height <span class="value-display" id="obstacleHeightVal">1.0x</span></label>
             <input type="range" id="obstacleHeight" min="0.3" max="2" step="0.1" value="1">
           </div>
           <div class="control-group">
-            <label>Första Hinder Vid <span class="value-display" id="firstObstacleVal">800</span></label>
+            <label>First Obstacle At <span class="value-display" id="firstObstacleVal">800</span></label>
             <input type="range" id="firstObstacle" min="300" max="1500" step="50" value="800">
           </div>
         </section>
 
         <section class="panel-section">
-          <h3>⚙️ Fysik</h3>
+          <h3>⚙️ Physics</h3>
           <div class="control-group">
-            <label>Bollstorlek <span class="value-display" id="ballSizeVal">12</span></label>
+            <label>Ball Size <span class="value-display" id="ballSizeVal">12</span></label>
             <input type="range" id="ballSize" min="8" max="20" step="1" value="12">
           </div>
           <div class="control-group">
-            <label>Gravitation <span class="value-display" id="gravityVal">0.5</span></label>
+            <label>Gravity <span class="value-display" id="gravityVal">0.5</span></label>
             <input type="range" id="gravity" min="0.1" max="1" step="0.05" value="0.5">
           </div>
           <div class="control-group">
-            <label>Studskraft <span class="value-display" id="bounceVal">0.6</span></label>
+            <label>Bounciness <span class="value-display" id="bounceVal">0.6</span></label>
             <input type="range" id="bounce" min="0" max="1" step="0.05" value="0.6">
           </div>
           <div class="control-group">
-            <label>Hopphöjd (Max) <span class="value-display" id="jumpVal">12</span></label>
+            <label>Jump Height (Max) <span class="value-display" id="jumpVal">12</span></label>
             <input type="range" id="jumpPower" min="5" max="20" step="0.5" value="12">
           </div>
           <div class="control-group">
-            <label>Friktion <span class="value-display" id="frictionVal">0.98</span></label>
+            <label>Friction <span class="value-display" id="frictionVal">0.98</span></label>
             <input type="range" id="friction" min="0.9" max="0.99" step="0.01" value="0.98">
           </div>
           <div class="control-group">
-            <label>Max Hastighet <span class="value-display" id="maxSpeedVal">8</span></label>
+            <label>Max Speed <span class="value-display" id="maxSpeedVal">8</span></label>
             <input type="range" id="maxSpeed" min="3" max="15" step="0.5" value="8">
           </div>
         </section>
@@ -239,16 +254,6 @@
             <label>Elite % <span class="value-display" id="eliteVal">20%</span></label>
             <input type="range" id="elitism" min="0" max="0.5" step="0.05" value="0.2">
           </div>
-        </section>
-
-        <section class="panel-section">
-          <h3>🧠 AI-Hjärna (Bästa Nu)</h3>
-          <canvas id="nnCanvas" width="300" height="180"></canvas>
-        </section>
-
-        <section class="panel-section">
-          <h3>📊 Historik</h3>
-          <div class="chart" id="chart"></div>
         </section>
       </aside>
     </div>
@@ -282,12 +287,12 @@ let showOnlyBest = false;
 let lastProgressTime = 0;
 let lastBestDistance = 0;
 
-// NYTT: För fixed timestep
-const FIXED_DT = 1 / 60; // Kör fysiken i 60hz
+// Fixed timestep accumulator
+const FIXED_DT = 1 / 60; // Run physics at 60 Hz
 let lastTime = 0;
 let accumulator = 0;
 
-// NYTT: För fjädrande kamera
+// Spring-based camera follow
 let camera = {
     x: 0,
     vx: 0,
@@ -295,18 +300,18 @@ let camera = {
     damping: 0.8
 };
 
-// NYTT: För screen shake
+// Screen shake intensity controller
 let screenShake = 0;
 function triggerScreenShake(amount) {
     screenShake = Math.max(screenShake, amount);
 }
 
 // ============= NEAT IMPLEMENTATION =============
-// ... (Din NEAT-kod (Genome, Population) är perfekt. Den klistras in här oförändrad) ...
+// Original NEAT implementation retained
 class Genome {
     constructor() {
         this.weights = [];
-        // 24 sensorer -> hidden layer -> 3 outputs (hoppa, gasa, bromsa)
+        // 24 sensors -> hidden layer -> 3 outputs (jump, accelerate, brake)
         this.inputSize = 24;
         this.hiddenSize = 16;
         this.outputSize = 3;
@@ -346,10 +351,10 @@ class Genome {
         for (let i = 0; i < this.weights.length; i++) {
             if (Math.random() < rate) {
                 if (Math.random() < 0.1) {
-                    this.weights[i] = Math.random() * 2 - 1; // Helt nytt värde
+                    this.weights[i] = Math.random() * 2 - 1; // Replace weight entirely
                 } else {
-                    this.weights[i] += (Math.random() - 0.5) * 0.5; // Justera lite
-                    this.weights[i] = Math.max(-2, Math.min(2, this.weights[i])); // Kläm fast värdet
+                    this.weights[i] += (Math.random() - 0.5) * 0.5; // Slightly perturb weight
+                    this.weights[i] = Math.max(-2, Math.min(2, this.weights[i])); // Clamp weight
                 }
             }
         }
@@ -374,7 +379,7 @@ class Population {
         this.bestFitness = 0;
         this.bestGenome = null;
         this.history = [];
-        this.bestObstaclesEver = 0; // NYTT: För fitness
+        this.bestObstaclesEver = 0; // Track best obstacle count
     }
     
     evolve() {
@@ -388,7 +393,7 @@ class Population {
         if (best > this.bestFitness) {
             this.bestFitness = best;
             this.bestGenome = this.genomes[0];
-            // NYTT: Uppdatera bästa hinder klarade
+            // Update record for obstacles cleared
             const bestBall = balls.find(b => b.genome === this.bestGenome);
             if (bestBall) {
                 this.bestObstaclesEver = Math.max(this.bestObstaclesEver, bestBall.obstaclesCleared);
@@ -428,7 +433,7 @@ class Population {
     }
 }
 
-// ============= NYTT: PARTIKEL-POOL =============
+// ============= PARTICLE POOL =============
 class Particle {
     constructor() {
         this.isAlive = false;
@@ -500,7 +505,7 @@ function spawnParticles(x, y, color, count = 5, baseSpeed = 2) {
             Math.cos(angle) * speed,
             Math.sin(angle) * speed,
             color,
-            0.5 + Math.random() * 0.5 // livslängd i sekunder
+            0.5 + Math.random() * 0.5 // lifespan in seconds
         );
         
         nextParticleIndex = (nextParticleIndex + 1) % MAX_PARTICLES;
@@ -527,11 +532,11 @@ class Ball {
         this.distance = 0;
         this.radius = config.ballSize;
         
-        // NYTT: För S&S
+        // Squash and stretch state
         this.squash = 1.0;
         this.stretch = 1.0;
         
-        // NYTT: För fitness & AI-visualisering
+        // Track obstacle stats and sensor history
         this.obstaclesCleared = 0;
         this.lastObstacleIndex = -1;
         this.lastInputs = new Array(24).fill(0);
@@ -539,7 +544,7 @@ class Ball {
         this.onGround = false;
     }
 
-    // NYTT: OPTIMERAD SENSORFUNKTION
+    // Optimized sensor sampling
     getSensors(terrain) {
         const angles = [];
         for (let i = 0; i < 24; i++) {
@@ -630,6 +635,8 @@ class Ball {
         this.vy += config.gravity * dt * 60;
 
         const surface = terrain.getSurfaceInfo(this.x);
+        const holeInfo = terrain.getHoleAt(this.x);
+        const insideHole = !!(holeInfo && this.x >= holeInfo.start && this.x <= holeInfo.end);
         const terrainY = surface.type === 'Hole' ? Infinity : surface.height;
         const slopeAngle = surface.slope || 0;
         const wasOnGround = this.onGround;
@@ -664,6 +671,10 @@ class Ball {
         this.squash += (1 - this.squash) * 0.1;
         this.stretch += (1 - this.stretch) * 0.1;
 
+        if (insideHole && this.y - this.radius > (holeInfo.ground - 2) && this.vy < 0) {
+            this.vy *= 0.3;
+        }
+
         if (accelerate > 0.2) {
             this.vx += accelerate * 0.3 * dt * 60;
             if (accelerate > 0.8 && Math.random() < 0.3) {
@@ -684,9 +695,30 @@ class Ball {
 
         this.rotation += this.vx * 0.03;
 
-        if (surface.type === 'Hole' && this.y - this.radius > 620) {
+        const activeHole = terrain.getHoleAt(this.x);
+        const currentlyInHole = !!(activeHole && this.x >= activeHole.start && this.x <= activeHole.end);
+
+        if (currentlyInHole) {
+            const leftLimit = activeHole.start + this.radius * 0.6;
+            const rightLimit = activeHole.end - this.radius * 0.6;
+
+            if (this.x < leftLimit) {
+                this.x = leftLimit;
+                if (this.vx < 0) this.vx *= -0.2;
+            }
+            if (this.x > rightLimit) {
+                this.x = rightLimit;
+                if (this.vx > 0) this.vx *= -0.2;
+            }
+
+            if (this.y - this.radius > activeHole.ground + this.radius * 0.5) {
+                this.vy = Math.max(this.vy, 1.5);
+            }
+        }
+
+        if (currentlyInHole && this.y - this.radius > activeHole.ground + 120) {
             this.alive = false;
-            spawnParticles(this.x, 600, `hsla(0, 50%, 30%, 1)`, 15, 3);
+            spawnParticles(this.x, activeHole.ground + 100, `hsla(0, 50%, 30%, 1)`, 15, 3);
             triggerScreenShake(10);
             return;
         }
@@ -725,14 +757,14 @@ class Ball {
                 }
             }
             
-            // NYTT: Fitness-logik för att klara hinder
+            // Fitness logic for clearing obstacles
             if (obs.index > this.lastObstacleIndex && this.x > obs.x + obs.width) {
                 this.obstaclesCleared++;
                 this.lastObstacleIndex = obs.index;
             }
 
         } else {
-            // Kolla om vi passerat hinder som vi var på väg mot
+            // Detect if we have fully passed the tracked obstacle
             const lastObs = terrain.getLastObstacleBefore(this.x);
             if (lastObs && lastObs.index > this.lastObstacleIndex) {
                  this.obstaclesCleared++;
@@ -741,8 +773,8 @@ class Ball {
         }
         
         this.distance = Math.max(this.distance, this.x);
-        // NYTT: Uppdaterad fitness-funktion
-        this.genome.fitness = this.distance + (this.obstaclesCleared * 150); // Ge 150p per hinder
+        // Updated fitness function
+        this.genome.fitness = this.distance + (this.obstaclesCleared * 150); // Bonus for each cleared obstacle
     }
     
     draw(ctx, cameraX) {
@@ -757,16 +789,16 @@ class Ball {
         ctx.save();
         ctx.translate(screenX, screenY);
         
-        // NYTT: Applicera Squash & Stretch
+        // Apply squash & stretch
         ctx.scale(this.squash, this.stretch);
 
-        // ... (Resten av din 'draw'-funktion är densamma) ...
+        // Drawing routine continues
         // Enhanced shadow with blur
         ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
         ctx.shadowBlur = 8;
         ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
         ctx.beginPath();
-        // Skuggan ska inte S&S, så vi skalar emot det
+        // Keep the shadow from stretching
         ctx.ellipse(0, r * 1.5 / this.stretch, r * 0.9 / this.squash, r * 0.35 / this.stretch, 0, 0, Math.PI * 2);
         ctx.fill();
         ctx.shadowBlur = 0;
@@ -819,7 +851,7 @@ class Ball {
         ctx.restore();
     }
     
-    // NYTT: Sensor-ritning använder nu den optimerade metoden
+    // Sensor rendering uses cached readings
     drawSensors(ctx, cameraX, terrain) {
         if (!this.alive || !config.showSensors) return;
         
@@ -898,6 +930,7 @@ class Terrain {
         this.surfacePoints = [];
         this.nextSegmentX = config.firstObstacle;
         this.obstacleIndex = 0;
+        this.holes = [];
         this.generate();
     }
 
@@ -1002,8 +1035,16 @@ class Terrain {
 
             this.surfacePoints.push({ x: nextX, y: baseGroundY, type: 'Flat' });
 
+            const holeStart = nextX;
+
             nextX += holeWidth;
             this.surfacePoints.push({ x: nextX, y: baseGroundY, type: 'Hole' });
+
+            this.holes.push({
+                start: holeStart,
+                end: nextX,
+                ground: baseGroundY
+            });
 
             nextX += flatLength;
             this.surfacePoints.push({ x: nextX, y: baseGroundY, type: 'Flat' });
@@ -1018,6 +1059,7 @@ class Terrain {
         this.surfacePoints = [{ x: 0, y: 500, type: 'Flat' }];
         this.nextSegmentX = config.firstObstacle;
         this.obstacleIndex = 0;
+        this.holes = [];
 
         this.surfacePoints.push({ x: config.firstObstacle, y: 500, type: 'Flat' });
 
@@ -1033,6 +1075,7 @@ class Terrain {
 
         this.obstacles = this.obstacles.filter(obs => obs.x + obs.width > leadX - 800);
         this.surfacePoints = this.surfacePoints.filter(p => p.x > leadX - 1200);
+        this.holes = this.holes.filter(hole => hole.end > leadX - 1200);
 
         if (this.surfacePoints.length && this.surfacePoints[0].x > leadX - 1200) {
             const x = leadX - 1200;
@@ -1078,6 +1121,28 @@ class Terrain {
             }
         }
         return candidate;
+    }
+
+    getHoleAt(x) {
+        let low = 0;
+        let high = this.holes.length - 1;
+        let candidate = null;
+
+        while (low <= high) {
+            const mid = Math.floor((low + high) / 2);
+            const hole = this.holes[mid];
+            if (hole.start <= x) {
+                candidate = hole;
+                low = mid + 1;
+            } else {
+                high = mid - 1;
+            }
+        }
+
+        if (candidate && x <= candidate.end) {
+            return candidate;
+        }
+        return null;
     }
 
     draw(ctx, cameraX) {
@@ -1202,7 +1267,7 @@ class Terrain {
 const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d');
 
-// NYTT: Canvas för AI-hjärnan
+// Neural network canvas
 const nnCanvas = document.getElementById('nnCanvas');
 const nnCtx = nnCanvas.getContext('2d');
 const fileLoader = document.getElementById('fileLoader');
@@ -1213,14 +1278,14 @@ let balls = population.genomes.map(g => new Ball(g));
 let bestBall = null;
 
 // ============= KONTROLLER =============
-// ... (Din 'setupControls' är densamma) ...
+// Wire up slider controls
 function setupControls() {
     const sliders = {
         speed: { display: 'speedVal', format: v => v.toFixed(1) + 'x' },
         zoom: { display: 'zoomVal', format: v => v.toFixed(1) + 'x' },
         progressTimeout: { display: 'timeoutVal', format: v => v.toFixed(0) + 's' },
         sensorLength: { display: 'sensorLengthVal', format: v => v.toFixed(0) },
-        showSensors: { display: 'sensorsVal', format: v => v === 1 ? 'Ja' : 'Nej', boolean: true },
+        showSensors: { display: 'sensorsVal', format: v => v === 1 ? 'Yes' : 'No', boolean: true },
         slopeEffect: { display: 'slopeEffectVal', format: v => v.toFixed(2) },
         difficultyGrowth: { display: 'difficultyGrowthVal', format: v => v.toFixed(1) + 'x', regenerate: true },
         obstacleHeight: { display: 'obstacleHeightVal', format: v => v.toFixed(1) + 'x', regenerate: true },
@@ -1278,11 +1343,11 @@ function resetGeneration() {
     updateChart();
 }
 
-// ... (Resten av dina kontroller är desamma) ...
+// Remaining control helpers
 function togglePause() {
     paused = !paused;
     if (!paused) {
-        lastTime = performance.now(); // Förhindra massiv dt-hopp
+        lastTime = performance.now(); // Avoid huge dt spikes
         requestAnimationFrame(gameLoop); // Starta loopen igen
     }
 }
@@ -1298,63 +1363,7 @@ function showBestOnly() {
 function saveBest() {
     const saveStatus = document.getElementById('saveStatus');
     if (!population.bestGenome) {
-        saveStatus.textContent = '❌ Ingen bästa AI att spara än';
-        saveStatus.style.color = '#ff6b6b';
-        return;
-    }
-    
-    try {
-        const saveData = {
-            weights: population.bestGenome.weights,
-            fitness: population.bestFitness,
-            generation: population.generation,
-            timestamp: new Date().toISOString()
-        };
-        
-        localStorage.setItem('neatBallBest', JSON.stringify(saveData));
-        saveStatus.textContent = '✅ Sparad! Fitness: ' + Math.floor(population.bestFitness);
-        saveStatus.style.color = '#4ade80';
-    } catch (err) {
-        saveStatus.textContent = '❌ Kunde inte spara: ' + err.message;
-        saveStatus.style.color = '#ff6b6b';
-    }
-}
-function loadBest() {
-    const saveStatus = document.getElementById('saveStatus');
-    const savedData = localStorage.getItem('neatBallBest');
-
-    if (!savedData) {
-        saveStatus.textContent = '❌ Ingen sparad AI hittades';
-        saveStatus.style.color = '#ff6b6b';
-        return;
-    }
-    
-    try {
-        const data = JSON.parse(savedData);
-        
-        const genome = new Genome();
-        genome.weights = data.weights;
-        genome.fitness = data.fitness;
-        
-        population.bestGenome = genome;
-        population.bestFitness = data.fitness;
-        
-        showOnlyBest = true;
-        balls = [new Ball(genome)];
-        balls[0].reset();
-        
-        const date = new Date(data.timestamp);
-        saveStatus.textContent = '✅ Laddad! Fitness: ' + Math.floor(data.fitness) + ' (Gen ' + data.generation + ')';
-        saveStatus.style.color = '#4ade80';
-    } catch (err) {
-        saveStatus.textContent = '❌ Kunde inte ladda: ' + err.message;
-        saveStatus.style.color = '#ff6b6b';
-    }
-}
-function downloadBest() {
-    const saveStatus = document.getElementById('saveStatus');
-    if (!population.bestGenome) {
-        saveStatus.textContent = '❌ Ingen bästa AI att exportera än';
+        saveStatus.textContent = '❌ No trained AI available yet.';
         saveStatus.style.color = '#ff6b6b';
         return;
     }
@@ -1385,14 +1394,14 @@ function downloadBest() {
         document.body.removeChild(anchor);
         URL.revokeObjectURL(url);
 
-        saveStatus.textContent = '✅ Export klar! Fil nerladdad.';
+        saveStatus.textContent = '✅ Exported best brain as JSON file.';
         saveStatus.style.color = '#4ade80';
     } catch (err) {
-        saveStatus.textContent = '❌ Kunde inte exportera: ' + err.message;
+        saveStatus.textContent = '❌ Failed to export: ' + err.message;
         saveStatus.style.color = '#ff6b6b';
     }
 }
-function triggerFileLoad() {
+function loadBest() {
     if (!fileLoader) return;
     fileLoader.value = '';
     fileLoader.click();
@@ -1409,7 +1418,7 @@ function handleFileLoad(event) {
         try {
             const data = JSON.parse(e.target.result);
             if (!data || !Array.isArray(data.weights)) {
-                throw new Error('Ogiltig AI-fil');
+                throw new Error('Invalid AI file');
             }
 
             const genome = new Genome();
@@ -1423,17 +1432,17 @@ function handleFileLoad(event) {
             balls = [new Ball(genome)];
             balls[0].reset();
 
-            const info = data.fitness ? `Fitness: ${Math.floor(data.fitness)}` : 'Ny AI laddad';
-            saveStatus.textContent = '✅ Importerad från fil! ' + info;
+            const info = data.fitness ? `Fitness: ${Math.floor(data.fitness)}` : 'Loaded new genome';
+            saveStatus.textContent = '✅ Loaded from file! ' + info;
             saveStatus.style.color = '#4ade80';
         } catch (err) {
-            saveStatus.textContent = '❌ Kunde inte importera: ' + err.message;
+            saveStatus.textContent = '❌ Failed to import: ' + err.message;
             saveStatus.style.color = '#ff6b6b';
         }
     };
     reader.onerror = () => {
-        const err = reader.error ? reader.error.message : 'Okänt fel';
-        saveStatus.textContent = '❌ Kunde inte läsa filen: ' + err;
+        const err = reader.error ? reader.error.message : 'Unknown error';
+        saveStatus.textContent = '❌ Could not read file: ' + err;
         saveStatus.style.color = '#ff6b6b';
     };
     reader.readAsText(file);
@@ -1454,7 +1463,7 @@ function updateChart() {
     }
 }
 
-// ============= NYTT: AI-VISUALISERING =============
+// ============= AI VISUALISATION =============
 function drawNN(ctx, genome, inputs, outputs) {
     ctx.clearRect(0, 0, nnCanvas.width, nnCanvas.height);
     if (!genome) return;
@@ -1468,10 +1477,10 @@ function drawNN(ctx, genome, inputs, outputs) {
     const hiddenX = w / 2;
     const outputX = w - 25;
 
-    // --- Rita vikter (linjer) ---
+    // --- Draw weight connections ---
     let w_idx = 0;
     
-    // Vikter: Input -> Hidden
+    // Weights: Input -> Hidden
     for (let i = 0; i < genome.inputSize; i++) {
         const inputY = layerMargin + (h - layerMargin*2) * (i / (genome.inputSize - 1));
         for (let j = 0; j < genome.hiddenSize; j++) {
@@ -1479,7 +1488,7 @@ function drawNN(ctx, genome, inputs, outputs) {
             const weight = genome.weights[w_idx++];
             
             const alpha = Math.min(Math.abs(weight) * 0.8, 0.8);
-            ctx.strokeStyle = weight > 0 ? `rgba(67, 160, 71, ${alpha})` : `rgba(229, 57, 53, ${alpha})`; // Grön / Röd
+            ctx.strokeStyle = weight > 0 ? `rgba(67, 160, 71, ${alpha})` : `rgba(229, 57, 53, ${alpha})`; // Green for positive, red for negative
             ctx.lineWidth = Math.min(Math.abs(weight) * 1.5, 2);
             
             ctx.beginPath();
@@ -1489,7 +1498,7 @@ function drawNN(ctx, genome, inputs, outputs) {
         }
     }
     
-    // Vikter: Hidden -> Output
+    // Weights: Hidden -> Output
     for (let i = 0; i < genome.hiddenSize; i++) {
         const hiddenY = layerMargin + (h - layerMargin*2) * (i / (genome.hiddenSize - 1));
         for (let j = 0; j < genome.outputSize; j++) {
@@ -1507,14 +1516,14 @@ function drawNN(ctx, genome, inputs, outputs) {
         }
     }
 
-    // --- Rita noder ---
+    // --- Draw nodes ---
     ctx.lineWidth = 1;
 
-    // Input-noder
+    // Input nodes
     for (let i = 0; i < genome.inputSize; i++) {
         const y = layerMargin + (h - layerMargin*2) * (i / (genome.inputSize - 1));
-        const activation = inputs ? inputs[i] : 0; // Värdet är 0-1
-        ctx.fillStyle = `rgba(255, 159, 67, ${0.2 + activation * 0.8})`; // Accentfärg
+        const activation = inputs ? inputs[i] : 0; // Value is normalized 0-1
+        ctx.fillStyle = `rgba(255, 159, 67, ${0.2 + activation * 0.8})`; // Accent colour
         ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
         ctx.beginPath();
         ctx.arc(inputX, y, nodeRadius, 0, Math.PI * 2);
@@ -1522,7 +1531,7 @@ function drawNN(ctx, genome, inputs, outputs) {
         ctx.stroke();
     }
     
-    // Hidden-noder (Kan ej visa aktivering enkelt utan att köra nätet igen)
+    // Hidden nodes (activations not tracked without recomputation)
     for (let i = 0; i < genome.hiddenSize; i++) {
         const y = layerMargin + (h - layerMargin*2) * (i / (genome.hiddenSize - 1));
         ctx.fillStyle = `rgba(100, 100, 100, 0.5)`;
@@ -1533,12 +1542,12 @@ function drawNN(ctx, genome, inputs, outputs) {
         ctx.stroke();
     }
     
-    // Output-noder
-    const outputLabels = ["Hopp", "Gasa", "Broms"];
+    // Output nodes
+    const outputLabels = ["Jump", "Accelerate", "Brake"];
     for (let i = 0; i < genome.outputSize; i++) {
         const y = layerMargin + (h - layerMargin*2) * (i / (genome.outputSize - 1));
-        const activation = outputs ? (outputs[i] + 1) / 2 : 0; // Värdet är -1 till 1
-        ctx.fillStyle = `rgba(245, 87, 108, ${0.2 + activation * 0.8})`; // Annan accentfärg
+        const activation = outputs ? (outputs[i] + 1) / 2 : 0; // Value spans -1 to 1
+        ctx.fillStyle = `rgba(245, 87, 108, ${0.2 + activation * 0.8})`; // Alternate accent colour
         ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
         ctx.beginPath();
         ctx.arc(outputX, y, nodeRadius + 1, 0, Math.PI * 2);
@@ -1552,9 +1561,9 @@ function drawNN(ctx, genome, inputs, outputs) {
 }
 
 
-// ============= NY: FYSIKLOOP =============
+// ============= PHYSICS LOOP =============
 function updatePhysics(dt) {
-    // Uppdatera partiklar
+    // Update particles
     for (const p of particlePool) {
         if (p.isAlive) {
             p.update(dt);
@@ -1578,21 +1587,21 @@ function updatePhysics(dt) {
             
             if (ball.genome.fitness > currentBestFitness) {
                 currentBestFitness = ball.genome.fitness;
-                bestBall = ball; // Spara den bästa bollen för NN-visualisering
+                bestBall = ball; // Remember best ball for NN visualisation
             }
         }
     }
     
     terrain.update(leadX);
     
-    // NYTT: Fjädrande kamera-logik
+    // Spring camera logic
     const targetX = leadX - 300;
     const accel = (targetX - camera.x) * camera.spring;
     camera.vx += accel;
     camera.vx *= camera.damping;
     camera.x += camera.vx;
 
-    // NYTT: Minska screen shake
+    // Decay screen shake
     screenShake *= 0.9;
     
     // Check progress
@@ -1610,7 +1619,7 @@ function updatePhysics(dt) {
         lastBestDistance = 0;
     }
     
-    // Uppdatera UI
+    // Update HUD
     document.getElementById('generation').textContent = population.generation;
     document.getElementById('alive').textContent = alive;
     document.getElementById('bestEver').textContent = Math.floor(population.bestFitness);
@@ -1619,11 +1628,11 @@ function updatePhysics(dt) {
     document.getElementById('average').textContent = alive > 0 ? Math.floor(totalDist / alive) : 0;
 }
 
-// ============= NY: RITLOOP =============
+// ============= RENDER LOOP =============
 function draw() {
-    ctx.save(); // Spara state för screen shake
+    ctx.save(); // Preserve state for screen shake
 
-    // NYTT: Applicera screen shake
+    // Apply screen shake
     const shakeX = (Math.random() - 0.5) * screenShake;
     const shakeY = (Math.random() - 0.5) * screenShake;
     ctx.translate(shakeX, shakeY);
@@ -1691,7 +1700,7 @@ function draw() {
     ctx.save();
     terrain.draw(ctx, camera.x);
     
-    // Rita partiklar
+    // Draw particles
     ctx.shadowBlur = 10;
     for (const p of particlePool) {
         if (p.isAlive) {
@@ -1701,12 +1710,12 @@ function draw() {
     }
     ctx.shadowBlur = 0;
     
-    // Rita sensorer
+    // Draw sensors
     for (const ball of balls) {
         ball.drawSensors(ctx, camera.x, terrain);
     }
     
-    // Rita bollar
+    // Draw balls
     for (const ball of balls) {
         ball.draw(ctx, camera.x);
     }
@@ -1720,11 +1729,14 @@ function draw() {
     for (let x = 0; x < canvas.width; x += 12) {
         const worldX = x / config.zoom + camera.x;
         const sway = Math.sin(time * 2 + worldX * 0.1) * 2;
-        const screenY = 500 * config.zoom;
-        ctx.beginPath();
-        ctx.moveTo(x, screenY);
-        ctx.lineTo(x + sway, screenY - 8);
-        ctx.stroke();
+        const groundY = terrain.getGroundY(worldX) * config.zoom;
+
+        if (groundY < canvas.height - 20) {
+            ctx.beginPath();
+            ctx.moveTo(x, groundY);
+            ctx.lineTo(x + sway, groundY - 8);
+            ctx.stroke();
+        }
     }
     
     // Info overlay
@@ -1739,40 +1751,40 @@ function draw() {
     ctx.strokeRect(10, 10, 220, 70);
     ctx.font = 'bold 14px Inter';
     ctx.fillStyle = '#ff9f43';
-    ctx.fillText('🏁 Oändlig Bana!', 20, 30);
+    ctx.fillText('🏁 Endless Course!', 20, 30);
     ctx.fillStyle = '#f5f7ff';
     ctx.font = '12px Inter';
-    ctx.fillText('Hinder genererade: ' + terrain.obstacleIndex, 20, 50);
-    ctx.fillText('Bästa fitness: ' + Math.floor(population.bestFitness), 20, 65);
+    ctx.fillText('Obstacles generated: ' + terrain.obstacleIndex, 20, 50);
+    ctx.fillText('Best fitness: ' + Math.floor(population.bestFitness), 20, 65);
     ctx.restore();
 
-    ctx.restore(); // Återställ från screen shake
+    ctx.restore(); // Restore after screen shake
 
-    // NYTT: Rita AI-hjärnan
+    // Draw neural network overlay
     if (bestBall) {
         drawNN(nnCtx, bestBall.genome, bestBall.lastInputs, bestBall.genome.activate(bestBall.lastInputs));
     } else {
-        drawNN(nnCtx, null, null, null); // Rensa canvas
+        drawNN(nnCtx, null, null, null); // Clear canvas
     }
 }
 
-// ============= HUVUDLOOP (OMSKRIVEN) =============
+// ============= MAIN LOOP =============
 
 function gameLoop(now) {
     if (paused) return;
 
-    const dt = Math.min((now - lastTime) / 1000, 0.1); // Delta time i sekunder
+    const dt = Math.min((now - lastTime) / 1000, 0.1); // Delta time in seconds
     lastTime = now;
     
     accumulator += dt * config.speed;
     
-    // Kör fysik-uppdateringar i fasta steg
+    // Step physics in fixed increments
     while (accumulator >= FIXED_DT) {
         updatePhysics(FIXED_DT);
         accumulator -= FIXED_DT;
     }
     
-    // Rita så ofta som möjligt
+    // Draw as often as possible
     draw();
     
     requestAnimationFrame(gameLoop);
@@ -1783,7 +1795,7 @@ if (fileLoader) {
     fileLoader.addEventListener('change', handleFileLoad);
 }
 setupControls();
-initParticlePool(); // NYTT: Initiera partikel-poolen
+initParticlePool(); // Initialize particle pool
 updateChart();
 lastTime = performance.now();
 lastProgressTime = performance.now() / 1000;
