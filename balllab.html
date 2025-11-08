@@ -260,6 +260,9 @@
   </main>
 
   <script>
+// ============= HELPERS =============
+const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+
 // ============= CONFIG =============
 const config = {
     populationSize: 30,
