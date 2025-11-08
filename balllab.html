@@ -1,0 +1,1805 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BallLab – NEAT Bouncing Ball Lab</title>
+  <style>
+    :root {
+      --bg1:#050516;
+      --bg2:#161b3f;
+      --panel:rgba(18,24,56,.82);
+      --ink:#f5f7ff;
+      --muted:#9aa7c2;
+      --accent:#ff9f43;
+      --accent-hot:#f5576c;
+      --accent-cyan:#38bdf8;
+      --silver:rgba(222,231,255,.45);
+      --shadow:0 24px 55px rgba(6,12,35,.55);
+    }
+    *{box-sizing:border-box;}
+    body{
+      margin:0;
+      min-height:100vh;
+      display:flex;
+      flex-direction:column;
+      background:radial-gradient(circle at 44% 14%, rgba(87,51,183,.55) 0%, rgba(39,56,121,.82) 40%, var(--bg1) 100%);
+      color:var(--ink);
+      font-family:"Inter",system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
+    }
+    .main-nav{
+      position:sticky;
+      top:0;
+      z-index:120;
+      padding:22px 48px;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      background:linear-gradient(120deg, rgba(15,20,48,.92) 0%, rgba(10,14,34,.75) 60%, rgba(10,14,34,.35) 100%);
+      backdrop-filter:blur(14px);
+      border-bottom:1px solid var(--silver);
+      box-shadow:0 22px 45px rgba(5,9,25,.55);
+    }
+    .brand{display:flex; align-items:center; gap:12px; font-size:22px; font-weight:700; letter-spacing:.02em;}
+    .brand-dot{width:14px; height:14px; border-radius:50%; background:linear-gradient(135deg, var(--accent) 0%, #8b5cf6 100%); box-shadow:0 0 18px rgba(244,114,182,.6);}
+    .nav-links{display:flex; align-items:center; gap:12px; flex-wrap:wrap;}
+    .pill-link{display:inline-flex; align-items:center; justify-content:center; padding:10px 20px; border-radius:999px; border:1px solid rgba(56,189,248,.45); background:linear-gradient(120deg, rgba(56,189,248,.18), rgba(139,92,246,.18)); color:var(--ink); text-decoration:none; font-size:14px; font-weight:600; letter-spacing:.03em; transition:transform .2s ease, box-shadow .2s ease, filter .2s ease;}
+    .pill-link.secondary{border-color:rgba(244,114,182,.45); background:linear-gradient(120deg, rgba(244,114,182,.22), rgba(59,130,246,.22));}
+    .pill-link[aria-current="page"]{border-color:rgba(255,159,67,.7); box-shadow:0 18px 40px rgba(255,159,67,.3); background:linear-gradient(120deg, rgba(255,159,67,.25), rgba(245,87,108,.25));}
+    .pill-link:hover{transform:translateY(-1px); filter:brightness(1.05); box-shadow:0 16px 32px rgba(56,189,248,.25);}
+    .pill-link:focus-visible{outline:2px solid rgba(56,189,248,.65); outline-offset:3px;}
+
+    main{flex:1; display:flex; justify-content:center; align-items:flex-start; padding:40px 48px 64px;}
+    .wrap{display:flex; width:100%; max-width:2000px; gap:36px; align-items:flex-start; justify-content:center;}
+    .field-area{flex:1 1 auto; display:flex; flex-direction:column; gap:18px; min-width:0;}
+    .playfield-frame{position:relative; padding:20px; border-radius:30px; background:rgba(4,8,26,.85); box-shadow:var(--shadow); border:1px solid rgba(148,163,209,.22);}
+
+    canvas{border-radius:24px; background:#04091f; box-shadow:0 0 45px rgba(15,23,61,.65), inset 0 0 22px rgba(118,133,255,.12); border:1px solid rgba(148,163,209,.25); width:100%; height:auto; display:block;}
+
+    .stats{display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:16px; padding:18px 22px; border-radius:22px; background:rgba(11,16,44,.78); border:1px solid rgba(148,163,209,.28); box-shadow:0 18px 32px rgba(5,9,25,.45);}
+    .stat-box{display:flex; flex-direction:column; gap:6px; text-align:left; padding:6px 0;}
+    .stat-box .label{font-size:12px; text-transform:uppercase; letter-spacing:.12em; color:var(--muted);}
+    .stat-box .value{font-size:28px; font-weight:700; letter-spacing:.02em; background:linear-gradient(135deg, var(--accent) 0%, var(--accent-hot) 100%); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text;}
+
+    .insight-panels{display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:20px; margin-top:18px;}
+    .insight-panel{background:var(--panel); border:1px solid rgba(148,163,209,.24); padding:22px; border-radius:22px; backdrop-filter:blur(16px); box-shadow:0 18px 45px rgba(5,7,24,.55);}
+    .insight-panel h3{margin:0 0 14px; font-size:15px; text-transform:uppercase; letter-spacing:.08em; color:var(--accent);}
+
+    .side-panel{width:380px; flex:0 1 380px; display:flex; flex-direction:column; gap:20px;}
+    .panel-section{background:var(--panel); border:1px solid rgba(148,163,209,.24); padding:22px; border-radius:22px; backdrop-filter:blur(16px); box-shadow:0 18px 45px rgba(5,7,24,.55);}
+    .panel-section h3{margin:0 0 14px; font-size:15px; text-transform:uppercase; letter-spacing:.08em; color:var(--accent);}
+    .panel-section + .panel-section{border-top:1px solid rgba(148,163,209,.18);}
+
+    .control-group{margin-bottom:16px;}
+    .control-group:last-child{margin-bottom:0;}
+    .control-group label{display:flex; justify-content:space-between; align-items:center; font-size:13px; color:var(--muted); letter-spacing:.02em; margin-bottom:6px; gap:12px;}
+    .control-group .value-display{font-family:ui-monospace,Menlo,Consolas,monospace; font-size:12px; padding:4px 8px; border-radius:8px; background:rgba(12,18,44,.7); border:1px solid rgba(148,163,209,.32); color:var(--accent); box-shadow:inset 0 0 12px rgba(255,159,67,.18);}
+    input[type=range]{width:100%; accent-color:var(--accent);}
+
+    button{width:100%; padding:12px 14px; margin-bottom:10px; border:none; border-radius:14px; background:linear-gradient(135deg, var(--accent) 0%, var(--accent-hot) 100%); color:#fff; font-weight:700; letter-spacing:.05em; text-transform:uppercase; cursor:pointer; box-shadow:0 12px 32px rgba(255,159,67,.28); transition:transform .25s ease, box-shadow .25s ease; font-size:13px;}
+    button:hover{transform:translateY(-1px); box-shadow:0 18px 38px rgba(255,159,67,.45);}
+    button:active{transform:translateY(0);}
+    #saveStatus{font-size:12px; color:var(--muted); margin-top:10px; min-height:18px;}
+
+    .chart{margin-top:14px; height:110px; background:rgba(4,8,26,.85); border-radius:16px; padding:10px; border:1px solid rgba(148,163,209,.18); box-shadow:inset 0 0 18px rgba(59,130,246,.12);}
+    .chart-bar{display:inline-block; width:4px; margin-right:2px; vertical-align:bottom; border-radius:3px 3px 0 0; background:linear-gradient(to top, var(--accent), var(--accent-hot));}
+
+    #nnCanvas{width:100%; height:200px; background:rgba(4,8,26,.85); border-radius:16px; border:1px solid rgba(148,163,209,.2); box-shadow:inset 0 0 18px rgba(59,130,246,.12);}
+
+    @media (max-width:1200px){
+      .wrap{flex-direction:column; align-items:center;}
+      .side-panel{width:100%; max-width:720px;}
+      .field-area{width:100%;}
+    }
+    @media (max-width:900px){
+      main{padding:32px 28px 56px;}
+    }
+    @media (max-width:768px){
+      .main-nav{flex-direction:column; align-items:flex-start; gap:16px; padding:18px 24px;}
+      main{padding:28px 20px 48px;}
+      .wrap{gap:28px;}
+      .stats{grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:12px;}
+      .stat-box .value{font-size:24px;}
+    }
+  </style>
+</head>
+<body>
+  <header class="main-nav">
+    <div class="brand"><span class="brand-dot"></span>BallLab NEAT Arena</div>
+    <nav class="nav-links" aria-label="Primary navigation">
+      <a class="pill-link" href="index.html">Food Arena</a>
+      <a class="pill-link" href="volleyball.html">Volley Lab</a>
+      <a class="pill-link" href="learn-neat.html">How NEAT Works</a>
+      <a class="pill-link secondary" href="balllab.html" aria-current="page">BallLab</a>
+    </nav>
+  </header>
+  <main>
+    <div class="wrap">
+      <section class="field-area">
+        <div class="playfield-frame">
+          <canvas id="canvas" width="1200" height="600"></canvas>
+        </div>
+        <div class="stats">
+          <div class="stat-box">
+            <div class="label">Generation</div>
+            <div class="value" id="generation">1</div>
+          </div>
+          <div class="stat-box">
+            <div class="label">Alive</div>
+            <div class="value" id="alive">0</div>
+          </div>
+          <div class="stat-box">
+            <div class="label">Best Fitness</div>
+            <div class="value" id="bestEver">0</div>
+          </div>
+          <div class="stat-box">
+            <div class="label">Best Obstacles</div>
+            <div class="value" id="bestObstacles">0</div>
+          </div>
+          <div class="stat-box">
+            <div class="label">Current Best</div>
+            <div class="value" id="bestNow">0</div>
+          </div>
+          <div class="stat-box">
+            <div class="label">Current Average</div>
+            <div class="value" id="average">0</div>
+          </div>
+        </div>
+        <div class="insight-panels">
+          <section class="insight-panel">
+            <h3>🧠 Neural Network (Top Agent)</h3>
+            <canvas id="nnCanvas" width="300" height="180"></canvas>
+          </section>
+          <section class="insight-panel">
+            <h3>📊 Training History</h3>
+            <div class="chart" id="chart"></div>
+          </section>
+        </div>
+      </section>
+      <aside class="side-panel">
+        <section class="panel-section">
+          <h3>🎮 Controls</h3>
+          <button onclick="resetGeneration()">🔄 New Generation</button>
+          <button onclick="togglePause()">⏯️ Pause / Resume</button>
+          <button onclick="showBestOnly()">⭐ Toggle Best Only</button>
+          <button onclick="saveBest()">💾 Save Best to File</button>
+          <button onclick="loadBest()">📂 Load Best from File</button>
+          <input type="file" id="fileLoader" accept="application/json" style="display:none">
+          <div id="saveStatus"></div>
+        </section>
+
+        <section class="panel-section">
+          <h3>⚡ Simulation</h3>
+          <div class="control-group">
+            <label>Speed <span class="value-display" id="speedVal">1.0x</span></label>
+            <input type="range" id="speed" min="0.1" max="5" step="0.1" value="1">
+          </div>
+          <div class="control-group">
+            <label>Zoom <span class="value-display" id="zoomVal">1.0x</span></label>
+            <input type="range" id="zoom" min="0.5" max="2" step="0.1" value="1">
+          </div>
+          <div class="control-group">
+            <label>Auto-Reset Timer <span class="value-display" id="timeoutVal">5s</span></label>
+            <input type="range" id="progressTimeout" min="2" max="15" step="1" value="5">
+          </div>
+          <div class="control-group">
+            <label>Sensor Length <span class="value-display" id="sensorLengthVal">150</span></label>
+            <input type="range" id="sensorLength" min="50" max="500" step="10" value="150">
+          </div>
+          <div class="control-group">
+            <label>Show Sensors <span class="value-display" id="sensorsVal">Yes</span></label>
+            <input type="range" id="showSensors" min="0" max="1" step="1" value="1">
+          </div>
+        </section>
+
+        <section class="panel-section">
+          <h3>🌍 Track (Dynamic)</h3>
+          <div class="control-group">
+            <label>Slope Assist <span class="value-display" id="slopeEffectVal">0.3</span></label>
+            <input type="range" id="slopeEffect" min="0" max="1" step="0.05" value="0.3">
+          </div>
+          <div class="control-group">
+            <label>Difficulty Growth <span class="value-display" id="difficultyGrowthVal">1.0x</span></label>
+            <input type="range" id="difficultyGrowth" min="0.3" max="2" step="0.1" value="1">
+          </div>
+          <div class="control-group">
+            <label>Obstacle Height <span class="value-display" id="obstacleHeightVal">1.0x</span></label>
+            <input type="range" id="obstacleHeight" min="0.3" max="2" step="0.1" value="1">
+          </div>
+          <div class="control-group">
+            <label>First Obstacle At <span class="value-display" id="firstObstacleVal">800</span></label>
+            <input type="range" id="firstObstacle" min="300" max="1500" step="50" value="800">
+          </div>
+        </section>
+
+        <section class="panel-section">
+          <h3>⚙️ Physics</h3>
+          <div class="control-group">
+            <label>Ball Size <span class="value-display" id="ballSizeVal">12</span></label>
+            <input type="range" id="ballSize" min="8" max="20" step="1" value="12">
+          </div>
+          <div class="control-group">
+            <label>Gravity <span class="value-display" id="gravityVal">0.5</span></label>
+            <input type="range" id="gravity" min="0.1" max="1" step="0.05" value="0.5">
+          </div>
+          <div class="control-group">
+            <label>Bounciness <span class="value-display" id="bounceVal">0.6</span></label>
+            <input type="range" id="bounce" min="0" max="1" step="0.05" value="0.6">
+          </div>
+          <div class="control-group">
+            <label>Jump Height (Max) <span class="value-display" id="jumpVal">12</span></label>
+            <input type="range" id="jumpPower" min="5" max="20" step="0.5" value="12">
+          </div>
+          <div class="control-group">
+            <label>Friction <span class="value-display" id="frictionVal">0.98</span></label>
+            <input type="range" id="friction" min="0.9" max="0.99" step="0.01" value="0.98">
+          </div>
+          <div class="control-group">
+            <label>Max Speed <span class="value-display" id="maxSpeedVal">8</span></label>
+            <input type="range" id="maxSpeed" min="3" max="15" step="0.5" value="8">
+          </div>
+        </section>
+
+        <section class="panel-section">
+          <h3>🧬 NEAT</h3>
+          <div class="control-group">
+            <label>Population <span class="value-display" id="popVal">30</span></label>
+            <input type="range" id="populationSize" min="10" max="100" step="5" value="30">
+          </div>
+          <div class="control-group">
+            <label>Mutation <span class="value-display" id="mutationVal">0.8</span></label>
+            <input type="range" id="mutationRate" min="0.1" max="1" step="0.05" value="0.8">
+          </div>
+          <div class="control-group">
+            <label>Elite % <span class="value-display" id="eliteVal">20%</span></label>
+            <input type="range" id="elitism" min="0" max="0.5" step="0.05" value="0.2">
+          </div>
+        </section>
+      </aside>
+    </div>
+  </main>
+
+  <script>
+// ============= CONFIG =============
+const config = {
+    populationSize: 30,
+    mutationRate: 0.8,
+    elitism: 0.2,
+    gravity: 0.5,
+    bounce: 0.6,
+    jumpPower: 12,
+    friction: 0.98,
+    maxSpeed: 8,
+    speed: 1.0,
+    zoom: 1.0,
+    showSensors: true,
+    sensorLength: 150,
+    ballSize: 12,
+    difficultyGrowth: 1.0,
+    obstacleHeight: 1.0,
+    firstObstacle: 800,
+    progressTimeout: 5,
+    slopeEffect: 0.3
+};
+
+let paused = false;
+let showOnlyBest = false;
+let lastProgressTime = 0;
+let lastBestDistance = 0;
+
+// Fixed timestep accumulator
+const FIXED_DT = 1 / 60; // Run physics at 60 Hz
+let lastTime = 0;
+let accumulator = 0;
+
+// Spring-based camera follow
+let camera = {
+    x: 0,
+    vx: 0,
+    spring: 0.03,
+    damping: 0.8
+};
+
+// Screen shake intensity controller
+let screenShake = 0;
+function triggerScreenShake(amount) {
+    screenShake = Math.max(screenShake, amount);
+}
+
+// ============= NEAT IMPLEMENTATION =============
+// Original NEAT implementation retained
+class Genome {
+    constructor() {
+        this.weights = [];
+        // 24 sensors -> hidden layer -> 3 outputs (jump, accelerate, brake)
+        this.inputSize = 24;
+        this.hiddenSize = 16;
+        this.outputSize = 3;
+        
+        const totalWeights = (this.inputSize * this.hiddenSize) + (this.hiddenSize * this.outputSize);
+        for (let i = 0; i < totalWeights; i++) {
+            this.weights.push(Math.random() * 2 - 1);
+        }
+        
+        this.fitness = 0;
+    }
+    
+    activate(inputs) {
+        const hidden = [];
+        let w = 0;
+        for (let h = 0; h < this.hiddenSize; h++) {
+            let sum = 0;
+            for (let i = 0; i < this.inputSize; i++) {
+                sum += inputs[i] * this.weights[w++];
+            }
+            hidden.push(Math.tanh(sum));
+        }
+        
+        const outputs = [];
+        for (let o = 0; o < this.outputSize; o++) {
+            let sum = 0;
+            for (let h = 0; h < this.hiddenSize; h++) {
+                sum += hidden[h] * this.weights[w++];
+            }
+            outputs.push(Math.tanh(sum));
+        }
+        
+        return outputs;
+    }
+    
+    mutate(rate) {
+        for (let i = 0; i < this.weights.length; i++) {
+            if (Math.random() < rate) {
+                if (Math.random() < 0.1) {
+                    this.weights[i] = Math.random() * 2 - 1; // Replace weight entirely
+                } else {
+                    this.weights[i] += (Math.random() - 0.5) * 0.5; // Slightly perturb weight
+                    this.weights[i] = Math.max(-2, Math.min(2, this.weights[i])); // Clamp weight
+                }
+            }
+        }
+    }
+    
+    crossover(other) {
+        const child = new Genome();
+        for (let i = 0; i < this.weights.length; i++) {
+            child.weights[i] = Math.random() < 0.5 ? this.weights[i] : other.weights[i];
+        }
+        return child;
+    }
+}
+
+class Population {
+    constructor(size) {
+        this.genomes = [];
+        for (let i = 0; i < size; i++) {
+            this.genomes.push(new Genome());
+        }
+        this.generation = 1;
+        this.bestFitness = 0;
+        this.bestGenome = null;
+        this.history = [];
+        this.bestObstaclesEver = 0; // Track best obstacle count
+    }
+    
+    evolve() {
+        this.genomes.sort((a, b) => b.fitness - a.fitness);
+        
+        const best = this.genomes[0].fitness;
+        const avg = this.genomes.reduce((sum, g) => sum + g.fitness, 0) / this.genomes.length;
+        this.history.push({ best, avg });
+        if (this.history.length > 50) this.history.shift();
+        
+        if (best > this.bestFitness) {
+            this.bestFitness = best;
+            this.bestGenome = this.genomes[0];
+            // Update record for obstacles cleared
+            const bestBall = balls.find(b => b.genome === this.bestGenome);
+            if (bestBall) {
+                this.bestObstaclesEver = Math.max(this.bestObstaclesEver, bestBall.obstaclesCleared);
+            }
+        }
+        
+        const newGenomes = [];
+        const eliteCount = Math.floor(config.elitism * this.genomes.length);
+        
+        for (let i = 0; i < eliteCount; i++) {
+            newGenomes.push(this.genomes[i]);
+        }
+        
+        while (newGenomes.length < config.populationSize) {
+            const p1 = this.selectParent();
+            const p2 = this.selectParent();
+            const child = p1.crossover(p2);
+            child.mutate(config.mutationRate);
+            newGenomes.push(child);
+        }
+        
+        this.genomes = newGenomes;
+        this.generation++;
+    }
+    
+    selectParent() {
+        const totalFitness = this.genomes.reduce((sum, g) => sum + Math.max(0, g.fitness), 0);
+        if (totalFitness === 0) {
+            return this.genomes[Math.floor(Math.random() * this.genomes.length)];
+        }
+        let rand = Math.random() * totalFitness;
+        for (const g of this.genomes) {
+            rand -= Math.max(0, g.fitness);
+            if (rand <= 0) return g;
+        }
+        return this.genomes[0];
+    }
+}
+
+// ============= PARTICLE POOL =============
+class Particle {
+    constructor() {
+        this.isAlive = false;
+    }
+
+    // "spawn"
+    reset(x, y, vx, vy, color, life) {
+        this.x = x;
+        this.y = y;
+        this.vx = vx;
+        this.vy = vy;
+        this.color = color;
+        this.life = life;
+        this.maxLife = life;
+        this.isAlive = true;
+    }
+    
+    update(dt) {
+        if (!this.isAlive) return;
+        
+        this.x += this.vx * dt;
+        this.y += this.vy * dt;
+        this.vy += 0.2 * dt;
+        this.life -= dt;
+        
+        if (this.life <= 0) {
+            this.isAlive = false;
+        }
+    }
+    
+    draw(ctx, cameraX) {
+        if (!this.isAlive) return;
+
+        const alpha = this.life / this.maxLife;
+        const screenX = (this.x - cameraX) * config.zoom;
+        const screenY = this.y * config.zoom;
+        
+        const gradient = ctx.createRadialGradient(screenX, screenY, 0, screenX, screenY, 4 * config.zoom);
+        gradient.addColorStop(0, this.color.replace('1)', alpha + ')'));
+        gradient.addColorStop(1, this.color.replace('1)', '0)'));
+        
+        ctx.fillStyle = gradient;
+        ctx.beginPath();
+        ctx.arc(screenX, screenY, 3 * config.zoom, 0, Math.PI * 2);
+        ctx.fill();
+    }
+}
+
+const particlePool = [];
+let nextParticleIndex = 0;
+const MAX_PARTICLES = 500;
+
+function initParticlePool() {
+    for (let i = 0; i < MAX_PARTICLES; i++) {
+        particlePool.push(new Particle());
+    }
+}
+
+// Omskriven "createParticles" till "spawnParticles"
+function spawnParticles(x, y, color, count = 5, baseSpeed = 2) {
+    for (let i = 0; i < count; i++) {
+        const particle = particlePool[nextParticleIndex];
+        
+        const angle = Math.random() * Math.PI * 2;
+        const speed = 1 + Math.random() * baseSpeed;
+        
+        particle.reset(
+            x, y,
+            Math.cos(angle) * speed,
+            Math.sin(angle) * speed,
+            color,
+            0.5 + Math.random() * 0.5 // lifespan in seconds
+        );
+        
+        nextParticleIndex = (nextParticleIndex + 1) % MAX_PARTICLES;
+    }
+}
+
+// ============= GAME OBJECTS =============
+
+class Ball {
+    constructor(genome) {
+        this.genome = genome;
+        this.radius = config.ballSize;
+        this.hue = Math.random() * 360;
+        this.reset();
+    }
+    
+    reset() {
+        this.x = 100;
+        this.y = 100;
+        this.vx = 2;
+        this.vy = 0;
+        this.rotation = 0;
+        this.alive = true;
+        this.distance = 0;
+        this.radius = config.ballSize;
+        
+        // Squash and stretch state
+        this.squash = 1.0;
+        this.stretch = 1.0;
+        
+        // Track obstacle stats and sensor history
+        this.obstaclesCleared = 0;
+        this.lastObstacleIndex = -1;
+        this.lastInputs = new Array(24).fill(0);
+        this.lastSensorMeta = Array.from({ length: 24 }, () => ({ distance: config.sensorLength, type: 'None' }));
+        this.onGround = false;
+    }
+
+    // Optimized sensor sampling
+    getSensors(terrain) {
+        const angles = [];
+        for (let i = 0; i < 24; i++) {
+            angles.push(i * 15);
+        }
+        
+        const rayLength = config.sensorLength;
+        const sensors = [];
+        const sensorMeta = [];
+
+        for (const angle of angles) {
+            const rad = (angle * Math.PI) / 180;
+            const dx = Math.cos(rad);
+            const dy = Math.sin(rad);
+
+            let hitDist = rayLength;
+            let hitType = 'None';
+            let holeDist = null;
+            const coarseStep = 15;
+
+            for (let dist = coarseStep; dist <= rayLength; dist += coarseStep) {
+                const checkX = this.x + dx * dist;
+                const checkY = this.y + dy * dist;
+                const surface = terrain.getSurfaceInfo(checkX);
+
+                if (surface.type === 'Hole') {
+                    if (holeDist === null) {
+                        holeDist = dist;
+                    }
+                    continue;
+                }
+
+                const surfaceY = surface.height;
+                if (checkY >= surfaceY - this.radius) {
+                    let low = dist - coarseStep;
+                    let high = dist;
+                    let resolvedType = surface.type === 'Obstacle' ? 'Obstacle' : 'Ground';
+
+                    for (let i = 0; i < 5; i++) {
+                        const mid = (low + high) / 2;
+                        const midX = this.x + dx * mid;
+                        const midSurface = terrain.getSurfaceInfo(midX);
+                        const midY = this.y + dy * mid;
+
+                        if (midSurface.type !== 'Hole' && midY >= midSurface.height - this.radius) {
+                            high = mid;
+                            resolvedType = midSurface.type === 'Obstacle' ? 'Obstacle' : 'Ground';
+                        } else {
+                            low = mid;
+                        }
+                    }
+
+                    hitDist = high;
+                    hitType = resolvedType;
+                    break;
+                }
+            }
+
+            if (holeDist !== null && (hitType === 'None' || holeDist < hitDist)) {
+                const normalizedHole = 1 - (holeDist / rayLength);
+                sensors.push(-normalizedHole);
+                sensorMeta.push({ distance: holeDist, type: 'Hole' });
+            } else {
+                sensors.push(1.0 - (hitDist / rayLength));
+                sensorMeta.push({ distance: hitDist, type: hitType });
+            }
+        }
+
+        this.lastInputs = sensors;
+        this.lastSensorMeta = sensorMeta;
+        return sensors;
+    }
+    
+    update(terrain, dt) {
+        if (!this.alive) return;
+
+        const sensors = this.getSensors(terrain);
+        const outputs = this.genome.activate(sensors);
+
+        const jumpActivation = outputs[0];
+        const accelerate = outputs[1];
+        const brake = outputs[2];
+
+        const wantsJump = jumpActivation > 0.05;
+        const jumpForceFactor = Math.max(0, Math.min(1, jumpActivation));
+        const actualJumpPower = config.jumpPower * jumpForceFactor;
+
+        this.vy += config.gravity * dt * 60;
+
+        const surface = terrain.getSurfaceInfo(this.x);
+        const holeInfo = terrain.getHoleAt(this.x);
+        const insideHole = !!(holeInfo && this.x >= holeInfo.start && this.x <= holeInfo.end);
+        const terrainY = surface.type === 'Hole' ? Infinity : surface.height;
+        const slopeAngle = surface.slope || 0;
+        const wasOnGround = this.onGround;
+        this.onGround = Number.isFinite(terrainY) && this.y >= terrainY - this.radius;
+
+        const slopeAssist = Math.sin(slopeAngle);
+        const slopeMultiplier = this.onGround ? 1.5 : 0.6;
+        this.vx -= slopeAssist * config.slopeEffect * slopeMultiplier * dt * 60;
+
+        if (this.onGround) {
+            this.y = terrainY - this.radius;
+
+            if (!wasOnGround && Math.abs(this.vy) > 2) {
+                spawnParticles(this.x, this.y + this.radius, `hsla(30, 40%, 70%, 1)`, 3, 1);
+                this.squash = 1.3;
+                this.stretch = 0.8;
+            }
+
+            if (this.vy > 0) {
+                this.vy *= -config.bounce;
+            }
+
+            if (wantsJump && actualJumpPower > 0.2) {
+                this.vy = -actualJumpPower;
+                const effectScale = actualJumpPower / config.jumpPower;
+                spawnParticles(this.x, this.y + this.radius, `hsla(${this.hue}, 70%, 60%, 1)`, 1 + Math.round(effectScale * 4), 1 + effectScale * 2);
+                this.squash = 1 - 0.2 * effectScale;
+                this.stretch = 1 + 0.3 * effectScale;
+            }
+        }
+
+        this.squash += (1 - this.squash) * 0.1;
+        this.stretch += (1 - this.stretch) * 0.1;
+
+        if (insideHole && this.y - this.radius > (holeInfo.ground - 2) && this.vy < 0) {
+            this.vy *= 0.3;
+        }
+
+        if (accelerate > 0.2) {
+            this.vx += accelerate * 0.3 * dt * 60;
+            if (accelerate > 0.8 && Math.random() < 0.3) {
+                spawnParticles(this.x, this.y, `hsla(180, 70%, 60%, 1)`, 1, 1);
+            }
+        }
+        if (brake > 0.2) {
+            this.vx -= brake * 0.2 * dt * 60;
+        }
+
+        this.vx *= config.friction;
+        this.vx += 0.12 * dt * 60;
+
+        this.vx = Math.max(-config.maxSpeed, Math.min(config.maxSpeed, this.vx));
+
+        this.x += this.vx * dt * 60;
+        this.y += this.vy * dt * 60;
+
+        this.rotation += this.vx * 0.03;
+
+        const activeHole = terrain.getHoleAt(this.x);
+        const currentlyInHole = !!(activeHole && this.x >= activeHole.start && this.x <= activeHole.end);
+
+        if (currentlyInHole) {
+            const leftLimit = activeHole.start + this.radius * 0.6;
+            const rightLimit = activeHole.end - this.radius * 0.6;
+
+            if (this.x < leftLimit) {
+                this.x = leftLimit;
+                if (this.vx < 0) this.vx *= -0.2;
+            }
+            if (this.x > rightLimit) {
+                this.x = rightLimit;
+                if (this.vx > 0) this.vx *= -0.2;
+            }
+
+            if (this.y - this.radius > activeHole.ground + this.radius * 0.5) {
+                this.vy = Math.max(this.vy, 1.5);
+            }
+        }
+
+        if (currentlyInHole && this.y - this.radius > activeHole.ground + 120) {
+            this.alive = false;
+            spawnParticles(this.x, activeHole.ground + 100, `hsla(0, 50%, 30%, 1)`, 15, 3);
+            triggerScreenShake(10);
+            return;
+        }
+
+        if (this.x < camera.x - 200 || this.y > 700) {
+            this.alive = false;
+            spawnParticles(this.x, this.y, `hsla(${this.hue}, 70%, 60%, 1)`, 10);
+            triggerScreenShake(5);
+        }
+
+        // Obstacle collision
+        const obs = terrain.getObstacleAt(this.x);
+        if (obs) {
+            const ballLeft = this.x - this.radius;
+            const ballRight = this.x + this.radius;
+            const ballTop = this.y - this.radius;
+            const ballBottom = this.y + this.radius;
+            
+            const obsLeft = obs.x;
+            const obsRight = obs.x + obs.width;
+            const obsTop = obs.y;
+            
+            if (ballRight > obsLeft && ballLeft < obsRight && ballBottom > obsTop) {
+                const fromTop = this.vy > 0 && ballBottom - obsTop < 15;
+                
+                if (fromTop) {
+                    this.y = obsTop - this.radius;
+                    this.vy *= -config.bounce;
+                    spawnParticles(this.x, obsTop, `hsla(30, 70%, 50%, 1)`, 2);
+                    this.squash = 1.2;
+                    this.stretch = 0.8;
+                } else {
+                    this.alive = false;
+                    spawnParticles(this.x, this.y, `hsla(0, 70%, 50%, 1)`, 12);
+                    triggerScreenShake(10);
+                }
+            }
+            
+            // Fitness logic for clearing obstacles
+            if (obs.index > this.lastObstacleIndex && this.x > obs.x + obs.width) {
+                this.obstaclesCleared++;
+                this.lastObstacleIndex = obs.index;
+            }
+
+        } else {
+            // Detect if we have fully passed the tracked obstacle
+            const lastObs = terrain.getLastObstacleBefore(this.x);
+            if (lastObs && lastObs.index > this.lastObstacleIndex) {
+                 this.obstaclesCleared++;
+                 this.lastObstacleIndex = lastObs.index;
+            }
+        }
+        
+        this.distance = Math.max(this.distance, this.x);
+        // Updated fitness function
+        this.genome.fitness = this.distance + (this.obstaclesCleared * 150); // Bonus for each cleared obstacle
+    }
+    
+    draw(ctx, cameraX) {
+        if (!this.alive) return;
+        
+        const screenX = (this.x - cameraX) * config.zoom;
+        const screenY = this.y * config.zoom;
+        const r = this.radius * config.zoom;
+        
+        if (screenX < -100 || screenX > canvas.width + 100) return;
+        
+        ctx.save();
+        ctx.translate(screenX, screenY);
+        
+        // Apply squash & stretch
+        ctx.scale(this.squash, this.stretch);
+
+        // Drawing routine continues
+        // Enhanced shadow with blur
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+        ctx.shadowBlur = 8;
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
+        ctx.beginPath();
+        // Keep the shadow from stretching
+        ctx.ellipse(0, r * 1.5 / this.stretch, r * 0.9 / this.squash, r * 0.35 / this.stretch, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+        
+        ctx.rotate(this.rotation);
+        
+        // Outer glow
+        const outerGlow = ctx.createRadialGradient(0, 0, r * 0.8, 0, 0, r * 1.3);
+        outerGlow.addColorStop(0, `hsla(${this.hue}, 70%, 50%, 0)`);
+        outerGlow.addColorStop(1, `hsla(${this.hue}, 70%, 50%, 0.4)`);
+        ctx.fillStyle = outerGlow;
+        ctx.beginPath();
+        ctx.arc(0, 0, r * 1.3, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // Main ball with enhanced gradient
+        const gradient = ctx.createRadialGradient(-r * 0.35, -r * 0.35, 0, 0, 0, r * 1.2);
+        gradient.addColorStop(0, `hsla(${this.hue}, 85%, 80%, 1)`);
+        gradient.addColorStop(0.3, `hsla(${this.hue}, 75%, 65%, 1)`);
+        gradient.addColorStop(0.7, `hsla(${this.hue}, 70%, 50%, 1)`);
+        gradient.addColorStop(1, `hsla(${this.hue}, 60%, 30%, 1)`);
+        
+        ctx.fillStyle = gradient;
+        ctx.shadowColor = `hsla(${this.hue}, 70%, 50%, 0.8)`;
+        ctx.shadowBlur = 20 * config.zoom;
+        ctx.beginPath();
+        ctx.arc(0, 0, r, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+        
+        // Multiple shine highlights
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+        ctx.beginPath();
+        ctx.ellipse(-r * 0.35, -r * 0.35, r * 0.35, r * 0.25, -0.3, 0, Math.PI * 2);
+        ctx.fill();
+        
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
+        ctx.beginPath();
+        ctx.ellipse(-r * 0.2, -r * 0.4, r * 0.15, r * 0.1, -0.3, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // Rotation indicator
+        ctx.strokeStyle = 'rgba(0, 0, 0, 0.6)';
+        ctx.lineWidth = 3 * config.zoom;
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.lineTo(r * 0.7, 0);
+        ctx.stroke();
+        
+        ctx.restore();
+    }
+    
+    // Sensor rendering uses cached readings
+    drawSensors(ctx, cameraX, terrain) {
+        if (!this.alive || !config.showSensors) return;
+        
+        const angles = [];
+        for (let i = 0; i < 24; i++) {
+            angles.push(i * 15);
+        }
+        
+        const rayLength = config.sensorLength;
+        const screenX = (this.x - cameraX) * config.zoom;
+        const screenY = this.y * config.zoom;
+        const time = performance.now() * 0.001;
+
+        for (let i = 0; i < angles.length; i++) {
+            const angle = angles[i];
+            const rad = (angle * Math.PI) / 180;
+            const dx = Math.cos(rad);
+            const dy = Math.sin(rad);
+
+            const reading = this.lastSensorMeta && this.lastSensorMeta[i]
+                ? this.lastSensorMeta[i]
+                : { distance: rayLength, type: 'None' };
+
+            const clampedDist = Math.min(reading.distance, rayLength);
+            const endX = screenX + dx * clampedDist * config.zoom;
+            const endY = screenY + dy * clampedDist * config.zoom;
+
+            const pulse = Math.sin(time * 3 + i * 0.3) * 0.2 + 0.6;
+            let startColor = `rgba(255, 159, 67, ${0.5 * pulse})`;
+            let midColor = `rgba(255, 159, 67, ${0.2 * pulse})`;
+            let endColor = 'rgba(255, 159, 67, 0)';
+
+            if (reading.type === 'Hole') {
+                startColor = `rgba(56, 189, 248, ${0.55 * pulse})`;
+                midColor = `rgba(56, 189, 248, ${0.25 * pulse})`;
+                endColor = 'rgba(56, 189, 248, 0)';
+            } else if (reading.type === 'Obstacle') {
+                startColor = `rgba(245, 87, 108, ${0.6 * pulse})`;
+                midColor = `rgba(245, 87, 108, ${0.3 * pulse})`;
+            }
+
+            const gradient = ctx.createLinearGradient(screenX, screenY, endX, endY);
+            gradient.addColorStop(0, startColor);
+            gradient.addColorStop(0.7, midColor);
+            gradient.addColorStop(1, endColor);
+
+            ctx.strokeStyle = gradient;
+            ctx.lineWidth = reading.type === 'Hole' ? 2.2 : 1.8;
+            ctx.beginPath();
+            ctx.moveTo(screenX, screenY);
+            ctx.lineTo(endX, endY);
+            ctx.stroke();
+
+            const hitAlphaBase = clampedDist < rayLength ? 0.8 : 0.35;
+            const hitAlpha = hitAlphaBase * pulse;
+            const markerColor = reading.type === 'Hole'
+                ? `rgba(56, 189, 248, ${hitAlpha})`
+                : reading.type === 'Obstacle'
+                    ? `rgba(245, 87, 108, ${hitAlpha})`
+                    : `rgba(255, 159, 67, ${hitAlpha})`;
+
+            ctx.fillStyle = markerColor;
+            ctx.shadowColor = markerColor;
+            ctx.shadowBlur = reading.type === 'Hole' ? 8 : 5;
+            ctx.beginPath();
+            ctx.arc(endX, endY, reading.type === 'Hole' ? 4 : 3, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.shadowBlur = 0;
+        }
+    }
+}
+
+class Terrain {
+    constructor() {
+        this.obstacles = [];
+        this.surfacePoints = [];
+        this.nextSegmentX = config.firstObstacle;
+        this.obstacleIndex = 0;
+        this.holes = [];
+        this.generate();
+    }
+
+    getGroundY(x) {
+        const segment = this.getSegmentAt(x);
+        if (!segment) return 500;
+
+        const { p1, p2 } = segment;
+
+        if (p2.type === 'Hole' && x >= p1.x && x < p2.x) {
+            return 1000;
+        }
+
+        if (p2.x !== p1.x) {
+            const t = (x - p1.x) / (p2.x - p1.x);
+            return p1.y + t * (p2.y - p1.y);
+        }
+        return p1.y;
+    }
+
+    getHeight(x) {
+        const surface = this.getSurfaceInfo(x);
+        return surface.type === 'Hole' ? 1000 : surface.height;
+    }
+
+    getSurfaceInfo(x) {
+        const obstacle = this.getObstacleAt(x);
+        if (obstacle) {
+            return { height: obstacle.y, type: 'Obstacle', slope: 0 };
+        }
+
+        const segment = this.getSegmentAt(x);
+        if (!segment) {
+            return { height: 500, type: 'Flat', slope: 0 };
+        }
+
+        const { p1, p2 } = segment;
+        const dx = p2.x - p1.x || 0.0001;
+        const slope = Math.atan2(p2.y - p1.y, dx);
+
+        if (p2.type === 'Hole' && x >= p1.x && x < p2.x) {
+            return { height: Infinity, type: 'Hole', slope };
+        }
+
+        const groundY = this.getGroundY(x);
+        return { height: groundY, type: p2.type || 'Flat', slope };
+    }
+
+    getSegmentAt(x) {
+        for (let i = 1; i < this.surfacePoints.length; i++) {
+            const p1 = this.surfacePoints[i - 1];
+            const p2 = this.surfacePoints[i];
+            if (x >= p1.x && x < p2.x) {
+                return { p1, p2, index: i, type: p2.type };
+            }
+        }
+        return null;
+    }
+
+    generateSegment() {
+        const lastPoint = this.surfacePoints[this.surfacePoints.length - 1];
+        let nextX = lastPoint.x;
+        const baseGroundY = lastPoint.y;
+        const progressFactor = Math.min((this.obstacleIndex / 50) * config.difficultyGrowth, 1.0);
+
+        const roll = Math.random();
+
+        if (roll < 0.3) {
+            nextX += 100 + Math.random() * 50;
+            const groundYAtObstacleStart = this.getGroundY(nextX);
+
+            const obsHeight = (30 + Math.random() * 80) * config.obstacleHeight + progressFactor * 100;
+            const obsWidth = 25 + Math.random() * 45;
+
+            this.surfacePoints.push({ x: nextX, y: groundYAtObstacleStart, type: 'Flat' });
+
+            this.obstacles.push({
+                x: nextX,
+                y: groundYAtObstacleStart - obsHeight,
+                width: obsWidth,
+                height: obsHeight,
+                index: this.obstacleIndex++
+            });
+
+            nextX += obsWidth + 150 + Math.random() * 100;
+            this.surfacePoints.push({ x: nextX, y: groundYAtObstacleStart, type: 'Flat' });
+        } else if (roll < 0.65) {
+            nextX += 50 + Math.random() * 50;
+            const uphill = Math.random() < 0.5;
+            const rampLength = 180 + Math.random() * 220;
+            const rampHeight = 40 + Math.random() * 120;
+
+            nextX += rampLength;
+            let nextY = uphill ? baseGroundY - rampHeight : baseGroundY + rampHeight;
+            nextY = Math.max(360, Math.min(580, nextY));
+
+            this.surfacePoints.push({ x: nextX, y: nextY, type: uphill ? 'Uphill' : 'Downhill' });
+        } else {
+            nextX += 120 + Math.random() * 60;
+            const holeWidth = 80 + Math.random() * 80 + progressFactor * 50;
+            const flatLength = 120 + Math.random() * 80;
+
+            this.surfacePoints.push({ x: nextX, y: baseGroundY, type: 'Flat' });
+
+            const holeStart = nextX;
+
+            nextX += holeWidth;
+            this.surfacePoints.push({ x: nextX, y: baseGroundY, type: 'Hole' });
+
+            this.holes.push({
+                start: holeStart,
+                end: nextX,
+                ground: baseGroundY
+            });
+
+            nextX += flatLength;
+            this.surfacePoints.push({ x: nextX, y: baseGroundY, type: 'Flat' });
+            this.obstacleIndex++;
+        }
+
+        this.nextSegmentX = nextX + 120;
+    }
+
+    generate() {
+        this.obstacles = [];
+        this.surfacePoints = [{ x: 0, y: 500, type: 'Flat' }];
+        this.nextSegmentX = config.firstObstacle;
+        this.obstacleIndex = 0;
+        this.holes = [];
+
+        this.surfacePoints.push({ x: config.firstObstacle, y: 500, type: 'Flat' });
+
+        for (let i = 0; i < 25; i++) {
+            this.generateSegment();
+        }
+    }
+
+    update(leadX) {
+        while (this.nextSegmentX < leadX + 2600) {
+            this.generateSegment();
+        }
+
+        this.obstacles = this.obstacles.filter(obs => obs.x + obs.width > leadX - 800);
+        this.surfacePoints = this.surfacePoints.filter(p => p.x > leadX - 1200);
+        this.holes = this.holes.filter(hole => hole.end > leadX - 1200);
+
+        if (this.surfacePoints.length && this.surfacePoints[0].x > leadX - 1200) {
+            const x = leadX - 1200;
+            this.surfacePoints.unshift({ x, y: this.getGroundY(x), type: 'Flat' });
+        }
+    }
+
+    getObstacleAt(x) {
+        let low = 0;
+        let high = this.obstacles.length - 1;
+        let candidate = null;
+
+        while (low <= high) {
+            const mid = Math.floor((low + high) / 2);
+            const obs = this.obstacles[mid];
+
+            if (obs.x <= x) {
+                candidate = obs;
+                low = mid + 1;
+            } else {
+                high = mid - 1;
+            }
+        }
+
+        if (candidate && x <= candidate.x + candidate.width) {
+            return candidate;
+        }
+        return null;
+    }
+
+    getLastObstacleBefore(x) {
+        let low = 0;
+        let high = this.obstacles.length - 1;
+        let candidate = null;
+        while (low <= high) {
+            const mid = Math.floor((low + high) / 2);
+            const obs = this.obstacles[mid];
+            if (obs.x + obs.width <= x) {
+                candidate = obs;
+                low = mid + 1;
+            } else {
+                high = mid - 1;
+            }
+        }
+        return candidate;
+    }
+
+    getHoleAt(x) {
+        let low = 0;
+        let high = this.holes.length - 1;
+        let candidate = null;
+
+        while (low <= high) {
+            const mid = Math.floor((low + high) / 2);
+            const hole = this.holes[mid];
+            if (hole.start <= x) {
+                candidate = hole;
+                low = mid + 1;
+            } else {
+                high = mid - 1;
+            }
+        }
+
+        if (candidate && x <= candidate.end) {
+            return candidate;
+        }
+        return null;
+    }
+
+    draw(ctx, cameraX) {
+        const worldToScreen = (x) => (x - cameraX) * config.zoom;
+        const canvasHeight = canvas.height;
+
+        ctx.save();
+
+        const groundGradient = ctx.createLinearGradient(0, canvasHeight * 0.8, 0, canvasHeight);
+        groundGradient.addColorStop(0, '#5A4A35');
+        groundGradient.addColorStop(0.2, '#4A3B28');
+        groundGradient.addColorStop(1, '#3A2C1C');
+        ctx.fillStyle = groundGradient;
+
+        ctx.beginPath();
+        ctx.moveTo(worldToScreen(this.surfacePoints[0].x), canvasHeight);
+
+        for (let i = 1; i < this.surfacePoints.length; i++) {
+            const p = this.surfacePoints[i];
+            const screenX = worldToScreen(p.x);
+            const screenY = p.y * config.zoom;
+
+            if (screenX > canvas.width + 50) break;
+
+            if (this.surfacePoints[i - 1].type !== 'Hole') {
+                ctx.lineTo(worldToScreen(this.surfacePoints[i - 1].x), this.surfacePoints[i - 1].y * config.zoom);
+            }
+
+            if (p.type === 'Hole' && this.surfacePoints[i - 1].type !== 'Hole') {
+                const startP = this.surfacePoints[i - 1];
+                ctx.lineTo(worldToScreen(startP.x), startP.y * config.zoom);
+                ctx.lineTo(worldToScreen(startP.x), canvasHeight);
+                ctx.lineTo(screenX, canvasHeight);
+                ctx.lineTo(screenX, screenY);
+            } else if (p.type === 'Hole') {
+                const startP = this.surfacePoints[i - 1];
+                ctx.lineTo(worldToScreen(startP.x), canvasHeight);
+                ctx.lineTo(screenX, canvasHeight);
+            } else {
+                ctx.lineTo(screenX, screenY);
+            }
+        }
+
+        if (this.surfacePoints.length && this.surfacePoints[this.surfacePoints.length - 1].type !== 'Hole') {
+            ctx.lineTo(canvas.width, this.surfacePoints[this.surfacePoints.length - 1].y * config.zoom);
+        } else {
+            ctx.lineTo(canvas.width, canvasHeight);
+        }
+
+        ctx.lineTo(canvas.width, canvasHeight);
+        ctx.closePath();
+        ctx.fill();
+
+        const grassGradient = ctx.createLinearGradient(0, (500 - 5) * config.zoom, 0, 505 * config.zoom);
+        grassGradient.addColorStop(0, '#70A050');
+        grassGradient.addColorStop(0.5, '#5C7A3F');
+        grassGradient.addColorStop(1, '#4A5F3A');
+        ctx.strokeStyle = grassGradient;
+        ctx.lineWidth = 5 * config.zoom;
+
+        ctx.beginPath();
+        if (this.surfacePoints.length) {
+            ctx.moveTo(worldToScreen(this.surfacePoints[0].x), this.surfacePoints[0].y * config.zoom);
+        }
+
+        for (let i = 1; i < this.surfacePoints.length; i++) {
+            const p = this.surfacePoints[i];
+            const screenX = worldToScreen(p.x);
+            const screenY = p.y * config.zoom;
+
+            if (p.type === 'Hole' && this.surfacePoints[i - 1].type !== 'Hole') {
+                const startP = this.surfacePoints[i - 1];
+                ctx.lineTo(worldToScreen(startP.x), startP.y * config.zoom);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(screenX, screenY);
+            } else if (p.type === 'Hole' && this.surfacePoints[i - 1].type === 'Hole') {
+                // Skip drawing inside hole
+            } else {
+                ctx.lineTo(screenX, screenY);
+            }
+
+            if (screenX > canvas.width + 50) break;
+        }
+        ctx.stroke();
+
+        for (const obs of this.obstacles) {
+            const screenX = worldToScreen(obs.x);
+            if (screenX < -200 || screenX > canvas.width + 200) continue;
+
+            const w = obs.width * config.zoom;
+            const h = obs.height * config.zoom;
+            const y = obs.y * config.zoom;
+
+            const obsGradient = ctx.createLinearGradient(screenX, y, screenX + w, y);
+            obsGradient.addColorStop(0, '#6d4c2a');
+            obsGradient.addColorStop(0.3, '#8B4513');
+            obsGradient.addColorStop(0.6, '#A0522D');
+            obsGradient.addColorStop(1, '#654321');
+            ctx.fillStyle = obsGradient;
+            ctx.fillRect(screenX, y, w, h);
+
+            ctx.strokeStyle = '#3E2723';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(screenX, y, w, h);
+
+            const topGradient = ctx.createLinearGradient(screenX, y, screenX, y + 6);
+            topGradient.addColorStop(0, '#D2691E');
+            topGradient.addColorStop(1, '#A0522D');
+            ctx.fillStyle = topGradient;
+            ctx.fillRect(screenX, y, w, 6);
+        }
+
+        ctx.restore();
+    }
+}
+
+
+
+// ============= GAME STATE =============
+
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+
+// Neural network canvas
+const nnCanvas = document.getElementById('nnCanvas');
+const nnCtx = nnCanvas.getContext('2d');
+const fileLoader = document.getElementById('fileLoader');
+
+let population = new Population(config.populationSize);
+let terrain = new Terrain();
+let balls = population.genomes.map(g => new Ball(g));
+let bestBall = null;
+
+// ============= KONTROLLER =============
+// Wire up slider controls
+function setupControls() {
+    const sliders = {
+        speed: { display: 'speedVal', format: v => v.toFixed(1) + 'x' },
+        zoom: { display: 'zoomVal', format: v => v.toFixed(1) + 'x' },
+        progressTimeout: { display: 'timeoutVal', format: v => v.toFixed(0) + 's' },
+        sensorLength: { display: 'sensorLengthVal', format: v => v.toFixed(0) },
+        showSensors: { display: 'sensorsVal', format: v => v === 1 ? 'Yes' : 'No', boolean: true },
+        slopeEffect: { display: 'slopeEffectVal', format: v => v.toFixed(2) },
+        difficultyGrowth: { display: 'difficultyGrowthVal', format: v => v.toFixed(1) + 'x', regenerate: true },
+        obstacleHeight: { display: 'obstacleHeightVal', format: v => v.toFixed(1) + 'x', regenerate: true },
+        firstObstacle: { display: 'firstObstacleVal', format: v => v.toFixed(0), regenerate: true },
+        ballSize: { display: 'ballSizeVal', format: v => v.toFixed(0), resize: true },
+        gravity: { display: 'gravityVal', format: v => v.toFixed(2) },
+        bounce: { display: 'bounceVal', format: v => v.toFixed(2) },
+        jumpPower: { display: 'jumpVal', format: v => v.toFixed(1) },
+        friction: { display: 'frictionVal', format: v => v.toFixed(2) },
+        maxSpeed: { display: 'maxSpeedVal', format: v => v.toFixed(1) },
+        populationSize: { display: 'popVal', format: v => v.toFixed(0) },
+        mutationRate: { display: 'mutationVal', format: v => v.toFixed(2) },
+        elitism: { display: 'eliteVal', format: v => Math.round(v * 100) + '%' }
+    };
+    
+    for (const [id, opts] of Object.entries(sliders)) {
+        const slider = document.getElementById(id);
+        const display = document.getElementById(opts.display);
+        
+        slider.addEventListener('input', (e) => {
+            let value = parseFloat(e.target.value);
+            
+            if (opts.boolean) {
+                config[id] = value === 1;
+            } else {
+                config[id] = value;
+            }
+            
+            display.textContent = opts.format(value);
+            
+            if (opts.regenerate) {
+                terrain.generate();
+                balls.forEach(b => b.reset());
+            }
+            
+            if (opts.resize) {
+                balls.forEach(b => b.radius = value);
+            }
+        });
+    }
+}
+
+function resetGeneration() {
+    population.evolve();
+    terrain = new Terrain();
+    if (showOnlyBest && population.bestGenome) {
+        balls = [new Ball(population.bestGenome)];
+    } else {
+        balls = population.genomes.map(g => new Ball(g));
+    }
+    camera.x = 0;
+    camera.vx = 0;
+    lastBestDistance = 0;
+    lastProgressTime = performance.now() / 1000;
+    updateChart();
+}
+
+// Remaining control helpers
+function togglePause() {
+    paused = !paused;
+    if (!paused) {
+        lastTime = performance.now(); // Avoid huge dt spikes
+        requestAnimationFrame(gameLoop); // Starta loopen igen
+    }
+}
+function showBestOnly() {
+    showOnlyBest = !showOnlyBest;
+    if (showOnlyBest && population.bestGenome) {
+        balls = [new Ball(population.bestGenome)];
+        balls[0].reset();
+    } else {
+        balls = population.genomes.map(g => new Ball(g));
+    }
+}
+function saveBest() {
+    const saveStatus = document.getElementById('saveStatus');
+    if (!population.bestGenome) {
+        saveStatus.textContent = '❌ No trained AI available yet.';
+        saveStatus.style.color = '#ff6b6b';
+        return;
+    }
+
+    try {
+        const payload = {
+            weights: population.bestGenome.weights,
+            fitness: population.bestFitness,
+            generation: population.generation,
+            timestamp: new Date().toISOString(),
+            config: {
+                populationSize: config.populationSize,
+                mutationRate: config.mutationRate,
+                elitism: config.elitism,
+                jumpPower: config.jumpPower,
+                gravity: config.gravity,
+                bounce: config.bounce
+            }
+        };
+
+        const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const anchor = document.createElement('a');
+        anchor.href = url;
+        anchor.download = `balllab-best-gen-${population.generation}.json`;
+        document.body.appendChild(anchor);
+        anchor.click();
+        document.body.removeChild(anchor);
+        URL.revokeObjectURL(url);
+
+        saveStatus.textContent = '✅ Exported best brain as JSON file.';
+        saveStatus.style.color = '#4ade80';
+    } catch (err) {
+        saveStatus.textContent = '❌ Failed to export: ' + err.message;
+        saveStatus.style.color = '#ff6b6b';
+    }
+}
+function loadBest() {
+    if (!fileLoader) return;
+    fileLoader.value = '';
+    fileLoader.click();
+}
+function handleFileLoad(event) {
+    const saveStatus = document.getElementById('saveStatus');
+    const file = event.target.files && event.target.files[0];
+    if (!file) {
+        return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        try {
+            const data = JSON.parse(e.target.result);
+            if (!data || !Array.isArray(data.weights)) {
+                throw new Error('Invalid AI file');
+            }
+
+            const genome = new Genome();
+            genome.weights = data.weights;
+            genome.fitness = data.fitness || 0;
+
+            population.bestGenome = genome;
+            population.bestFitness = genome.fitness;
+
+            showOnlyBest = true;
+            balls = [new Ball(genome)];
+            balls[0].reset();
+
+            const info = data.fitness ? `Fitness: ${Math.floor(data.fitness)}` : 'Loaded new genome';
+            saveStatus.textContent = '✅ Loaded from file! ' + info;
+            saveStatus.style.color = '#4ade80';
+        } catch (err) {
+            saveStatus.textContent = '❌ Failed to import: ' + err.message;
+            saveStatus.style.color = '#ff6b6b';
+        }
+    };
+    reader.onerror = () => {
+        const err = reader.error ? reader.error.message : 'Unknown error';
+        saveStatus.textContent = '❌ Could not read file: ' + err;
+        saveStatus.style.color = '#ff6b6b';
+    };
+    reader.readAsText(file);
+    event.target.value = '';
+}
+function updateChart() {
+    const chart = document.getElementById('chart');
+    chart.innerHTML = '';
+    
+    const maxHeight = 90;
+    const maxFitness = Math.max(...population.history.map(h => h.best), 1);
+    
+    for (const h of population.history) {
+        const bar = document.createElement('div');
+        bar.className = 'chart-bar';
+        bar.style.height = (h.best / maxFitness * maxHeight) + 'px';
+        chart.appendChild(bar);
+    }
+}
+
+// ============= AI VISUALISATION =============
+function drawNN(ctx, genome, inputs, outputs) {
+    ctx.clearRect(0, 0, nnCanvas.width, nnCanvas.height);
+    if (!genome) return;
+
+    const w = nnCanvas.width;
+    const h = nnCanvas.height;
+    
+    const nodeRadius = 4;
+    const layerMargin = 50;
+    const inputX = 25;
+    const hiddenX = w / 2;
+    const outputX = w - 25;
+
+    // --- Draw weight connections ---
+    let w_idx = 0;
+    
+    // Weights: Input -> Hidden
+    for (let i = 0; i < genome.inputSize; i++) {
+        const inputY = layerMargin + (h - layerMargin*2) * (i / (genome.inputSize - 1));
+        for (let j = 0; j < genome.hiddenSize; j++) {
+            const hiddenY = layerMargin + (h - layerMargin*2) * (j / (genome.hiddenSize - 1));
+            const weight = genome.weights[w_idx++];
+            
+            const alpha = Math.min(Math.abs(weight) * 0.8, 0.8);
+            ctx.strokeStyle = weight > 0 ? `rgba(67, 160, 71, ${alpha})` : `rgba(229, 57, 53, ${alpha})`; // Green for positive, red for negative
+            ctx.lineWidth = Math.min(Math.abs(weight) * 1.5, 2);
+            
+            ctx.beginPath();
+            ctx.moveTo(inputX, inputY);
+            ctx.lineTo(hiddenX, hiddenY);
+            ctx.stroke();
+        }
+    }
+    
+    // Weights: Hidden -> Output
+    for (let i = 0; i < genome.hiddenSize; i++) {
+        const hiddenY = layerMargin + (h - layerMargin*2) * (i / (genome.hiddenSize - 1));
+        for (let j = 0; j < genome.outputSize; j++) {
+            const outputY = layerMargin + (h - layerMargin*2) * (j / (genome.outputSize - 1));
+            const weight = genome.weights[w_idx++];
+
+            const alpha = Math.min(Math.abs(weight) * 0.8, 0.8);
+            ctx.strokeStyle = weight > 0 ? `rgba(67, 160, 71, ${alpha})` : `rgba(229, 57, 53, ${alpha})`;
+            ctx.lineWidth = Math.min(Math.abs(weight) * 1.5, 2);
+
+            ctx.beginPath();
+            ctx.moveTo(hiddenX, hiddenY);
+            ctx.lineTo(outputX, outputY);
+            ctx.stroke();
+        }
+    }
+
+    // --- Draw nodes ---
+    ctx.lineWidth = 1;
+
+    // Input nodes
+    for (let i = 0; i < genome.inputSize; i++) {
+        const y = layerMargin + (h - layerMargin*2) * (i / (genome.inputSize - 1));
+        const activation = inputs ? inputs[i] : 0; // Value is normalized 0-1
+        ctx.fillStyle = `rgba(255, 159, 67, ${0.2 + activation * 0.8})`; // Accent colour
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+        ctx.beginPath();
+        ctx.arc(inputX, y, nodeRadius, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+    }
+    
+    // Hidden nodes (activations not tracked without recomputation)
+    for (let i = 0; i < genome.hiddenSize; i++) {
+        const y = layerMargin + (h - layerMargin*2) * (i / (genome.hiddenSize - 1));
+        ctx.fillStyle = `rgba(100, 100, 100, 0.5)`;
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+        ctx.beginPath();
+        ctx.arc(hiddenX, y, nodeRadius, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+    }
+    
+    // Output nodes
+    const outputLabels = ["Jump", "Accelerate", "Brake"];
+    for (let i = 0; i < genome.outputSize; i++) {
+        const y = layerMargin + (h - layerMargin*2) * (i / (genome.outputSize - 1));
+        const activation = outputs ? (outputs[i] + 1) / 2 : 0; // Value spans -1 to 1
+        ctx.fillStyle = `rgba(245, 87, 108, ${0.2 + activation * 0.8})`; // Alternate accent colour
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+        ctx.beginPath();
+        ctx.arc(outputX, y, nodeRadius + 1, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        
+        ctx.fillStyle = '#9aa7c2';
+        ctx.font = '10px Inter';
+        ctx.fillText(outputLabels[i], outputX + 10, y + 3);
+    }
+}
+
+
+// ============= PHYSICS LOOP =============
+function updatePhysics(dt) {
+    // Update particles
+    for (const p of particlePool) {
+        if (p.isAlive) {
+            p.update(dt);
+        }
+    }
+    
+    let alive = 0;
+    let bestNow = 0;
+    let totalDist = 0;
+    let leadX = 0;
+    bestBall = null;
+    let currentBestFitness = -Infinity;
+
+    for (const ball of balls) {
+        if (ball.alive) {
+            ball.update(terrain, dt);
+            alive++;
+            bestNow = Math.max(bestNow, ball.distance);
+            totalDist += ball.distance;
+            leadX = Math.max(leadX, ball.x);
+            
+            if (ball.genome.fitness > currentBestFitness) {
+                currentBestFitness = ball.genome.fitness;
+                bestBall = ball; // Remember best ball for NN visualisation
+            }
+        }
+    }
+    
+    terrain.update(leadX);
+    
+    // Spring camera logic
+    const targetX = leadX - 300;
+    const accel = (targetX - camera.x) * camera.spring;
+    camera.vx += accel;
+    camera.vx *= camera.damping;
+    camera.x += camera.vx;
+
+    // Decay screen shake
+    screenShake *= 0.9;
+    
+    // Check progress
+    if (bestNow > lastBestDistance + 10) {
+        lastBestDistance = bestNow;
+        lastProgressTime = performance.now() / 1000;
+    }
+    
+    const currentTime = performance.now() / 1000;
+    const timeSinceProgress = currentTime - lastProgressTime;
+    
+    if (alive === 0 || (alive > 0 && timeSinceProgress > config.progressTimeout)) {
+        resetGeneration();
+        lastProgressTime = currentTime;
+        lastBestDistance = 0;
+    }
+    
+    // Update HUD
+    document.getElementById('generation').textContent = population.generation;
+    document.getElementById('alive').textContent = alive;
+    document.getElementById('bestEver').textContent = Math.floor(population.bestFitness);
+    document.getElementById('bestObstacles').textContent = population.bestObstaclesEver;
+    document.getElementById('bestNow').textContent = Math.floor(bestNow);
+    document.getElementById('average').textContent = alive > 0 ? Math.floor(totalDist / alive) : 0;
+}
+
+// ============= RENDER LOOP =============
+function draw() {
+    ctx.save(); // Preserve state for screen shake
+
+    // Apply screen shake
+    const shakeX = (Math.random() - 0.5) * screenShake;
+    const shakeY = (Math.random() - 0.5) * screenShake;
+    ctx.translate(shakeX, shakeY);
+
+    // Multi-layer sky gradient
+    const skyGradient1 = ctx.createLinearGradient(0, 0, 0, canvas.height * 0.4);
+    skyGradient1.addColorStop(0, '#2d1b4e');
+    skyGradient1.addColorStop(1, '#1a1f3a');
+    ctx.fillStyle = skyGradient1;
+    ctx.fillRect(0, 0, canvas.width, canvas.height * 0.4);
+    
+    const skyGradient2 = ctx.createLinearGradient(0, canvas.height * 0.4, 0, canvas.height);
+    skyGradient2.addColorStop(0, '#1a1f3a');
+    skyGradient2.addColorStop(0.5, '#0f1419');
+    skyGradient2.addColorStop(1, '#0a0c10');
+    ctx.fillStyle = skyGradient2;
+    ctx.fillRect(0, canvas.height * 0.4, canvas.width, canvas.height * 0.6);
+    
+    // Stars
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+    for (let i = 0; i < 100; i++) {
+        const x = (i * 137 + camera.x * 0.05) % canvas.width;
+        const y = (i * 211) % (canvas.height * 0.5);
+        const twinkle = Math.sin(performance.now() * 0.001 + i) * 0.3 + 0.7;
+        ctx.globalAlpha = twinkle;
+        ctx.fillRect(x, y, 2, 2);
+    }
+    ctx.globalAlpha = 1;
+    
+    // Distant mountains (parallax)
+    ctx.fillStyle = 'rgba(30, 40, 60, 0.6)';
+    ctx.beginPath();
+    ctx.moveTo(0, canvas.height * 0.6);
+    for (let x = 0; x < canvas.width; x += 20) {
+        const mountainX = x + camera.x * 0.1;
+        const y = canvas.height * 0.6 - Math.abs(Math.sin(mountainX * 0.01) * 60) - 40;
+        ctx.lineTo(x, y);
+    }
+    ctx.lineTo(canvas.width, canvas.height);
+    ctx.lineTo(0, canvas.height);
+    ctx.closePath();
+    ctx.fill();
+    
+    // Clouds
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.15)';
+    for (let i = 0; i < 12; i++) {
+        const cloudX = ((i * 300 + camera.x * 0.2) % (canvas.width + 200)) - 100;
+        const cloudY = 40 + (i % 3) * 60;
+        const cloudSize = 40 + (i % 3) * 15;
+        
+        ctx.beginPath();
+        ctx.arc(cloudX, cloudY, cloudSize, 0, Math.PI * 2);
+        ctx.arc(cloudX + cloudSize * 0.7, cloudY, cloudSize * 0.9, 0, Math.PI * 2);
+        ctx.arc(cloudX + cloudSize * 1.4, cloudY, cloudSize * 0.8, 0, Math.PI * 2);
+        ctx.fill();
+    }
+    
+    // Fog
+    const fogGradient = ctx.createLinearGradient(0, canvas.height * 0.7, 0, canvas.height);
+    fogGradient.addColorStop(0, 'rgba(15, 20, 25, 0)');
+    fogGradient.addColorStop(1, 'rgba(15, 20, 25, 0.3)');
+    ctx.fillStyle = fogGradient;
+    ctx.fillRect(0, canvas.height * 0.7, canvas.width, canvas.height * 0.3);
+    
+    ctx.save();
+    terrain.draw(ctx, camera.x);
+    
+    // Draw particles
+    ctx.shadowBlur = 10;
+    for (const p of particlePool) {
+        if (p.isAlive) {
+            ctx.shadowColor = p.color;
+            p.draw(ctx, camera.x);
+        }
+    }
+    ctx.shadowBlur = 0;
+    
+    // Draw sensors
+    for (const ball of balls) {
+        ball.drawSensors(ctx, camera.x, terrain);
+    }
+    
+    // Draw balls
+    for (const ball of balls) {
+        ball.draw(ctx, camera.x);
+    }
+    
+    ctx.restore();
+    
+    // Animated grass
+    const time = performance.now() * 0.001;
+    ctx.strokeStyle = 'rgba(92, 122, 63, 0.6)';
+    ctx.lineWidth = 1;
+    for (let x = 0; x < canvas.width; x += 12) {
+        const worldX = x / config.zoom + camera.x;
+        const sway = Math.sin(time * 2 + worldX * 0.1) * 2;
+        const groundY = terrain.getGroundY(worldX) * config.zoom;
+
+        if (groundY < canvas.height - 20) {
+            ctx.beginPath();
+            ctx.moveTo(x, groundY);
+            ctx.lineTo(x + sway, groundY - 8);
+            ctx.stroke();
+        }
+    }
+    
+    // Info overlay
+    ctx.save();
+    const gradient = ctx.createLinearGradient(10, 10, 10, 80);
+    gradient.addColorStop(0, 'rgba(0, 0, 0, 0.7)');
+    gradient.addColorStop(1, 'rgba(0, 0, 0, 0.5)');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(10, 10, 220, 70);
+    ctx.strokeStyle = 'rgba(255, 159, 67, 0.3)';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(10, 10, 220, 70);
+    ctx.font = 'bold 14px Inter';
+    ctx.fillStyle = '#ff9f43';
+    ctx.fillText('🏁 Endless Course!', 20, 30);
+    ctx.fillStyle = '#f5f7ff';
+    ctx.font = '12px Inter';
+    ctx.fillText('Obstacles generated: ' + terrain.obstacleIndex, 20, 50);
+    ctx.fillText('Best fitness: ' + Math.floor(population.bestFitness), 20, 65);
+    ctx.restore();
+
+    ctx.restore(); // Restore after screen shake
+
+    // Draw neural network overlay
+    if (bestBall) {
+        drawNN(nnCtx, bestBall.genome, bestBall.lastInputs, bestBall.genome.activate(bestBall.lastInputs));
+    } else {
+        drawNN(nnCtx, null, null, null); // Clear canvas
+    }
+}
+
+// ============= MAIN LOOP =============
+
+function gameLoop(now) {
+    if (paused) return;
+
+    const dt = Math.min((now - lastTime) / 1000, 0.1); // Delta time in seconds
+    lastTime = now;
+    
+    accumulator += dt * config.speed;
+    
+    // Step physics in fixed increments
+    while (accumulator >= FIXED_DT) {
+        updatePhysics(FIXED_DT);
+        accumulator -= FIXED_DT;
+    }
+    
+    // Draw as often as possible
+    draw();
+    
+    requestAnimationFrame(gameLoop);
+}
+
+// Start
+if (fileLoader) {
+    fileLoader.addEventListener('change', handleFileLoad);
+}
+setupControls();
+initParticlePool(); // Initialize particle pool
+updateChart();
+lastTime = performance.now();
+lastProgressTime = performance.now() / 1000;
+gameLoop(lastTime);
+</script>
+</body>
+</html>
