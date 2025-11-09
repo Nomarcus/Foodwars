@@ -203,6 +203,25 @@
           <button class="btn" id="btnToggleTraining">Start training</button>
           <button class="btn" id="btnReset">Reset learners</button>
         </section>
+
+        <section class="panel" aria-labelledby="player-tuning">
+          <h2 id="player-tuning">Player tuning</h2>
+          <p>Fine-tune jump power and arm reach to shape each athlete’s aerial control.</p>
+          <div class="control">
+            <div class="control-header">
+              <label class="label" for="slJumpHeight">Jump height</label>
+              <span class="val" id="lbJumpHeight">460 px</span>
+            </div>
+            <input id="slJumpHeight" type="range" min="300" max="600" step="10" value="460">
+          </div>
+          <div class="control">
+            <div class="control-header">
+              <label class="label" for="slArmReach">Arm reach</label>
+              <span class="val" id="lbArmReach">58 px</span>
+            </div>
+            <input id="slArmReach" type="range" min="40" max="100" step="2" value="58">
+          </div>
+        </section>
       </aside>
 
       <div class="field-area">
@@ -259,10 +278,10 @@
     const DT = 1 / 120;
 
     const PLAYER_BODY_RADIUS = 32;
-    const PLAYER_REACH = 82;
-    const PLAYER_HIT_RADIUS = PLAYER_BODY_RADIUS + PLAYER_REACH - 4;
+    let PLAYER_REACH = 58;
+    let PLAYER_HIT_RADIUS = PLAYER_BODY_RADIUS + PLAYER_REACH - 4;
     const PLAYER_MAX_SPEED = 320;
-    const PLAYER_JUMP = 460;
+    let PLAYER_JUMP = 460;
     const PLAYER_ACCEL = 1100;
 
     const BALL_RADIUS = 20;
@@ -376,9 +395,9 @@
         const armY = -PLAYER_BODY_RADIUS * 0.1;
         context.beginPath();
         context.moveTo(-PLAYER_BODY_RADIUS + 6, armY);
-        context.lineTo(-reach - 16, armY + 2);
+        context.lineTo(-reach, armY + 4);
         context.moveTo(PLAYER_BODY_RADIUS - 6, armY);
-        context.lineTo(reach + 16, armY + 2);
+        context.lineTo(reach, armY + 4);
         context.stroke();
 
         context.strokeStyle = '#0f172a';
@@ -397,21 +416,22 @@
     class Ball{
       constructor(){
         this.x = NET_X;
-        this.y = FLOOR_Y - 240;
+        this.y = FLOOR_Y - 200;
         this.vx = 0;
         this.vy = 0;
-        this.lastTouchSide = 'left';
+        this.lastTouchSide = null;
         this.lastTouchedBy = null;
         this.prevX = this.x;
         this.prevY = this.y;
       }
-      reset(servingSide, leftX, rightX){
-        const targetX = servingSide === 'left'
-          ? (leftX ?? NET_X - 120)
-          : (rightX ?? NET_X + 120);
-        const dropApex = Math.max(70, FLOOR_Y - PLAYER_BODY_RADIUS - PLAYER_REACH - BALL_RADIUS - 140);
-        this.x = targetX;
-        this.y = dropApex;
+      reset(servingSide, leftPlayer, rightPlayer){
+        const server = servingSide === 'left' ? leftPlayer : rightPlayer;
+        const fallbackX = servingSide === 'left' ? FIELD_WIDTH * 0.27 : FIELD_WIDTH * 0.73;
+        const baseX = server ? server.x : fallbackX;
+        const baseY = server ? server.y : FLOOR_Y - PLAYER_BODY_RADIUS;
+        const lift = PLAYER_BODY_RADIUS + PLAYER_REACH + BALL_RADIUS + 8;
+        this.x = baseX;
+        this.y = Math.max(60, baseY - lift);
         this.vx = 0;
         this.vy = 0;
         this.lastTouchSide = servingSide;
@@ -473,13 +493,13 @@
         this.ball = new Ball();
         this.serveSide = 'left';
         this.events = {};
-        this.ball.reset(this.serveSide, this.left.x, this.right.x);
+        this.ball.reset(this.serveSide, this.left, this.right);
       }
       reset(nextServe){
         this.left.reset();
         this.right.reset();
         this.serveSide = nextServe ?? (Math.random() < 0.5 ? 'left' : 'right');
-        this.ball.reset(this.serveSide, this.left.x, this.right.x);
+        this.ball.reset(this.serveSide, this.left, this.right);
         this.left.touches = 0;
         this.right.touches = 0;
       }
@@ -1107,6 +1127,14 @@
       ['slDqnEpsilonDecay','lbDqnEpsilonDecay', value => { dqnAgent.epsilonDecay = parseFloat(value); }],
       ['slTargetSync','lbTargetSync', value => { dqnAgent.targetSync = Math.max(20, parseInt(value, 10)); }],
       ['slBatchSize','lbBatchSize', value => { dqnAgent.batchSize = Math.max(4, parseInt(value, 10)); }],
+      ['slJumpHeight','lbJumpHeight', value => { PLAYER_JUMP = parseFloat(value); }],
+      ['slArmReach','lbArmReach', value => {
+        PLAYER_REACH = parseFloat(value);
+        PLAYER_HIT_RADIUS = PLAYER_BODY_RADIUS + PLAYER_REACH - 4;
+        if(!training){
+          env.ball.reset(env.serveSide, env.left, env.right);
+        }
+      }],
       ['slSimSpeed','lbSimSpeed', value => { simSpeed = parseInt(value, 10); }]
     ];
 
@@ -1117,6 +1145,8 @@
       const update = () => {
         if(inputId === 'slSimSpeed'){
           label.textContent = `${input.value}×`;
+        } else if(inputId === 'slJumpHeight' || inputId === 'slArmReach'){
+          label.textContent = `${Math.round(parseFloat(input.value))} px`;
         } else {
           const step = Math.abs(parseFloat(input.step || '1'));
           let decimals = 0;
