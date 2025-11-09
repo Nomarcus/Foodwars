@@ -28,6 +28,26 @@
         gap: 0;
         overflow: hidden;
     }
+    .back-home {
+        position: fixed;
+        top: 20px;
+        left: 20px;
+        padding: 10px 18px;
+        border-radius: 999px;
+        background: rgba(24, 31, 44, 0.85);
+        border: 1px solid rgba(148, 163, 209, 0.35);
+        color: var(--text-light);
+        text-decoration: none;
+        font-weight: 600;
+        letter-spacing: 0.03em;
+        box-shadow: 0 12px 24px rgba(0, 0, 0, 0.35);
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+        z-index: 300;
+    }
+    .back-home:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 18px 30px rgba(0, 0, 0, 0.45);
+    }
     .main-area {
         flex: 1;
         display: flex;
@@ -205,6 +225,7 @@
 </style>
 </head>
 <body>
+<a class="back-home" href="index.html">← Till startsidan</a>
 <div class="main-area">
     <canvas id="canvas" width="1200" height="600"></canvas>
     <div class="stats">
