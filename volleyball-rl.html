@@ -279,7 +279,6 @@
 
     const PLAYER_BODY_RADIUS = 32;
     let PLAYER_REACH = 58;
-    let PLAYER_HIT_RADIUS = PLAYER_BODY_RADIUS + PLAYER_REACH - 4;
     const PLAYER_MAX_SPEED = 320;
     let PLAYER_JUMP = 460;
     const PLAYER_ACCEL = 1100;
@@ -543,10 +542,21 @@
         return {done};
       }
       resolvePlayerBall(player){
+        const anchorY = player.y - PLAYER_BODY_RADIUS * 0.15;
         const dx = this.ball.x - player.x;
-        const dy = this.ball.y - (player.y - PLAYER_BODY_RADIUS * 0.15);
+        const dy = this.ball.y - anchorY;
         const distSq = dx*dx + dy*dy;
-        const minDist = PLAYER_HIT_RADIUS + BALL_RADIUS;
+
+        const bodyRadius = PLAYER_BODY_RADIUS;
+        const armStart = PLAYER_BODY_RADIUS * 0.7;
+        const lateral = Math.abs(dx);
+        let hitRadius = bodyRadius;
+        if(PLAYER_REACH > armStart){
+          const reachSpan = PLAYER_REACH - armStart;
+          const reachMix = clamp((lateral - armStart) / reachSpan, 0, 1);
+          hitRadius = lerp(bodyRadius, PLAYER_REACH, reachMix);
+        }
+        const minDist = hitRadius + BALL_RADIUS;
         if(distSq > minDist * minDist){
           return false;
         }
@@ -554,7 +564,7 @@
         const nx = dx / dist;
         const ny = dy / dist;
         this.ball.x = player.x + nx * (minDist + 2);
-        this.ball.y = player.y - PLAYER_BODY_RADIUS * 0.15 + ny * (minDist + 2);
+        this.ball.y = anchorY + ny * (minDist + 2);
 
         const relativeVX = this.ball.vx - player.vx;
         const relativeVY = this.ball.vy - player.vy;
@@ -1130,7 +1140,6 @@
       ['slJumpHeight','lbJumpHeight', value => { PLAYER_JUMP = parseFloat(value); }],
       ['slArmReach','lbArmReach', value => {
         PLAYER_REACH = parseFloat(value);
-        PLAYER_HIT_RADIUS = PLAYER_BODY_RADIUS + PLAYER_REACH - 4;
         if(!training){
           env.ball.reset(env.serveSide, env.left, env.right);
         }
