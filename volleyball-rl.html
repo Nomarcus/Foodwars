@@ -70,6 +70,10 @@
 
     .legend{border-radius:18px; border:1px solid rgba(148,163,209,.28); background:rgba(11,16,44,.72); padding:18px; display:grid; gap:10px; font-size:12px; color:var(--muted)}
     .legend strong{color:var(--ink)}
+    .insight-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:12px; padding-top:4px}
+    .insight-card{padding:14px 16px; border-radius:14px; border:1px solid rgba(148,163,209,.24); background:rgba(10,16,46,.55); box-shadow:inset 0 0 12px rgba(56,189,248,.06)}
+    .insight-label{font-size:11px; text-transform:uppercase; letter-spacing:.12em; color:var(--muted)}
+    .insight-value{font-size:18px; font-weight:600; color:var(--ink)}
     .sr-only{position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0}
 
     @media (max-width:1200px){
@@ -222,6 +226,49 @@
             <input id="slArmReach" type="range" min="40" max="100" step="2" value="58">
           </div>
         </section>
+
+        <section class="panel" aria-labelledby="physics-tuning">
+          <h2 id="physics-tuning">Ball physics</h2>
+          <p>Soften or weight the ball’s arc with direct control over world gravity.</p>
+          <div class="control">
+            <div class="control-header">
+              <label class="label" for="slGravity">Gravity pull</label>
+              <span class="val" id="lbGravity">520 px/s²</span>
+            </div>
+            <input id="slGravity" type="range" min="360" max="640" step="5" value="520">
+          </div>
+        </section>
+
+        <section class="panel" aria-labelledby="insight-heading">
+          <h2 id="insight-heading">Rally intelligence</h2>
+          <p>Six rapid-fire telemetry reads help you judge how the agents are adapting.</p>
+          <div class="insight-grid" aria-live="polite">
+            <div class="insight-card">
+              <span class="insight-label">Gravity</span>
+              <span class="insight-value" id="lbGravitySetting">520 px/s²</span>
+            </div>
+            <div class="insight-card">
+              <span class="insight-label">Rally clock</span>
+              <span class="insight-value" id="lbRallyClock">0.00 s</span>
+            </div>
+            <div class="insight-card">
+              <span class="insight-label">Last point</span>
+              <span class="insight-value" id="lbLastWinner">—</span>
+            </div>
+            <div class="insight-card">
+              <span class="insight-label">Longest rally</span>
+              <span class="insight-value" id="lbLongestRally">0.00 s</span>
+            </div>
+            <div class="insight-card">
+              <span class="insight-label">Avg rally</span>
+              <span class="insight-value" id="lbAverageRally">0.00 s</span>
+            </div>
+            <div class="insight-card">
+              <span class="insight-label">Touch spread</span>
+              <span class="insight-value" id="lbRallyTouches">L:0 / R:0</span>
+            </div>
+          </div>
+        </section>
       </aside>
 
       <div class="field-area">
@@ -274,7 +321,7 @@
     const NET_X = FIELD_WIDTH / 2;
     const NET_WIDTH = 16;
     const NET_HEIGHT = 240;
-    const GRAVITY = 540;
+    let GRAVITY = 520;
     const DT = 1 / 120;
 
     const PLAYER_BODY_RADIUS = 32;
@@ -286,6 +333,14 @@
     const BALL_RADIUS = 20;
     const BALL_MAX_SPEED = 420;
     const BALL_DAMP = 0.985;
+
+    let rallySeconds = 0;
+    let totalRallySeconds = 0;
+    let rallyCount = 0;
+    let longestRallySeconds = 0;
+    let lastPointWinner = '—';
+    let lastLeftTouches = 0;
+    let lastRightTouches = 0;
 
     const ACTIONS = [
       {name:'idle', vx:0, jump:false},
@@ -966,6 +1021,35 @@
     let episodeRightReward = 0;
     const rewardHistory = [];
 
+    const insightsEls = {
+      gravity: document.getElementById('lbGravitySetting'),
+      rallyClock: document.getElementById('lbRallyClock'),
+      lastWinner: document.getElementById('lbLastWinner'),
+      longest: document.getElementById('lbLongestRally'),
+      average: document.getElementById('lbAverageRally'),
+      touches: document.getElementById('lbRallyTouches')
+    };
+
+    function finalizeRally(outcome){
+      lastLeftTouches = env.left.touches;
+      lastRightTouches = env.right.touches;
+      if(rallySeconds > 0){
+        totalRallySeconds += rallySeconds;
+        rallyCount++;
+        if(rallySeconds > longestRallySeconds){
+          longestRallySeconds = rallySeconds;
+        }
+      }
+      if(outcome === 'left'){
+        lastPointWinner = 'Left team';
+      } else if(outcome === 'right'){
+        lastPointWinner = 'Right team';
+      } else {
+        lastPointWinner = 'Timeout';
+      }
+      rallySeconds = 0;
+    }
+
     function shapeRewards(){
       const {events} = env;
       let leftReward = 0.002;
@@ -1017,6 +1101,8 @@
       const {done} = env.step(leftAction, rightAction);
       const {leftReward, rightReward} = shapeRewards();
 
+      rallySeconds += DT;
+
       const nextLeftState = qAgent.buildState(env);
       const nextRightState = dqnAgent.stateVector(env);
 
@@ -1032,6 +1118,8 @@
 
       let serveSide = env.ball.lastTouchSide === 'left' ? 'right' : 'left';
       if(done || stepCount >= maxSteps){
+        const outcome = done ? (env.events.floorSide === 'left' ? 'right' : 'left') : 'timeout';
+        finalizeRally(outcome);
         episodes++;
         qAgent.endEpisode(episodeLeftReward);
         dqnAgent.endEpisode(episodeRightReward);
@@ -1044,6 +1132,7 @@
         episodeRightReward = 0;
         updateStats();
         renderChart();
+        updateInsights();
       }
     }
 
@@ -1123,6 +1212,31 @@
       document.getElementById('lbRightEpsilon').textContent = dqnAgent.epsilon.toFixed(2);
     }
 
+    function updateInsights(){
+      if(insightsEls.gravity){
+        insightsEls.gravity.textContent = `${Math.round(GRAVITY)} px/s²`;
+      }
+      if(insightsEls.rallyClock){
+        insightsEls.rallyClock.textContent = `${rallySeconds.toFixed(2)} s`;
+      }
+      if(insightsEls.lastWinner){
+        insightsEls.lastWinner.textContent = lastPointWinner;
+      }
+      if(insightsEls.longest){
+        insightsEls.longest.textContent = `${longestRallySeconds.toFixed(2)} s`;
+      }
+      if(insightsEls.average){
+        const avg = rallyCount ? totalRallySeconds / rallyCount : 0;
+        insightsEls.average.textContent = `${avg.toFixed(2)} s`;
+      }
+      if(insightsEls.touches){
+        const liveLeft = env.left ? env.left.touches : 0;
+        const liveRight = env.right ? env.right.touches : 0;
+        insightsEls.touches.textContent = `L:${liveLeft} / R:${liveRight}`;
+        insightsEls.touches.title = `Last rally L:${lastLeftTouches} / R:${lastRightTouches}`;
+      }
+    }
+
     const simSpeedInput = document.getElementById('slSimSpeed');
     let simSpeed = simSpeedInput ? parseInt(simSpeedInput.value, 10) : 1;
 
@@ -1144,6 +1258,7 @@
           env.ball.reset(env.serveSide, env.left, env.right);
         }
       }],
+      ['slGravity','lbGravity', value => { GRAVITY = parseFloat(value); }],
       ['slSimSpeed','lbSimSpeed', value => { simSpeed = parseInt(value, 10); }]
     ];
 
@@ -1156,6 +1271,8 @@
           label.textContent = `${input.value}×`;
         } else if(inputId === 'slJumpHeight' || inputId === 'slArmReach'){
           label.textContent = `${Math.round(parseFloat(input.value))} px`;
+        } else if(inputId === 'slGravity'){
+          label.textContent = `${Math.round(parseFloat(input.value))} px/s²`;
         } else {
           const step = Math.abs(parseFloat(input.step || '1'));
           let decimals = 0;
@@ -1174,6 +1291,7 @@
         }
         handler(input.value);
         updateStats();
+        updateInsights();
       };
       input.addEventListener('input', update);
       update();
@@ -1195,12 +1313,22 @@
       stepCount = 0;
       episodeLeftReward = 0;
       episodeRightReward = 0;
+      rallySeconds = 0;
+      totalRallySeconds = 0;
+      rallyCount = 0;
+      longestRallySeconds = 0;
+      lastPointWinner = '—';
+      lastLeftTouches = 0;
+      lastRightTouches = 0;
       updateStats();
       renderChart();
+      updateInsights();
     });
 
     updateStats();
     renderChart();
+
+    updateInsights();
 
     function loop(){
       requestAnimationFrame(loop);
@@ -1210,6 +1338,7 @@
         }
       }
       drawScene();
+      updateInsights();
     }
 
     loop();
