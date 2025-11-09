@@ -142,10 +142,15 @@
       position: relative;
       min-height: 320px;
       border-radius: 32px;
-      padding: 36px;
-      background: linear-gradient(140deg, rgba(56, 189, 248, 0.32), rgba(148, 163, 209, 0.12));
+      padding: 40px;
+      background: radial-gradient(circle at 10% 10%, rgba(56, 189, 248, 0.35), transparent 60%),
+                  radial-gradient(circle at 90% 15%, rgba(249, 115, 22, 0.35), transparent 65%),
+                  linear-gradient(155deg, rgba(7, 11, 28, 0.95), rgba(18, 23, 52, 0.85));
       overflow: hidden;
       box-shadow: var(--glow);
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
     .hero-visual::before,
     .hero-visual::after {
@@ -153,47 +158,80 @@
       position: absolute;
       border-radius: 50%;
       filter: blur(0px);
-      opacity: 0.4;
+      opacity: 0.35;
     }
     .hero-visual::before {
-      width: 280px;
-      height: 280px;
+      width: 320px;
+      height: 320px;
       background: rgba(56, 189, 248, 0.4);
-      top: -60px;
-      right: -40px;
+      top: -80px;
+      right: -50px;
     }
     .hero-visual::after {
-      width: 220px;
-      height: 220px;
-      background: rgba(249, 115, 22, 0.35);
-      bottom: -70px;
-      left: -60px;
+      width: 260px;
+      height: 260px;
+      background: rgba(249, 115, 22, 0.38);
+      bottom: -90px;
+      left: -70px;
     }
     .hero-grid {
       position: relative;
       display: grid;
       grid-template-columns: repeat(3, 1fr);
-      gap: 16px;
+      gap: 18px;
+      padding: 28px;
+      border-radius: 24px;
+      background: rgba(5, 8, 26, 0.78);
+      border: 1px solid rgba(148, 163, 209, 0.18);
+      box-shadow: inset 0 0 0 1px rgba(56, 189, 248, 0.08);
+      backdrop-filter: blur(14px);
       z-index: 1;
     }
+    .hero-grid::before {
+      content: "";
+      position: absolute;
+      inset: 12px;
+      border-radius: 20px;
+      pointer-events: none;
+      background: linear-gradient(140deg, rgba(56, 189, 248, 0.12), rgba(249, 115, 22, 0.1));
+      opacity: 0.75;
+      z-index: 0;
+    }
     .hero-grid .cell {
-      height: 96px;
+      position: relative;
+      height: 102px;
       border-radius: 18px;
-      background: rgba(10, 14, 34, 0.55);
-      border: 1px solid rgba(148, 163, 209, 0.18);
+      background: linear-gradient(160deg, rgba(12, 17, 42, 0.85), rgba(21, 26, 58, 0.75));
+      border: 1px solid rgba(148, 163, 209, 0.2);
+      box-shadow: 0 15px 35px rgba(5, 8, 26, 0.45);
       display: flex;
       flex-direction: column;
       align-items: flex-start;
       justify-content: center;
-      padding: 16px;
+      padding: 18px;
       color: var(--muted);
-      font-size: 0.85rem;
-      line-height: 1.4;
+      font-size: 0.88rem;
+      line-height: 1.45;
+      transition: transform 0.3s ease, border-color 0.3s ease;
+      z-index: 1;
+    }
+    .hero-grid .cell::after {
+      content: "";
+      position: absolute;
+      inset: 1px;
+      border-radius: 16px;
+      border: 1px solid rgba(56, 189, 248, 0.1);
+      pointer-events: none;
+    }
+    .hero-grid .cell:hover {
+      transform: translateY(-4px);
+      border-color: rgba(56, 189, 248, 0.45);
     }
     .hero-grid .cell strong {
       color: var(--ink);
-      font-size: 1.1rem;
+      font-size: 1.12rem;
       margin-bottom: 6px;
+      letter-spacing: 0.01em;
     }
     .section-heading {
       max-width: 1200px;
@@ -283,6 +321,18 @@
       color: var(--ink);
       text-decoration: none;
     }
+    @media (max-width: 960px) {
+      .hero {
+        grid-template-columns: 1fr;
+      }
+      .hero-visual {
+        padding: 32px;
+      }
+      .hero-grid {
+        grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+        padding: 22px;
+      }
+    }
     @media (max-width: 720px) {
       .nav {
         padding: 20px;
@@ -294,6 +344,9 @@
       .section-heading,
       .card-grid {
         padding: 0 24px;
+      }
+      .hero-grid {
+        gap: 12px;
       }
     }
   </style>
@@ -383,6 +436,16 @@
           <h4>Learn NEAT</h4>
           <p>A guided introduction to NeuroEvolution of Augmenting Topologies with interactive exercises.</p>
           <a href="learn-neat.html">Start the guide</a>
+        </article>
+        <article class="card">
+          <h4>Snake AI</h4>
+          <p>Watch classic Snake mastered by an evolutionary agent that refines strategy with every run.</p>
+          <a href="https://nomarcus.github.io/SnakeAI/" target="_blank" rel="noreferrer">Open Snake AI</a>
+        </article>
+        <article class="card">
+          <h4>Snake Machine Learning</h4>
+          <p>Step through a detailed walkthrough of training approaches that teach Snake agents to thrive.</p>
+          <a href="https://nomarcus.github.io/Snake-ML/" target="_blank" rel="noreferrer">Visit Snake ML</a>
         </article>
       </div>
     </section>
