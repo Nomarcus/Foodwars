@@ -259,6 +259,9 @@
     const GRAVITY = 940;
     const DT = 1 / 60;
     const PLAYER_RADIUS = 36;
+    const PLAYER_ARM_EXTENSION = 36;
+    const PLAYER_ARM_REACH = PLAYER_RADIUS + PLAYER_ARM_EXTENSION;
+    const PLAYER_HIT_RADIUS = PLAYER_RADIUS + PLAYER_ARM_EXTENSION - 6;
     const BALL_RADIUS = 22;
     const MAX_PLAYER_SPEED = 360;
     const JUMP_SPEED = 520;
@@ -352,7 +355,7 @@
         context.lineCap = 'round';
         context.strokeStyle = accentColor;
         const armOffsetY = -PLAYER_RADIUS * 0.15;
-        const armReach = PLAYER_RADIUS + 30;
+        const armReach = PLAYER_ARM_REACH;
         context.beginPath();
         context.moveTo(-PLAYER_RADIUS + 8, armOffsetY);
         context.lineTo(-armReach, armOffsetY + 8);
@@ -434,7 +437,7 @@
       const dx = ball.x - player.x;
       const dy = ball.y - player.y;
       const distSq = dx*dx + dy*dy;
-      const minDist = PLAYER_RADIUS + BALL_RADIUS - 4;
+      const minDist = PLAYER_HIT_RADIUS + BALL_RADIUS - 4;
       if(distSq >= minDist*minDist) return false;
       const dist = Math.sqrt(distSq) || 0.0001;
       const nx = dx / dist;
@@ -449,6 +452,14 @@
         const bounce = 1.12;
         ball.vx -= (1 + bounce) * dot * nx;
         ball.vy -= (1 + bounce) * dot * ny;
+      }
+      const contactDistance = dist - BALL_RADIUS;
+      const reachDenominator = Math.max(PLAYER_HIT_RADIUS - PLAYER_RADIUS, 1);
+      const reachFactor = clamp((contactDistance - PLAYER_RADIUS) / reachDenominator, 0, 1);
+      if(reachFactor > 0){
+        const boost = 160 * reachFactor;
+        ball.vx += nx * boost;
+        ball.vy += ny * boost;
       }
       ball.vx += player.vx * 0.2;
       ball.vy += player.vy * 0.05 - 20;
