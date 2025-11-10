@@ -1,0 +1,697 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lärande-demo – Foodwars Machine Learning Lab</title>
+  <style>
+    :root {
+      --bg1: #050516;
+      --bg2: #111633;
+      --bg3: #1a1f40;
+      --ink: #f5f7ff;
+      --muted: #98a6c7;
+      --accent: #f97316;
+      --accent-2: #38bdf8;
+      --card: rgba(16, 22, 54, 0.75);
+      --card-hover: rgba(29, 36, 82, 0.92);
+      --border: rgba(148, 163, 209, 0.25);
+      --glow: 0 30px 80px rgba(15, 23, 75, 0.55);
+    }
+    * {
+      box-sizing: border-box;
+    }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "Inter", system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+      background: radial-gradient(circle at 20% -10%, rgba(56, 189, 248, 0.25), transparent 45%),
+                  radial-gradient(circle at 80% 0%, rgba(249, 115, 22, 0.28), transparent 55%),
+                  linear-gradient(160deg, var(--bg1) 0%, var(--bg2) 50%, var(--bg3) 100%);
+      color: var(--ink);
+      display: flex;
+      flex-direction: column;
+    }
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      backdrop-filter: blur(18px);
+      background: linear-gradient(120deg, rgba(8, 11, 29, 0.92) 0%, rgba(10, 13, 33, 0.65) 55%, rgba(14, 18, 45, 0.32) 100%);
+      border-bottom: 1px solid var(--border);
+    }
+    .nav {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 20px 28px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 24px;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      text-decoration: none;
+      color: inherit;
+    }
+    .brand-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 14px;
+      background: linear-gradient(140deg, rgba(56, 189, 248, 0.4), rgba(249, 115, 22, 0.55));
+      display: grid;
+      place-items: center;
+      font-size: 18px;
+      font-weight: 600;
+      box-shadow: 0 18px 42px rgba(56, 189, 248, 0.18);
+    }
+    .brand h1 {
+      margin: 0;
+      font-size: clamp(1.1rem, 2vw, 1.5rem);
+      font-weight: 600;
+      letter-spacing: 0.02em;
+    }
+    .nav-links {
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+      font-size: 0.95rem;
+    }
+    .nav-links a {
+      color: var(--muted);
+      text-decoration: none;
+      transition: color 0.3s ease;
+    }
+    .nav-links a:hover {
+      color: var(--ink);
+    }
+    main {
+      flex: 1;
+    }
+    .page-intro {
+      max-width: 1100px;
+      margin: 64px auto 40px;
+      padding: 0 28px;
+      display: grid;
+      gap: 18px;
+    }
+    .page-intro h2 {
+      margin: 0;
+      font-size: clamp(2rem, 5vw, 3rem);
+    }
+    .page-intro p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 1.05rem;
+      line-height: 1.6;
+      max-width: 760px;
+    }
+    .learning-lab {
+      max-width: 1100px;
+      margin: 0 auto 72px;
+      padding: 0 28px 80px;
+      display: grid;
+      gap: 28px;
+    }
+    .learning-lab-header {
+      display: grid;
+      gap: 12px;
+    }
+    .learning-lab-header h3 {
+      margin: 0;
+      font-size: clamp(1.8rem, 4.6vw, 2.4rem);
+    }
+    .learning-lab-header p {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.6;
+      max-width: 760px;
+    }
+    .learning-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.08fr) minmax(0, 0.92fr);
+      gap: 28px;
+    }
+    .learning-side {
+      display: grid;
+      gap: 24px;
+    }
+    .learning-panel {
+      background: var(--card);
+      border-radius: 24px;
+      border: 1px solid rgba(148, 163, 209, 0.18);
+      padding: 24px;
+      box-shadow: 0 26px 60px rgba(8, 11, 29, 0.55);
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+    .learning-panel h4 {
+      margin: 0;
+      font-size: 1.32rem;
+    }
+    .learning-panel p {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+    .dataset-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.95rem;
+      overflow: hidden;
+      border-radius: 18px;
+    }
+    .dataset-table thead {
+      background: rgba(56, 189, 248, 0.18);
+      color: var(--ink);
+    }
+    .dataset-table th,
+    .dataset-table td {
+      padding: 12px 16px;
+      text-align: left;
+      border-bottom: 1px solid rgba(148, 163, 209, 0.18);
+    }
+    .dataset-table tbody tr:last-child td {
+      border-bottom: none;
+    }
+    .dataset-table tbody tr.active {
+      background: rgba(56, 189, 248, 0.12);
+    }
+    .dataset-table .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      border-radius: 999px;
+      padding: 4px 10px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+    .badge-healthy {
+      background: rgba(56, 189, 248, 0.18);
+      color: var(--accent-2);
+    }
+    .badge-report {
+      background: rgba(249, 115, 22, 0.18);
+      color: var(--accent);
+    }
+    .learning-controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: center;
+    }
+    .learning-controls button {
+      background: rgba(56, 189, 248, 0.22);
+      border: 1px solid rgba(56, 189, 248, 0.4);
+      color: var(--ink);
+      border-radius: 999px;
+      padding: 10px 18px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 0.25s ease, box-shadow 0.25s ease;
+    }
+    .learning-controls button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 18px 40px rgba(56, 189, 248, 0.18);
+    }
+    .learning-controls button.secondary {
+      background: rgba(15, 20, 42, 0.6);
+      border-color: rgba(148, 163, 209, 0.3);
+    }
+    .learning-controls span {
+      font-size: 0.92rem;
+      color: var(--muted);
+    }
+    .weights-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 16px;
+    }
+    .weight-card {
+      border-radius: 18px;
+      padding: 16px;
+      background: rgba(10, 14, 34, 0.6);
+      border: 1px solid rgba(148, 163, 209, 0.22);
+      display: grid;
+      gap: 6px;
+    }
+    .weight-card span.value {
+      font-size: 1.2rem;
+      font-weight: 600;
+    }
+    .weight-bar {
+      position: relative;
+      height: 8px;
+      border-radius: 999px;
+      background: rgba(148, 163, 209, 0.18);
+      overflow: hidden;
+    }
+    .weight-bar::after {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 50%;
+      width: 1px;
+      height: 100%;
+      background: rgba(148, 163, 209, 0.25);
+    }
+    .weight-bar span {
+      position: absolute;
+      top: 0;
+      height: 100%;
+      background: linear-gradient(135deg, rgba(56, 189, 248, 0.5), rgba(249, 115, 22, 0.55));
+      border-radius: 999px;
+      transform-origin: left center;
+    }
+    .metrics {
+      display: grid;
+      gap: 12px;
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+    .metrics strong {
+      color: var(--ink);
+    }
+    .chart-wrapper {
+      position: relative;
+      border-radius: 18px;
+      background: rgba(7, 10, 28, 0.95);
+      border: 1px solid rgba(148, 163, 209, 0.22);
+      padding: 12px;
+    }
+    canvas {
+      width: 100%;
+      height: 220px;
+      display: block;
+    }
+    .log {
+      display: grid;
+      gap: 12px;
+      max-height: 360px;
+      overflow-y: auto;
+      padding-right: 6px;
+    }
+    .log-entry {
+      background: rgba(9, 13, 34, 0.6);
+      border: 1px solid rgba(148, 163, 209, 0.2);
+      border-radius: 16px;
+      padding: 14px 16px;
+      font-size: 0.92rem;
+      line-height: 1.5;
+    }
+    footer {
+      margin-top: auto;
+      padding: 32px 24px 48px;
+      text-align: center;
+      color: var(--muted);
+      font-size: 0.92rem;
+    }
+    @media (max-width: 960px) {
+      .learning-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+    @media (max-width: 720px) {
+      .nav {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+      .page-intro {
+        margin-top: 48px;
+      }
+      .learning-lab {
+        padding-bottom: 64px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <nav class="nav">
+      <a class="brand" href="index.html">
+        <span class="brand-icon">ML</span>
+        <div>
+          <h1>Foodwars Machine Learning Lab</h1>
+          <small style="color:var(--muted); letter-spacing:0.08em; text-transform:uppercase;">Interaktivt lärande</small>
+        </div>
+      </a>
+      <div class="nav-links">
+        <a href="index.html">Till startsidan</a>
+        <a href="index.html#experiments">Utforska simuleringar</a>
+      </div>
+    </nav>
+  </header>
+  <main>
+    <section class="page-intro">
+      <h2>Se hur en AI tränas steg för steg</h2>
+      <p>Den här laborationen visar hur en logistisk regression anpassar sig efter dokumentdata. Följ datasetet, se vikterna justeras i realtid och granska loggarna för att förstå hur modellen blir smartare för varje iteration.</p>
+    </section>
+    <section class="learning-lab">
+      <div class="learning-lab-header">
+        <h3>Datasamling och träningsloop</h3>
+        <p>Varje rad representerar ett dokument med längd, kryddpoäng och strukturbetyg. När modellen läser raderna uppdateras vikterna med gradientnedstigning för att skilja recept från rapporter.</p>
+      </div>
+      <div class="learning-grid">
+        <article class="learning-panel">
+          <h4>Datasamling som AI:n utforskar</h4>
+          <p>Följ hur varje dokument påverkar modellens förståelse. När raden markeras analyseras just det dokumentet och vikterna uppdateras.</p>
+          <table class="dataset-table">
+            <thead>
+              <tr>
+                <th>Dokument</th>
+                <th>Ord</th>
+                <th>Kryddpoäng</th>
+                <th>Struktur</th>
+                <th>Label</th>
+                <th>AI-förutsägelse</th>
+              </tr>
+            </thead>
+            <tbody id="dataset-body"></tbody>
+          </table>
+          <div class="learning-controls">
+            <button id="playButton">Spela upp lärandet</button>
+            <button id="stepButton" class="secondary">Stega en gång</button>
+            <button id="resetButton" class="secondary">Återställ</button>
+            <span id="statusText">Modellen väntar på att börja.</span>
+          </div>
+        </article>
+        <div class="learning-side">
+          <article class="learning-panel">
+            <h4>Modellens hjärna</h4>
+            <p>Gradientnedstigningen flyttar vikterna mot en bättre lösning. Högre värden visar att funktionen väger tyngre i besluten.</p>
+            <div class="weights-grid" id="weightsGrid"></div>
+            <div class="metrics">
+              <div><strong>Iteration:</strong> <span id="iterationCount">0</span></div>
+              <div><strong>Träffsäkerhet:</strong> <span id="accuracyValue">0%</span></div>
+              <div><strong>Logistisk förlust:</strong> <span id="lossValue">0.000</span></div>
+            </div>
+            <div class="chart-wrapper">
+              <canvas id="accuracyChart" width="520" height="220"></canvas>
+            </div>
+          </article>
+          <article class="learning-panel">
+            <h4>Lärlogg</h4>
+            <p>Varje steg visar vilket dokument som lästes, hur säkert beslutet var och hur mycket vikterna justerades.</p>
+            <div class="log" id="log"></div>
+          </article>
+        </div>
+      </div>
+    </section>
+  </main>
+  <footer>
+    © 2024 Foodwars Machine Learning Lab – Fortsätt utforska våra simuleringar på startsidan.
+  </footer>
+  <script>
+    (() => {
+      const documents = [
+        { title: "Recept: Chili-lime ramen", length: 520, spiceWords: 24, structureScore: 0.86, label: 1 },
+        { title: "Årsrapport: Livsmedelssäkerhet", length: 1500, spiceWords: 2, structureScore: 0.58, label: 0 },
+        { title: "Snabbguide: Marinader", length: 360, spiceWords: 18, structureScore: 0.72, label: 1 },
+        { title: "Notis: Regional skörd", length: 680, spiceWords: 6, structureScore: 0.64, label: 0 },
+        { title: "Recept: Vulkanstekt aubergine", length: 430, spiceWords: 21, structureScore: 0.81, label: 1 },
+        { title: "Fältstudie: Näringsinnehåll", length: 980, spiceWords: 4, structureScore: 0.67, label: 0 },
+        { title: "Blogg: Streetfood-resan", length: 610, spiceWords: 15, structureScore: 0.75, label: 1 },
+        { title: "Policybrief: Importstrategi", length: 1320, spiceWords: 3, structureScore: 0.55, label: 0 }
+      ];
+      const featureKeys = ["length", "spiceWords", "structureScore"];
+      const featureDescriptions = {
+        bias: "Baslinje (bias)",
+        length: "Textlängd",
+        spiceWords: "Kryddspråk",
+        structureScore: "Struktur"
+      };
+      const featureStats = {};
+      featureKeys.forEach((key) => {
+        const values = documents.map((doc) => doc[key]);
+        const min = Math.min(...values);
+        const max = Math.max(...values);
+        featureStats[key] = { min, range: max - min || 1 };
+      });
+      documents.forEach((doc) => {
+        doc.normalised = featureKeys.map((key) => (doc[key] - featureStats[key].min) / featureStats[key].range);
+      });
+
+      const datasetBody = document.getElementById("dataset-body");
+      const weightsGrid = document.getElementById("weightsGrid");
+      const iterationCount = document.getElementById("iterationCount");
+      const accuracyValue = document.getElementById("accuracyValue");
+      const lossValue = document.getElementById("lossValue");
+      const logContainer = document.getElementById("log");
+      const statusText = document.getElementById("statusText");
+      const playButton = document.getElementById("playButton");
+      const stepButton = document.getElementById("stepButton");
+      const resetButton = document.getElementById("resetButton");
+      const accuracyChart = document.getElementById("accuracyChart");
+      const chartCtx = accuracyChart.getContext("2d");
+
+      const rowRefs = [];
+      documents.forEach((doc) => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>${doc.title}</td>
+          <td>${doc.length}</td>
+          <td>${doc.spiceWords}</td>
+          <td>${Math.round(doc.structureScore * 100)}%</td>
+          <td><span class="badge ${doc.label ? "badge-healthy" : "badge-report"}">${doc.label ? "Recept" : "Rapport"}</span></td>
+          <td><strong class="prediction">50%</strong><br><small class="confidence" style="color:var(--muted);">Osäker</small></td>
+        `;
+        datasetBody.appendChild(tr);
+        rowRefs.push({
+          row: tr,
+          prediction: tr.querySelector(".prediction"),
+          confidence: tr.querySelector(".confidence"),
+        });
+      });
+
+      const weights = {
+        bias: 0,
+        length: 0,
+        spiceWords: 0,
+        structureScore: 0,
+      };
+      const weightRefs = {};
+      Object.keys(weights).forEach((key) => {
+        const card = document.createElement("div");
+        card.className = "weight-card";
+        card.innerHTML = `
+          <div style="color:var(--muted); font-size:0.85rem; letter-spacing:0.04em; text-transform:uppercase;">${featureDescriptions[key]}</div>
+          <span class="value">0.000</span>
+          <div class="weight-bar"><span style="left:50%; width:0%;"></span></div>
+        `;
+        weightsGrid.appendChild(card);
+        weightRefs[key] = {
+          value: card.querySelector(".value"),
+          bar: card.querySelector(".weight-bar span"),
+        };
+      });
+
+      let iteration = 0;
+      let indexPointer = 0;
+      let playing = false;
+      let loopId = null;
+      const learningRate = 0.7;
+      const accuracyHistory = [];
+
+      function sigmoid(x) {
+        return 1 / (1 + Math.exp(-x));
+      }
+
+      function predict(doc) {
+        let sum = weights.bias;
+        featureKeys.forEach((key, idx) => {
+          sum += weights[key] * doc.normalised[idx];
+        });
+        return sigmoid(sum);
+      }
+
+      function updateWeights(doc, prediction) {
+        const error = doc.label - prediction;
+        const gradient = prediction * (1 - prediction);
+        weights.bias += learningRate * error * gradient;
+        featureKeys.forEach((key, idx) => {
+          weights[key] += learningRate * error * gradient * doc.normalised[idx];
+        });
+        return error;
+      }
+
+      function updateWeightCards() {
+        const scale = 2.5;
+        Object.entries(weights).forEach(([key, value]) => {
+          weightRefs[key].value.textContent = value.toFixed(3);
+          const clamped = Math.max(-1, Math.min(1, value / scale));
+          const percentage = Math.abs(clamped) * 50;
+          if (clamped >= 0) {
+            weightRefs[key].bar.style.left = "50%";
+            weightRefs[key].bar.style.width = `${percentage}%`;
+          } else {
+            weightRefs[key].bar.style.left = `${50 - percentage}%`;
+            weightRefs[key].bar.style.width = `${percentage}%`;
+          }
+        });
+      }
+
+      function updateTable(activeIndex) {
+        documents.forEach((doc, index) => {
+          const probability = predict(doc);
+          const predictedLabel = probability >= 0.5 ? 1 : 0;
+          const confidencePercent = Math.round(probability * 100);
+          rowRefs[index].prediction.textContent = `${confidencePercent}%`;
+          rowRefs[index].confidence.textContent = predictedLabel === doc.label ? "På rätt spår" : "Behöver övas";
+          rowRefs[index].row.classList.toggle("active", index === activeIndex);
+        });
+      }
+
+      function computeMetrics() {
+        let correct = 0;
+        let loss = 0;
+        documents.forEach((doc) => {
+          const probability = predict(doc);
+          const clipped = Math.min(Math.max(probability, 1e-6), 1 - 1e-6);
+          const predictedLabel = probability >= 0.5 ? 1 : 0;
+          if (predictedLabel === doc.label) {
+            correct += 1;
+          }
+          loss += -doc.label * Math.log(clipped) - (1 - doc.label) * Math.log(1 - clipped);
+        });
+        return {
+          accuracy: correct / documents.length,
+          loss: loss / documents.length,
+        };
+      }
+
+      function drawChart() {
+        const width = accuracyChart.width;
+        const height = accuracyChart.height;
+        chartCtx.clearRect(0, 0, width, height);
+        chartCtx.fillStyle = "rgba(7, 10, 28, 0.95)";
+        chartCtx.fillRect(0, 0, width, height);
+        chartCtx.strokeStyle = "rgba(148, 163, 209, 0.25)";
+        chartCtx.lineWidth = 1;
+        chartCtx.beginPath();
+        chartCtx.moveTo(40, 20);
+        chartCtx.lineTo(40, height - 30);
+        chartCtx.lineTo(width - 10, height - 30);
+        chartCtx.stroke();
+        chartCtx.font = "12px Inter, sans-serif";
+        chartCtx.fillStyle = "rgba(148, 163, 209, 0.8)";
+        chartCtx.fillText("100%", 5, 28);
+        chartCtx.fillText("0%", 14, height - 32);
+        if (accuracyHistory.length === 0) {
+          return;
+        }
+        chartCtx.strokeStyle = "rgba(56, 189, 248, 0.8)";
+        chartCtx.lineWidth = 2;
+        chartCtx.beginPath();
+        accuracyHistory.forEach((acc, idx) => {
+          const x = 40 + ((width - 60) * idx) / Math.max(1, accuracyHistory.length - 1);
+          const y = height - 30 - acc * (height - 60);
+          if (idx === 0) {
+            chartCtx.moveTo(x, y);
+          } else {
+            chartCtx.lineTo(x, y);
+          }
+        });
+        chartCtx.stroke();
+      }
+
+      function addLogEntry({ iteration, doc, probability, error }) {
+        const entry = document.createElement("div");
+        entry.className = "log-entry";
+        const direction = error > 0 ? "upp" : "ned";
+        entry.innerHTML = `
+          <strong>Steg ${iteration}</strong> – Läser "${doc.title}".<br>
+          Modellens förutsägelse: ${(probability * 100).toFixed(1)}% recept.<br>
+          Vikterna justeras ${direction} med ${(Math.abs(error) * 100).toFixed(1)}% mot sanningen.
+        `;
+        logContainer.prepend(entry);
+        while (logContainer.children.length > 8) {
+          logContainer.removeChild(logContainer.lastChild);
+        }
+      }
+
+      function stepLearning() {
+        const doc = documents[indexPointer];
+        const probability = predict(doc);
+        const error = updateWeights(doc, probability);
+        iteration += 1;
+        indexPointer = (indexPointer + 1) % documents.length;
+        updateWeightCards();
+        updateTable(indexPointer === 0 ? documents.length - 1 : indexPointer - 1);
+        const metrics = computeMetrics();
+        accuracyHistory.push(metrics.accuracy);
+        if (accuracyHistory.length > 60) {
+          accuracyHistory.shift();
+        }
+        iterationCount.textContent = iteration;
+        accuracyValue.textContent = `${Math.round(metrics.accuracy * 100)}%`;
+        lossValue.textContent = metrics.loss.toFixed(3);
+        drawChart();
+        addLogEntry({ iteration, doc, probability, error });
+        statusText.textContent = "AI:n lär sig aktivt av dokumenten.";
+      }
+
+      function reset() {
+        stop();
+        iteration = 0;
+        indexPointer = 0;
+        Object.keys(weights).forEach((key) => {
+          weights[key] = 0;
+        });
+        accuracyHistory.length = 0;
+        updateWeightCards();
+        updateTable(-1);
+        iterationCount.textContent = "0";
+        accuracyValue.textContent = "0%";
+        lossValue.textContent = "0.000";
+        logContainer.innerHTML = "";
+        drawChart();
+        statusText.textContent = "Modellen väntar på att börja.";
+      }
+
+      function play() {
+        if (playing) {
+          stop();
+          return;
+        }
+        playing = true;
+        playButton.textContent = "Pausa lärandet";
+        statusText.textContent = "AI:n tränar i realtid.";
+        loopId = setInterval(() => {
+          stepLearning();
+        }, 1200);
+      }
+
+      function stop() {
+        playing = false;
+        playButton.textContent = "Spela upp lärandet";
+        if (loopId) {
+          clearInterval(loopId);
+          loopId = null;
+        }
+      }
+
+      playButton.addEventListener("click", () => {
+        if (playing) {
+          stop();
+          statusText.textContent = "Pausat. Fortsätt när du vill.";
+        } else {
+          play();
+        }
+      });
+      stepButton.addEventListener("click", () => {
+        if (!playing) {
+          stepLearning();
+        }
+      });
+      resetButton.addEventListener("click", reset);
+
+      reset();
+    })();
+  </script>
+</body>
+</html>
