@@ -223,12 +223,12 @@
       text-transform: uppercase;
       letter-spacing: 0.02em;
     }
-    .doc-icon.recipe {
+    .doc-icon.incident {
       background: rgba(56, 189, 248, 0.22);
       color: var(--accent-2);
       border: 1px solid rgba(56, 189, 248, 0.5);
     }
-    .doc-icon.report {
+    .doc-icon.service {
       background: rgba(249, 115, 22, 0.18);
       color: var(--accent);
       border: 1px solid rgba(249, 115, 22, 0.45);
@@ -367,11 +367,11 @@
       letter-spacing: 0.04em;
       text-transform: uppercase;
     }
-    .badge.recipe {
+    .badge.incident {
       background: rgba(56, 189, 248, 0.2);
       color: var(--accent-2);
     }
-    .badge.report {
+    .badge.service {
       background: rgba(249, 115, 22, 0.2);
       color: var(--accent);
     }
@@ -566,16 +566,16 @@
   </header>
   <main>
     <section class="hero">
-      <h2>See the AI learn the difference between recipes and reports</h2>
-      <p>Instead of watching raw math scroll by, this demo lets you feel every learning step. Follow the documents as they flow through the pipeline, see the feature strengths light up, and watch the decision needle move when the model becomes confident.</p>
+      <h2>See the AI learn the difference between incidents and service requests</h2>
+      <p>Instead of watching raw math scroll by, this demo lets you feel every learning step. Follow the support tickets as they flow through the pipeline, see the feature strengths light up, and watch the decision needle move when the model becomes confident.</p>
       <div class="callouts">
         <article class="callout">
           <strong>1 · Read</strong>
-          <span>The AI scans a document and records three facts: how long it is, how spicy the wording feels, and how formal the structure appears.</span>
+          <span>The AI scans a ticket and records three signals: how long it is, how urgent the wording sounds, and how much impact language it contains.</span>
         </article>
         <article class="callout">
           <strong>2 · Compare</strong>
-          <span>Those features turn into coloured bars. Together with the learned weights they produce a recipe probability between 0% and 100%.</span>
+          <span>Those features turn into coloured bars. Together with the learned weights they produce an incident probability between 0% and 100%.</span>
         </article>
         <article class="callout">
           <strong>3 · Adjust</strong>
@@ -586,12 +586,12 @@
     <section class="lab">
       <div class="lab-header">
         <h3>Interactive learning lab</h3>
-        <p>Press play to run the training loop automatically, step through one document at a time, or reset to start from scratch. The visuals update immediately so you can see why the classifier leans toward “recipe” or “report”.</p>
+        <p>Press play to run the training loop automatically, step through one ticket at a time, or reset to start from scratch. The visuals update immediately so you can see why the classifier leans toward “incident” or “service request”.</p>
       </div>
       <div class="lab-grid">
         <aside class="panel">
-          <h4>Document stream</h4>
-          <p>Each card represents a text the AI studies. Click any card to inspect it, or let the training loop highlight the active one.</p>
+          <h4>Ticket stream</h4>
+          <p>Each card represents a ticket the AI studies. Click any card to inspect it, or let the training loop highlight the active one.</p>
           <div class="document-stream" id="documentStream"></div>
           <div class="controls">
             <button id="playButton">Play training</button>
@@ -603,7 +603,7 @@
             <span id="statusText">The model is idle and ready.</span>
           </div>
           <div class="timeline">
-            <span><strong id="iterationCount">0</strong> steps completed · <span id="timelineStep">0 of 8 documents in this pass</span></span>
+            <span><strong id="iterationCount">0</strong> steps completed · <span id="timelineStep">0 of 8 tickets in this pass</span></span>
             <div class="timeline-track">
               <div class="timeline-fill" id="timelineFill"></div>
             </div>
@@ -612,7 +612,7 @@
             <div class="metric-card">
               <span class="label">Accuracy</span>
               <span class="value" id="accuracyValue">0%</span>
-              <span style="color:var(--muted); font-size:0.82rem;">How many documents the model now predicts correctly.</span>
+              <span style="color:var(--muted); font-size:0.82rem;">How many tickets the model now predicts correctly.</span>
             </div>
             <div class="metric-card">
               <span class="label">Average loss</span>
@@ -624,24 +624,24 @@
         <section class="visual-board">
           <article class="focus-panel">
             <div class="focus-header">
-              <strong id="focusTitle">Select a document to begin</strong>
+              <strong id="focusTitle">Select a ticket to begin</strong>
               <span class="badge" id="focusBadge">Unseen</span>
             </div>
-            <p id="focusDescription">As the model studies a document, these bars show the feature strengths on a 0–100 scale after normalisation.</p>
+            <p id="focusDescription">As the model studies a ticket, these bars show the feature strengths on a 0–100 scale after normalisation.</p>
             <div class="feature-bars" id="featureBars"></div>
           </article>
           <article class="decision-panel">
             <h4 style="margin:0;">Decision meter</h4>
-            <div class="decision-track">
-              <span>Report</span>
-              <span>Recipe</span>
+              <div class="decision-track">
+                <span>Service request</span>
+                <span>Incident</span>
               <div class="decision-indicator" id="decisionIndicator" style="left:50%;">50%</div>
             </div>
             <p id="decisionNote">The model hasn’t read anything yet, so it sits in the middle.</p>
           </article>
           <article class="panel" style="gap:16px;">
             <h4>Weights sliding into place</h4>
-            <p>The AI keeps four numbers: one baseline bias and one weight per feature. When a recipe is under-predicted, the corresponding weights move upward. For reports they slide down.</p>
+            <p>The AI keeps four numbers: one baseline bias and one weight per feature. When an incident is under-predicted, the corresponding weights move upward. For service requests they slide down.</p>
             <div class="weights-grid" id="weightsGrid"></div>
           </article>
           <article class="chart-panel">
@@ -650,7 +650,7 @@
           </article>
           <article class="panel" style="gap:16px;">
             <h4>Learning journal</h4>
-            <p>Every step logs the document, the prediction, and whether the update pushed weights upward or downward.</p>
+            <p>Every step logs the ticket, the prediction, and whether the update pushed weights upward or downward.</p>
             <div class="log" id="log"></div>
           </article>
         </section>
@@ -663,27 +663,27 @@
   <script>
     (() => {
       const documents = [
-        { title: "Recipe: Chili-lime ramen", length: 520, spiceWords: 24, structureScore: 0.86, label: 1 },
-        { title: "Annual report: Food safety", length: 1500, spiceWords: 2, structureScore: 0.58, label: 0 },
-        { title: "Quick guide: Marinades", length: 360, spiceWords: 18, structureScore: 0.72, label: 1 },
-        { title: "News brief: Regional harvest", length: 680, spiceWords: 6, structureScore: 0.64, label: 0 },
-        { title: "Recipe: Volcano-roasted aubergine", length: 430, spiceWords: 21, structureScore: 0.81, label: 1 },
-        { title: "Field study: Nutrient profile", length: 980, spiceWords: 4, structureScore: 0.67, label: 0 },
-        { title: "Travel blog: Street-food tour", length: 610, spiceWords: 15, structureScore: 0.75, label: 1 },
-        { title: "Policy brief: Import strategy", length: 1320, spiceWords: 3, structureScore: 0.55, label: 0 }
+        { title: "Incident: Database outage", length: 420, urgencySignals: 28, impactScore: 0.92, label: 1 },
+        { title: "Service request: Laptop setup", length: 310, urgencySignals: 5, impactScore: 0.35, label: 0 },
+        { title: "Incident: Payment gateway failure", length: 560, urgencySignals: 24, impactScore: 0.88, label: 1 },
+        { title: "Service request: Software access", length: 450, urgencySignals: 4, impactScore: 0.42, label: 0 },
+        { title: "Incident: Network latency spike", length: 380, urgencySignals: 18, impactScore: 0.76, label: 1 },
+        { title: "Service request: Update mailing list", length: 290, urgencySignals: 3, impactScore: 0.28, label: 0 },
+        { title: "Incident: Security alert from IDS", length: 640, urgencySignals: 26, impactScore: 0.95, label: 1 },
+        { title: "Service request: Conference room AV check", length: 360, urgencySignals: 6, impactScore: 0.33, label: 0 }
       ];
 
-      const featureKeys = ["length", "spiceWords", "structureScore"];
+      const featureKeys = ["length", "urgencySignals", "impactScore"];
       const featureDescriptions = {
-        length: "Document length",
-        spiceWords: "Spicy vocabulary",
-        structureScore: "Structure score"
+        length: "Ticket length",
+        urgencySignals: "Urgent language",
+        impactScore: "Impact cues"
       };
 
-      const featureUnits = {
-        length: "words",
-        spiceWords: "hot terms",
-        structureScore: "formality"
+      const featureDisplay = {
+        length: (value) => `${value} words`,
+        urgencySignals: (value) => `${value} urgent terms`,
+        impactScore: (value) => `${Math.round(value * 100)}% impact signal`
       };
 
       const featureStats = {};
@@ -743,13 +743,13 @@
         button.type = "button";
         button.className = "doc-card";
         button.innerHTML = `
-          <span class="doc-icon ${doc.label ? "recipe" : "report"}">${doc.label ? "R" : "F"}</span>
+          <span class="doc-icon ${doc.label ? "incident" : "service"}">${doc.label ? "I" : "S"}</span>
           <div class="doc-details">
             <strong>${doc.title}</strong>
             <div class="doc-meta">
               <span>${doc.length} words</span>
-              <span>${doc.spiceWords} spicy terms</span>
-              <span>${Math.round(doc.structureScore * 100)}% structured</span>
+              <span>${doc.urgencySignals} urgent terms</span>
+              <span>${Math.round(doc.impactScore * 100)}% impact cues</span>
             </div>
             <div class="doc-confidence">Model confidence: <strong>–</strong></div>
           </div>
@@ -768,16 +768,16 @@
       const weights = {
         bias: 0,
         length: 0,
-        spiceWords: 0,
-        structureScore: 0,
+        urgencySignals: 0,
+        impactScore: 0,
       };
 
       const weightRefs = {};
       const weightDescriptions = {
         bias: "Bias baseline",
         length: "Length weight",
-        spiceWords: "Spice weight",
-        structureScore: "Structure weight",
+        urgencySignals: "Urgency weight",
+        impactScore: "Impact weight",
       };
 
       Object.keys(weights).forEach((key) => {
@@ -841,7 +841,7 @@
       }
 
       function updateTimeline(docIndex) {
-        const stepText = `${docIndex + 1} of ${documents.length} documents in this pass`;
+        const stepText = `${docIndex + 1} of ${documents.length} tickets in this pass`;
         timelineStep.textContent = stepText;
         const fillWidth = ((docIndex + 1) / documents.length) * 100;
         timelineFill.style.width = `${fillWidth}%`;
@@ -868,9 +868,9 @@
         decisionIndicator.style.left = `${percent}%`;
         decisionIndicator.textContent = `${Math.round(probability * 100)}%`;
         if (probability >= 0.5) {
-          decisionNote.textContent = "Needle to the right means the AI thinks this reads like a recipe.";
+          decisionNote.textContent = "Needle to the right means the AI senses an incident.";
         } else {
-          decisionNote.textContent = "Needle to the left means the AI reads this as a formal report.";
+          decisionNote.textContent = "Needle to the left means the AI interprets a service request.";
         }
       }
 
@@ -931,7 +931,7 @@
         const entry = document.createElement("div");
         entry.className = "log-entry";
         const direction = error > 0 ? "upward" : "downward";
-        const leaning = probability >= 0.5 ? "recipe" : "report";
+        const leaning = probability >= 0.5 ? "incident" : "service request";
         entry.innerHTML = `
           <strong>Step ${iteration}</strong> · "${doc.title}"<br>
           Model now leans ${leaning} with ${(probability * 100).toFixed(1)}% confidence.<br>
@@ -946,12 +946,12 @@
       function focusOnDocument(index) {
         const doc = documents[index];
         focusTitle.textContent = doc.title;
-        focusBadge.textContent = doc.label ? "Recipe" : "Report";
-        focusBadge.className = `badge ${doc.label ? "recipe" : "report"}`;
-        focusDescription.textContent = "Feature strength after normalisation (0 means the weakest document in the set, 100 the strongest).";
+        focusBadge.textContent = doc.label ? "Incident" : "Service request";
+        focusBadge.className = `badge ${doc.label ? "incident" : "service"}`;
+        focusDescription.textContent = "Feature strength after normalisation (0 means the least intense ticket in the set, 100 the strongest).";
         featureKeys.forEach((key, idx) => {
           const normalised = doc.normalised[idx];
-          featureRefs[key].value.textContent = `${doc[key]} ${featureUnits[key]}`;
+          featureRefs[key].value.textContent = featureDisplay[key](doc[key]);
           featureRefs[key].fill.style.width = `${Math.round(normalised * 100)}%`;
         });
         const probability = predict(doc);
@@ -977,12 +977,12 @@
         lossValue.textContent = metrics.loss.toFixed(3);
         drawChart();
         addLogEntry({ iteration, doc, probability, error });
-        statusText.textContent = "The AI is learning from the documents.";
+        statusText.textContent = "The AI is learning from the tickets.";
         updateTimeline(indexPointer);
         indexPointer = (indexPointer + 1) % documents.length;
         if (indexPointer === 0) {
           timelineFill.style.width = "0%";
-          timelineStep.textContent = "0 of 8 documents in this pass";
+          timelineStep.textContent = "0 of 8 tickets in this pass";
         }
       }
 
@@ -1003,10 +1003,10 @@
         decisionIndicator.style.left = "50%";
         decisionIndicator.textContent = "50%";
         decisionNote.textContent = "The model hasn’t read anything yet, so it sits in the middle.";
-        focusTitle.textContent = "Select a document to begin";
+        focusTitle.textContent = "Select a ticket to begin";
         focusBadge.textContent = "Unseen";
         focusBadge.className = "badge";
-        focusDescription.textContent = "As the model studies a document, these bars show the feature strengths on a 0–100 scale after normalisation.";
+        focusDescription.textContent = "As the model studies a ticket, these bars show the feature strengths on a 0–100 scale after normalisation.";
         featureKeys.forEach((key) => {
           featureRefs[key].value.textContent = "–";
           featureRefs[key].fill.style.width = "0%";
@@ -1017,7 +1017,7 @@
           confidence.textContent = "–";
         });
         timelineFill.style.width = "0%";
-        timelineStep.textContent = "0 of 8 documents in this pass";
+        timelineStep.textContent = "0 of 8 tickets in this pass";
         statusText.textContent = "The model is idle and ready.";
       }
 
