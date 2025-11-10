@@ -115,6 +115,33 @@
       text-align: center;
       gap: 32px;
     }
+    .hero-visual {
+      position: relative;
+      width: min(960px, 90vw);
+      margin: 0;
+      border-radius: 28px;
+      padding: 16px;
+      background: radial-gradient(circle at 20% 20%, rgba(255, 255, 255, 0.08), rgba(96, 213, 255, 0.05));
+      border: 1px solid rgba(214, 223, 255, 0.45);
+      box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.22) inset, 0 28px 60px rgba(61, 75, 128, 0.45);
+    }
+    .hero-visual::before {
+      content: "";
+      position: absolute;
+      inset: -12px;
+      border-radius: 34px;
+      background: linear-gradient(135deg, rgba(240, 246, 255, 0.65), rgba(168, 182, 214, 0.35), rgba(240, 246, 255, 0.65));
+      filter: blur(14px);
+      opacity: 0.75;
+      z-index: -1;
+    }
+    .hero-visual img {
+      display: block;
+      width: 100%;
+      border-radius: 18px;
+      box-shadow: 0 22px 65px rgba(22, 30, 65, 0.55);
+      border: 2px solid rgba(232, 239, 255, 0.8);
+    }
     .hero-badge-title {
       font-size: clamp(0.85rem, 1vw, 1rem);
       letter-spacing: 0.36em;
@@ -343,10 +370,13 @@
         <ul class="hero-list">
           <li>Reinforcement Learning</li>
           <li>Neuroevolution</li>
-          <li>Interaktiva simuleringar</li>
-          <li>Eget AI-träningslab</li>
+          <li>Interactive simulations</li>
+          <li>Build your own AI training lab</li>
         </ul>
         <a class="hero-cta" href="#experiments">Explore simulations →</a>
+        <figure class="hero-visual">
+          <img src="assets/network-glow.svg" alt="Two luminous neural constellations linked across a starry interface" loading="lazy">
+        </figure>
       </div>
     </section>
 
