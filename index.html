@@ -302,6 +302,205 @@
       background: rgba(56, 189, 248, 0.35);
       transform: translateY(-2px);
     }
+    .learning-lab {
+      max-width: 1200px;
+      margin: 96px auto 48px;
+      padding: 0 32px;
+      display: grid;
+      gap: 28px;
+    }
+    .learning-lab-header {
+      display: grid;
+      gap: 12px;
+    }
+    .learning-lab-header h3 {
+      margin: 0;
+      font-size: clamp(1.9rem, 4.6vw, 2.6rem);
+    }
+    .learning-lab-header p {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.6;
+      max-width: 760px;
+    }
+    .learning-grid {
+      display: grid;
+      grid-template-columns: 1.1fr 0.9fr;
+      gap: 28px;
+    }
+    .learning-side {
+      display: grid;
+      gap: 24px;
+    }
+    .learning-panel {
+      background: var(--card);
+      border-radius: 24px;
+      border: 1px solid rgba(148, 163, 209, 0.18);
+      padding: 24px;
+      box-shadow: 0 26px 60px rgba(8, 11, 29, 0.55);
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+    .learning-panel h4 {
+      margin: 0;
+      font-size: 1.32rem;
+    }
+    .dataset-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.95rem;
+      overflow: hidden;
+      border-radius: 18px;
+    }
+    .dataset-table thead {
+      background: rgba(56, 189, 248, 0.18);
+      color: var(--ink);
+    }
+    .dataset-table th,
+    .dataset-table td {
+      padding: 12px 16px;
+      text-align: left;
+      border-bottom: 1px solid rgba(148, 163, 209, 0.18);
+    }
+    .dataset-table tbody tr:last-child td {
+      border-bottom: none;
+    }
+    .dataset-table tbody tr.active {
+      background: rgba(56, 189, 248, 0.12);
+    }
+    .dataset-table .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      border-radius: 999px;
+      padding: 4px 10px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+    .badge-healthy {
+      background: rgba(56, 189, 248, 0.18);
+      color: var(--accent-2);
+    }
+    .badge-report {
+      background: rgba(249, 115, 22, 0.18);
+      color: var(--accent);
+    }
+    .learning-controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: center;
+    }
+    .learning-controls button {
+      background: rgba(56, 189, 248, 0.22);
+      border: 1px solid rgba(56, 189, 248, 0.4);
+      color: var(--ink);
+      border-radius: 999px;
+      padding: 10px 18px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 0.25s ease, box-shadow 0.25s ease;
+    }
+    .learning-controls button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 18px 40px rgba(56, 189, 248, 0.18);
+    }
+    .learning-controls button.secondary {
+      background: rgba(15, 20, 42, 0.6);
+      border-color: rgba(148, 163, 209, 0.3);
+    }
+    .weights-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 16px;
+    }
+    .weight-card {
+      border-radius: 18px;
+      padding: 16px;
+      background: rgba(10, 14, 34, 0.6);
+      border: 1px solid rgba(148, 163, 209, 0.22);
+      display: grid;
+      gap: 6px;
+    }
+    .weight-card span.value {
+      font-size: 1.2rem;
+      font-weight: 600;
+    }
+    .weight-bar {
+      position: relative;
+      height: 8px;
+      border-radius: 999px;
+      background: rgba(148, 163, 209, 0.18);
+      overflow: hidden;
+    }
+    .weight-bar::after {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 50%;
+      width: 1px;
+      height: 100%;
+      background: rgba(148, 163, 209, 0.25);
+    }
+    .weight-bar span {
+      position: absolute;
+      top: 0;
+      height: 100%;
+      background: linear-gradient(135deg, rgba(56, 189, 248, 0.5), rgba(249, 115, 22, 0.55));
+      border-radius: 999px;
+      transform-origin: left center;
+    }
+    .metrics {
+      display: grid;
+      gap: 12px;
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+    .metrics strong {
+      color: var(--ink);
+    }
+    .log {
+      display: grid;
+      gap: 10px;
+      max-height: 240px;
+      overflow-y: auto;
+      padding-right: 6px;
+    }
+    .log-entry {
+      background: rgba(10, 14, 34, 0.58);
+      border: 1px solid rgba(148, 163, 209, 0.16);
+      border-radius: 16px;
+      padding: 12px 14px;
+      font-size: 0.9rem;
+      color: var(--muted);
+      line-height: 1.4;
+    }
+    .log-entry strong {
+      color: var(--ink);
+    }
+    .chart-wrapper {
+      background: rgba(10, 14, 34, 0.6);
+      border: 1px solid rgba(148, 163, 209, 0.2);
+      border-radius: 18px;
+      padding: 16px;
+    }
+    canvas#accuracyChart {
+      width: 100%;
+      height: 220px;
+    }
+    @media (max-width: 1040px) {
+      .learning-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+    @media (max-width: 720px) {
+      .learning-lab {
+        padding: 0 24px;
+      }
+    }
     footer {
       border-top: 1px solid var(--border);
       background: rgba(5, 7, 22, 0.8);
@@ -362,6 +561,7 @@
         </div>
       </a>
       <div class="nav-links">
+        <a href="#learning-lab">Lärande-demo</a>
         <a href="#experiments">Simulations</a>
         <a href="#">About the lab</a>
         <a href="https://github.com/" target="_blank" rel="noreferrer">GitHub</a>
@@ -403,6 +603,57 @@
             <strong>Soundtrack</strong>
             Enable synthwave and feel the pulse of the lab.
           </div>
+        </div>
+      </div>
+    </section>
+    <section id="learning-lab" class="learning-lab">
+      <div class="learning-lab-header">
+        <h3>Se hur en AI lär sig från dokumentdata</h3>
+        <p>Vi låter en enkel modell läsa fiktiva rapporter och recept. Varje dokument beskriver hur långt det är, hur mycket kryddspråk som används och hur väl strukturen är organiserad. Med hjälp av gradientnedstigning justeras vikterna steg för steg så att AI:n snabbare känner igen vilket material som är ett smakrikt recept och vad som är en torr rapport.</p>
+      </div>
+      <div class="learning-grid">
+        <article class="learning-panel">
+          <h4>Datasamling som AI:n utforskar</h4>
+          <p style="color:var(--muted);">Följ hur varje dokument påverkar modellens förståelse. När raden markeras analyseras just det dokumentet och vikterna uppdateras.</p>
+          <table class="dataset-table">
+            <thead>
+              <tr>
+                <th>Dokument</th>
+                <th>Ord</th>
+                <th>Kryddpoäng</th>
+                <th>Struktur</th>
+                <th>Label</th>
+                <th>AI-förutsägelse</th>
+              </tr>
+            </thead>
+            <tbody id="dataset-body"></tbody>
+          </table>
+          <div class="learning-controls">
+            <button id="playButton">Spela upp lärandet</button>
+            <button id="stepButton" class="secondary">Stega en gång</button>
+            <button id="resetButton" class="secondary">Återställ</button>
+            <span id="statusText" style="color:var(--muted); font-size:0.92rem;">Modellen väntar på att börja.</span>
+          </div>
+        </article>
+        <div class="learning-side">
+          <article class="learning-panel">
+            <h4>Modellens hjärna</h4>
+            <p style="color:var(--muted);">Gradientnedstigningen flyttar vikterna mot en bättre lösning. Högre värden visar att funktionen väger tyngre i besluten.</p>
+            <div class="weights-grid" id="weightsGrid"></div>
+            <div class="metrics">
+              <div><strong>Iteration:</strong> <span id="iterationCount">0</span></div>
+              <div><strong>Träffsäkerhet:</strong> <span id="accuracyValue">0%</span></div>
+              <div><strong>Logistisk förlust:</strong> <span id="lossValue">0.000</span></div>
+            </div>
+            <div class="chart-wrapper">
+              <canvas id="accuracyChart" width="520" height="220"></canvas>
+            </div>
+          </article>
+          <article class="learning-panel">
+            <h4>Lärlogg</h4>
+            <p style="color:var(--muted);">Varje steg visar vilket dokument som lästes, hur säkert beslutet var och hur mycket vikterna justerades.</p>
+            <div class="log" id="log"></div>
+          </article>
         </div>
       </div>
     </section>
@@ -456,5 +707,294 @@
       <div>Need inspiration? Jump into any simulation above and start experimenting.</div>
     </div>
   </footer>
+  <script>
+    (() => {
+      const documents = [
+        { title: "Recept: Chili-lime ramen", length: 520, spiceWords: 24, structureScore: 0.86, label: 1 },
+        { title: "Årsrapport: Livsmedelssäkerhet", length: 1500, spiceWords: 2, structureScore: 0.58, label: 0 },
+        { title: "Snabbguide: Marinader", length: 360, spiceWords: 18, structureScore: 0.72, label: 1 },
+        { title: "Notis: Regional skörd", length: 680, spiceWords: 6, structureScore: 0.64, label: 0 },
+        { title: "Recept: Vulkanstekt aubergine", length: 430, spiceWords: 21, structureScore: 0.81, label: 1 },
+        { title: "Fältstudie: Näringsinnehåll", length: 980, spiceWords: 4, structureScore: 0.67, label: 0 },
+        { title: "Blogg: Streetfood-resan", length: 610, spiceWords: 15, structureScore: 0.75, label: 1 },
+        { title: "Policybrief: Importstrategi", length: 1320, spiceWords: 3, structureScore: 0.55, label: 0 }
+      ];
+      const featureKeys = ["length", "spiceWords", "structureScore"];
+      const featureDescriptions = {
+        bias: "Baslinje (bias)",
+        length: "Textlängd",
+        spiceWords: "Kryddspråk",
+        structureScore: "Struktur"
+      };
+      const featureStats = {};
+      featureKeys.forEach((key) => {
+        const values = documents.map((doc) => doc[key]);
+        const min = Math.min(...values);
+        const max = Math.max(...values);
+        featureStats[key] = { min, range: max - min || 1 };
+      });
+      documents.forEach((doc) => {
+        doc.normalised = featureKeys.map((key) => (doc[key] - featureStats[key].min) / featureStats[key].range);
+      });
+
+      const datasetBody = document.getElementById("dataset-body");
+      const weightsGrid = document.getElementById("weightsGrid");
+      const iterationCount = document.getElementById("iterationCount");
+      const accuracyValue = document.getElementById("accuracyValue");
+      const lossValue = document.getElementById("lossValue");
+      const logContainer = document.getElementById("log");
+      const statusText = document.getElementById("statusText");
+      const playButton = document.getElementById("playButton");
+      const stepButton = document.getElementById("stepButton");
+      const resetButton = document.getElementById("resetButton");
+      const accuracyChart = document.getElementById("accuracyChart");
+      const chartCtx = accuracyChart.getContext("2d");
+
+      const rowRefs = [];
+      documents.forEach((doc, index) => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>${doc.title}</td>
+          <td>${doc.length}</td>
+          <td>${doc.spiceWords}</td>
+          <td>${Math.round(doc.structureScore * 100)}%</td>
+          <td><span class="badge ${doc.label ? "badge-healthy" : "badge-report"}">${doc.label ? "Recept" : "Rapport"}</span></td>
+          <td><strong class="prediction">50%</strong><br><small class="confidence" style="color:var(--muted);">Osäker</small></td>
+        `;
+        datasetBody.appendChild(tr);
+        rowRefs.push({
+          row: tr,
+          prediction: tr.querySelector(".prediction"),
+          confidence: tr.querySelector(".confidence")
+        });
+      });
+
+      const weights = {
+        bias: 0,
+        length: 0,
+        spiceWords: 0,
+        structureScore: 0
+      };
+      const weightRefs = {};
+      Object.keys(weights).forEach((key) => {
+        const card = document.createElement("div");
+        card.className = "weight-card";
+        card.innerHTML = `
+          <div style="color:var(--muted); font-size:0.85rem; letter-spacing:0.04em; text-transform:uppercase;">${featureDescriptions[key]}</div>
+          <span class="value">0.000</span>
+          <div class="weight-bar"><span style="left:50%; width:0%;"></span></div>
+        `;
+        weightsGrid.appendChild(card);
+        weightRefs[key] = {
+          value: card.querySelector(".value"),
+          bar: card.querySelector(".weight-bar span")
+        };
+      });
+
+      let iteration = 0;
+      let indexPointer = 0;
+      let playing = false;
+      let loopId = null;
+      const learningRate = 0.7;
+      const accuracyHistory = [];
+
+      function sigmoid(x) {
+        return 1 / (1 + Math.exp(-x));
+      }
+
+      function predict(doc) {
+        let sum = weights.bias;
+        featureKeys.forEach((key, idx) => {
+          sum += weights[key] * doc.normalised[idx];
+        });
+        return sigmoid(sum);
+      }
+
+      function updateWeights(doc, prediction) {
+        const error = doc.label - prediction;
+        const gradient = prediction * (1 - prediction);
+        weights.bias += learningRate * error * gradient;
+        featureKeys.forEach((key, idx) => {
+          weights[key] += learningRate * error * gradient * doc.normalised[idx];
+        });
+        return error;
+      }
+
+      function updateWeightCards() {
+        const scale = 2.5;
+        Object.entries(weights).forEach(([key, value]) => {
+          weightRefs[key].value.textContent = value.toFixed(3);
+          const clamped = Math.max(-1, Math.min(1, value / scale));
+          const span = weightRefs[key].bar;
+          const percentage = Math.abs(clamped) * 50;
+          if (clamped >= 0) {
+            span.style.left = "50%";
+            span.style.width = `${percentage}%`;
+          } else {
+            span.style.left = `${50 - percentage}%`;
+            span.style.width = `${percentage}%`;
+          }
+        });
+      }
+
+      function updateTable(activeIndex) {
+        documents.forEach((doc, index) => {
+          const probability = predict(doc);
+          const predictedLabel = probability >= 0.5 ? 1 : 0;
+          const confidencePercent = Math.round(probability * 100);
+          rowRefs[index].prediction.textContent = `${confidencePercent}%`;
+          rowRefs[index].confidence.textContent = predictedLabel === doc.label ? "På rätt spår" : "Behöver övas";
+          rowRefs[index].row.classList.toggle("active", index === activeIndex);
+        });
+      }
+
+      function computeMetrics() {
+        let correct = 0;
+        let loss = 0;
+        documents.forEach((doc) => {
+          const probability = predict(doc);
+          const clipped = Math.min(Math.max(probability, 1e-6), 1 - 1e-6);
+          const predictedLabel = probability >= 0.5 ? 1 : 0;
+          if (predictedLabel === doc.label) {
+            correct += 1;
+          }
+          loss += -doc.label * Math.log(clipped) - (1 - doc.label) * Math.log(1 - clipped);
+        });
+        return {
+          accuracy: correct / documents.length,
+          loss: loss / documents.length
+        };
+      }
+
+      function drawChart() {
+        const width = accuracyChart.width;
+        const height = accuracyChart.height;
+        chartCtx.clearRect(0, 0, width, height);
+        chartCtx.fillStyle = "rgba(7, 10, 28, 0.95)";
+        chartCtx.fillRect(0, 0, width, height);
+        chartCtx.strokeStyle = "rgba(148, 163, 209, 0.25)";
+        chartCtx.lineWidth = 1;
+        chartCtx.beginPath();
+        chartCtx.moveTo(40, 20);
+        chartCtx.lineTo(40, height - 30);
+        chartCtx.lineTo(width - 10, height - 30);
+        chartCtx.stroke();
+        chartCtx.font = "12px Inter, sans-serif";
+        chartCtx.fillStyle = "rgba(148, 163, 209, 0.8)";
+        chartCtx.fillText("100%", 5, 28);
+        chartCtx.fillText("0%", 14, height - 32);
+        if (accuracyHistory.length === 0) {
+          return;
+        }
+        const maxPoints = accuracyHistory.length;
+        chartCtx.strokeStyle = "rgba(56, 189, 248, 0.8)";
+        chartCtx.lineWidth = 2;
+        chartCtx.beginPath();
+        accuracyHistory.forEach((acc, idx) => {
+          const x = 40 + ((width - 60) * idx) / Math.max(1, maxPoints - 1);
+          const y = height - 30 - acc * (height - 60);
+          if (idx === 0) {
+            chartCtx.moveTo(x, y);
+          } else {
+            chartCtx.lineTo(x, y);
+          }
+        });
+        chartCtx.stroke();
+      }
+
+      function addLogEntry({ iteration, doc, probability, error }) {
+        const entry = document.createElement("div");
+        entry.className = "log-entry";
+        const direction = error > 0 ? "upp" : "ned";
+        entry.innerHTML = `
+          <strong>Steg ${iteration}</strong> – Läser "${doc.title}".<br>
+          Modellens förutsägelse: ${(probability * 100).toFixed(1)}% recept.<br>
+          Vikterna justeras ${direction} med ${(Math.abs(error) * 100).toFixed(1)}% mot sanningen.
+        `;
+        logContainer.prepend(entry);
+        while (logContainer.children.length > 8) {
+          logContainer.removeChild(logContainer.lastChild);
+        }
+      }
+
+      function stepLearning() {
+        const doc = documents[indexPointer];
+        const probability = predict(doc);
+        const error = updateWeights(doc, probability);
+        iteration += 1;
+        indexPointer = (indexPointer + 1) % documents.length;
+        updateWeightCards();
+        updateTable(indexPointer === 0 ? documents.length - 1 : indexPointer - 1);
+        const metrics = computeMetrics();
+        accuracyHistory.push(metrics.accuracy);
+        if (accuracyHistory.length > 60) {
+          accuracyHistory.shift();
+        }
+        iterationCount.textContent = iteration;
+        accuracyValue.textContent = `${Math.round(metrics.accuracy * 100)}%`;
+        lossValue.textContent = metrics.loss.toFixed(3);
+        drawChart();
+        addLogEntry({ iteration, doc, probability, error });
+        statusText.textContent = "AI:n lär sig aktivt av dokumenten.";
+      }
+
+      function reset() {
+        stop();
+        iteration = 0;
+        indexPointer = 0;
+        Object.keys(weights).forEach((key) => {
+          weights[key] = 0;
+        });
+        accuracyHistory.length = 0;
+        updateWeightCards();
+        updateTable(-1);
+        iterationCount.textContent = "0";
+        accuracyValue.textContent = "0%";
+        lossValue.textContent = "0.000";
+        logContainer.innerHTML = "";
+        drawChart();
+        statusText.textContent = "Modellen väntar på att börja.";
+      }
+
+      function play() {
+        if (playing) {
+          stop();
+          return;
+        }
+        playing = true;
+        playButton.textContent = "Pausa lärandet";
+        statusText.textContent = "AI:n tränar i realtid.";
+        loopId = setInterval(() => {
+          stepLearning();
+        }, 1200);
+      }
+
+      function stop() {
+        playing = false;
+        playButton.textContent = "Spela upp lärandet";
+        if (loopId) {
+          clearInterval(loopId);
+          loopId = null;
+        }
+      }
+
+      playButton.addEventListener("click", () => {
+        if (playing) {
+          stop();
+          statusText.textContent = "Pausat. Fortsätt när du vill.";
+        } else {
+          play();
+        }
+      });
+      stepButton.addEventListener("click", () => {
+        if (!playing) {
+          stepLearning();
+        }
+      });
+      resetButton.addEventListener("click", reset);
+
+      reset();
+    })();
+  </script>
 </body>
 </html>
