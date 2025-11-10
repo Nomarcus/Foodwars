@@ -59,6 +59,8 @@
     .panel p{margin:0 0 14px; font-size:13px; line-height:1.6; color:var(--muted)}
     .control-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:16px}
     .control{display:flex; flex-direction:column; gap:10px; padding:12px 14px; border-radius:14px; border:1px solid rgba(148,163,209,.24); background:rgba(10,16,46,.55); box-shadow:inset 0 0 12px rgba(56,189,248,.08)}
+    .toggle{display:flex; align-items:center; gap:12px; font-size:13px; color:var(--ink)}
+    .toggle input{width:18px; height:18px; accent-color:var(--accent-cyan)}
     .control-header{display:flex; align-items:center; justify-content:space-between; gap:12px}
     .label{font-size:13px; color:var(--muted); letter-spacing:.02em}
     .val{font-family:ui-monospace,Menlo,Consolas,monospace; font-size:12px; padding:4px 8px; border-radius:8px; background:rgba(10,16,46,.7); border:1px solid var(--silver); color:var(--accent-cyan); box-shadow:inset 0 0 12px rgba(56,189,248,.12)}
@@ -204,6 +206,22 @@
             </div>
             <input id="slSimSpeed" type="range" min="1" max="20" step="1" value="6">
           </div>
+          <div class="control">
+            <div class="control-header">
+              <label class="label" for="cbEndlessRally">Endless rally</label>
+            </div>
+            <label class="toggle" for="cbEndlessRally">
+              <input id="cbEndlessRally" type="checkbox">
+              <span>Keep the ball alive between generations</span>
+            </label>
+          </div>
+          <div class="control">
+            <div class="control-header">
+              <label class="label" for="slGenerationSeconds">Generation length</label>
+              <span class="val" id="lbGenerationSeconds">30 s</span>
+            </div>
+            <input id="slGenerationSeconds" type="range" min="15" max="120" step="5" value="30">
+          </div>
           <button class="btn" id="btnToggleTraining">Start training</button>
           <button class="btn" id="btnReset">Reset learners</button>
         </section>
@@ -331,8 +349,17 @@
     const PLAYER_ACCEL = 1100;
 
     const BALL_RADIUS = 20;
-    const BALL_MAX_SPEED = 420;
-    const BALL_DAMP = 0.985;
+    const BALL_MAX_SPEED = 520;
+    const BALL_AIR_DRAG = 0.996;
+    const BALL_WALL_RESTITUTION = 0.78;
+    const BALL_CEILING_RESTITUTION = 0.68;
+    const FLOOR_RESTITUTION = 0.82;
+    const FLOOR_FRICTION = 0.88;
+    const BALL_MIN_BOUNCE = 58;
+    const PLAYER_CONTACT_BASE = 260;
+    const PLAYER_CONTACT_RANDOM = 90;
+    const PLAYER_CONTACT_RESPONSE = 0.78;
+    const PLAYER_TANGENT_TRANSFER = 0.18;
 
     let rallySeconds = 0;
     let totalRallySeconds = 0;
@@ -363,6 +390,8 @@
       constructor(side, number){
         this.side = side;
         this.number = number;
+        this.limbPhase = Math.random() * Math.PI * 2;
+        this.locomotion = 0;
         this.reset();
       }
       reset(){
@@ -372,6 +401,8 @@
         this.vy = 0;
         this.grounded = true;
         this.touches = 0;
+        this.limbPhase = Math.random() * Math.PI * 2;
+        this.locomotion = 0;
       }
       applyAction(action){
         if(action.vx !== 0){
@@ -401,67 +432,122 @@
         } else {
           this.grounded = false;
         }
+
+        const movement = clamp(Math.abs(this.vx) / PLAYER_MAX_SPEED, 0, 1);
+        const cycleSpeed = this.grounded ? 9 : 5;
+        this.limbPhase = (this.limbPhase + movement * cycleSpeed * DT) % (Math.PI * 2);
+        this.locomotion = movement;
       }
       draw(context){
         context.save();
         context.translate(this.x, this.y);
 
+        const orientation = this.side === 'left' ? 1 : -1;
         const baseColor = this.side === 'left' ? '#38bdf8' : '#f472b6';
-        const accentColor = this.side === 'left' ? '#0ea5e9' : '#fb7185';
-        const jerseyColor = this.side === 'left' ? '#1d4ed8' : '#be185d';
+        const glowColor = this.side === 'left' ? '#67e8f9' : '#f9a8d4';
+        const shadowColor = this.side === 'left' ? 'rgba(14,165,233,0.55)' : 'rgba(251,113,133,0.55)';
+        const jointColor = 'rgba(248,250,252,0.75)';
+        const tipColor = 'rgba(148,163,209,0.65)';
 
-        context.fillStyle = baseColor;
+        const orientAngle = angle => orientation === 1 ? angle : Math.PI - angle;
+        const locomotion = this.locomotion || 0;
+        const airborne = this.grounded ? 0 : 1;
+        const stride = Math.sin(this.limbPhase) * locomotion;
+        const armSwing = Math.sin(this.limbPhase + Math.PI / 2) * locomotion;
+        const reachLift = clamp(-this.vy / PLAYER_JUMP, 0, 1);
+
+        const drawJointedLimb = (startX, startY, originAngle, bend, length, thickness) => {
+          const upper = length * 0.55;
+          const lower = length * 0.45;
+          const hipAngle = orientAngle(originAngle);
+          const kneeAngle = orientAngle(originAngle + bend);
+          const kneeX = startX + Math.cos(hipAngle) * upper;
+          const kneeY = startY + Math.sin(hipAngle) * upper;
+          const footX = kneeX + Math.cos(kneeAngle) * lower;
+          const footY = kneeY + Math.sin(kneeAngle) * lower;
+
+          context.strokeStyle = glowColor;
+          context.shadowColor = shadowColor;
+          context.shadowBlur = 16;
+          context.lineCap = 'round';
+          context.lineWidth = thickness;
+          context.beginPath();
+          context.moveTo(startX, startY);
+          context.lineTo(kneeX, kneeY);
+          context.stroke();
+
+          context.lineWidth = thickness * 0.82;
+          context.beginPath();
+          context.moveTo(kneeX, kneeY);
+          context.lineTo(footX, footY);
+          context.stroke();
+
+          context.shadowBlur = 0;
+          context.fillStyle = jointColor;
+          context.beginPath();
+          context.arc(kneeX, kneeY, thickness * 0.45, 0, Math.PI * 2);
+          context.fill();
+
+          context.fillStyle = tipColor;
+          context.beginPath();
+          context.arc(footX, footY, thickness * 0.55, 0, Math.PI * 2);
+          context.fill();
+        };
+
+        const hipSpacing = PLAYER_BODY_RADIUS * 0.3;
+        const hipY = PLAYER_BODY_RADIUS * 0.35;
+        const legLength = PLAYER_BODY_RADIUS * 1.9;
+        const legBendBase = 0.9 + locomotion * 0.25 + airborne * 0.2;
+        const frontHipX = orientation === 1 ? hipSpacing : -hipSpacing;
+        const rearHipX = -frontHipX;
+
+        drawJointedLimb(frontHipX, hipY, Math.PI / 2 - stride * 0.45 - airborne * 0.12, legBendBase, legLength, 8);
+        drawJointedLimb(rearHipX, hipY, Math.PI / 2 + stride * 0.45 - airborne * 0.08, legBendBase + locomotion * 0.12, legLength, 8);
+
+        const shoulderSpacing = PLAYER_BODY_RADIUS * 0.35;
+        const shoulderY = -PLAYER_BODY_RADIUS * 0.05;
+        const armLength = PLAYER_BODY_RADIUS * 1.65;
+        const frontShoulderX = orientation === 1 ? shoulderSpacing : -shoulderSpacing;
+        const rearShoulderX = -frontShoulderX;
+
+        const frontArmAngle = -Math.PI / 3.2 - armSwing * 0.35 - reachLift * 0.5;
+        const backArmAngle = -Math.PI / 1.8 + armSwing * 0.25 - reachLift * 0.35;
+        const frontArmBend = 0.55 + reachLift * 0.4;
+        const backArmBend = 0.75 + reachLift * 0.25;
+
+        drawJointedLimb(frontShoulderX, shoulderY, frontArmAngle, frontArmBend, armLength, 6);
+        drawJointedLimb(rearShoulderX, shoulderY, backArmAngle, backArmBend, armLength * 0.92, 6);
+
+        const coreRadius = PLAYER_BODY_RADIUS * 0.88;
+        const glow = context.createRadialGradient(-coreRadius * 0.25, -coreRadius * 0.25, coreRadius * 0.2, 0, 0, coreRadius * 1.1);
+        glow.addColorStop(0, 'rgba(248,250,252,0.92)');
+        glow.addColorStop(0.45, baseColor);
+        glow.addColorStop(1, 'rgba(15,23,61,0.85)');
+
+        context.shadowColor = shadowColor;
+        context.shadowBlur = 22;
+        context.fillStyle = glow;
         context.beginPath();
-        context.arc(0, 0, PLAYER_BODY_RADIUS, 0, Math.PI * 2);
+        context.arc(0, 0, coreRadius, 0, Math.PI * 2);
         context.fill();
+
+        context.shadowBlur = 0;
+        context.strokeStyle = 'rgba(148,163,209,0.38)';
         context.lineWidth = 4;
-        context.strokeStyle = 'rgba(15,23,61,0.55)';
+        context.beginPath();
+        context.arc(0, 0, coreRadius * 0.72, 0, Math.PI * 2);
         context.stroke();
 
-        context.fillStyle = 'rgba(255,255,255,0.2)';
+        context.fillStyle = 'rgba(255,255,255,0.18)';
         context.beginPath();
-        context.ellipse(-PLAYER_BODY_RADIUS * 0.3, -PLAYER_BODY_RADIUS * 0.35, PLAYER_BODY_RADIUS * 0.45, PLAYER_BODY_RADIUS * 0.32, -0.4, 0, Math.PI * 2);
+        context.arc(-coreRadius * 0.28, -coreRadius * 0.32, coreRadius * 0.42, 0, Math.PI * 2);
         context.fill();
 
-        context.fillStyle = '#fefefe';
-        context.beginPath();
-        context.arc(0, -PLAYER_BODY_RADIUS * 0.65, PLAYER_BODY_RADIUS * 0.45, 0, Math.PI * 2);
-        context.fill();
-        context.strokeStyle = 'rgba(15,23,61,0.25)';
-        context.lineWidth = 3;
-        context.stroke();
-
-        context.fillStyle = jerseyColor;
-        context.beginPath();
-        context.ellipse(0, PLAYER_BODY_RADIUS * 0.15, PLAYER_BODY_RADIUS * 0.9, PLAYER_BODY_RADIUS * 0.95, 0, 0, Math.PI * 2);
-        context.fill();
-
-        context.fillStyle = '#f8fafc';
-        context.font = `${PLAYER_BODY_RADIUS * 0.95}px "Bebas Neue", "Inter", sans-serif`;
+        context.fillStyle = 'rgba(255,255,255,0.4)';
+        context.font = `${PLAYER_BODY_RADIUS * 0.7}px "Bebas Neue", "Inter", sans-serif`;
         context.textAlign = 'center';
         context.textBaseline = 'middle';
-        context.fillText(this.number, 0, PLAYER_BODY_RADIUS * 0.2);
-
-        context.strokeStyle = accentColor;
-        context.lineWidth = 9;
-        context.lineCap = 'round';
-        const reach = PLAYER_REACH;
-        const armY = -PLAYER_BODY_RADIUS * 0.1;
-        context.beginPath();
-        context.moveTo(-PLAYER_BODY_RADIUS + 6, armY);
-        context.lineTo(-reach, armY + 4);
-        context.moveTo(PLAYER_BODY_RADIUS - 6, armY);
-        context.lineTo(reach, armY + 4);
-        context.stroke();
-
-        context.strokeStyle = '#0f172a';
-        context.lineWidth = 10;
-        context.beginPath();
-        context.moveTo(-PLAYER_BODY_RADIUS * 0.45, PLAYER_BODY_RADIUS * 0.9);
-        context.lineTo(-PLAYER_BODY_RADIUS * 0.6, PLAYER_BODY_RADIUS * 1.8);
-        context.moveTo(PLAYER_BODY_RADIUS * 0.45, PLAYER_BODY_RADIUS * 0.9);
-        context.lineTo(PLAYER_BODY_RADIUS * 0.6, PLAYER_BODY_RADIUS * 1.8);
-        context.stroke();
+        context.fillText(this.number.toString(), 0, 0);
 
         context.restore();
       }
@@ -498,28 +584,37 @@
         this.prevY = this.y;
 
         this.vy += GRAVITY * DT;
-        this.vx *= BALL_DAMP;
-        this.vy *= BALL_DAMP;
+        this.vx *= BALL_AIR_DRAG;
+        this.vy *= BALL_AIR_DRAG;
 
         this.x += this.vx * DT;
         this.y += this.vy * DT;
 
-        if(this.vx > BALL_MAX_SPEED) this.vx = BALL_MAX_SPEED;
-        if(this.vx < -BALL_MAX_SPEED) this.vx = -BALL_MAX_SPEED;
-        if(this.vy > BALL_MAX_SPEED) this.vy = BALL_MAX_SPEED;
-        if(this.vy < -BALL_MAX_SPEED) this.vy = -BALL_MAX_SPEED;
+        const clampSpeed = () => {
+          if(this.vx > BALL_MAX_SPEED) this.vx = BALL_MAX_SPEED;
+          if(this.vx < -BALL_MAX_SPEED) this.vx = -BALL_MAX_SPEED;
+          if(this.vy > BALL_MAX_SPEED) this.vy = BALL_MAX_SPEED;
+          if(this.vy < -BALL_MAX_SPEED) this.vy = -BALL_MAX_SPEED;
+        };
+        clampSpeed();
 
         if(this.x - BALL_RADIUS < 40){
           this.x = 40 + BALL_RADIUS;
-          this.vx *= -0.7;
+          this.vx = Math.abs(this.vx) * BALL_WALL_RESTITUTION;
+          this.vy *= 0.94;
+          clampSpeed();
         }
         if(this.x + BALL_RADIUS > FIELD_WIDTH - 40){
           this.x = FIELD_WIDTH - 40 - BALL_RADIUS;
-          this.vx *= -0.7;
+          this.vx = -Math.abs(this.vx) * BALL_WALL_RESTITUTION;
+          this.vy *= 0.94;
+          clampSpeed();
         }
         if(this.y - BALL_RADIUS < 40){
           this.y = 40 + BALL_RADIUS;
-          this.vy *= -0.6;
+          this.vy = Math.abs(this.vy) * BALL_CEILING_RESTITUTION;
+          this.vx *= 0.96;
+          clampSpeed();
         }
       }
       draw(context){
@@ -557,12 +652,13 @@
         this.left.touches = 0;
         this.right.touches = 0;
       }
-      step(leftActionIdx, rightActionIdx){
+      step(leftActionIdx, rightActionIdx, keepBallAlive = false){
         this.events = {
           leftTouch:false,
           rightTouch:false,
           netHit:false,
           floorSide:null,
+          floorBounce:null,
           rallyTime:DT
         };
 
@@ -588,12 +684,29 @@
         }
 
         if(this.ball.y + BALL_RADIUS >= FLOOR_Y){
-          this.events.floorSide = this.ball.x < NET_X ? 'left' : 'right';
           this.ball.y = FLOOR_Y - BALL_RADIUS;
-          this.ball.vy *= -0.4;
+          if(keepBallAlive){
+            const speed = Math.abs(this.ball.vy);
+            const bounce = Math.max(speed * FLOOR_RESTITUTION, BALL_MIN_BOUNCE);
+            this.ball.vy = -bounce;
+            this.ball.vx *= FLOOR_FRICTION;
+            if(Math.abs(this.ball.vx) < 20){
+              this.ball.vx += (Math.random() * 2 - 1) * 25;
+            }
+            this.events.floorBounce = this.ball.x < NET_X ? 'left' : 'right';
+            const floorSpeed = Math.hypot(this.ball.vx, this.ball.vy);
+            if(floorSpeed > BALL_MAX_SPEED){
+              const scale = BALL_MAX_SPEED / floorSpeed;
+              this.ball.vx *= scale;
+              this.ball.vy *= scale;
+            }
+          } else {
+            this.events.floorSide = this.ball.x < NET_X ? 'left' : 'right';
+            this.ball.vy = -Math.abs(this.ball.vy) * 0.45;
+          }
         }
 
-        const done = Boolean(this.events.floorSide);
+        const done = !keepBallAlive && Boolean(this.events.floorSide);
         return {done};
       }
       resolvePlayerBall(player){
@@ -623,10 +736,30 @@
 
         const relativeVX = this.ball.vx - player.vx;
         const relativeVY = this.ball.vy - player.vy;
-        const boost = 340 + Math.random() * 40;
+        const incoming = relativeVX * nx + relativeVY * ny;
+        const impactEnergy = Math.max(-incoming, 0);
+        const baseImpulse = PLAYER_CONTACT_BASE + impactEnergy * 1.1 + Math.random() * PLAYER_CONTACT_RANDOM;
+        const targetVX = nx * baseImpulse;
+        const targetVY = ny * baseImpulse;
 
-        this.ball.vx = lerp(this.ball.vx, nx * boost, 0.65) + player.vx * 0.25;
-        this.ball.vy = lerp(this.ball.vy, ny * boost, 0.65) + player.vy * 0.15;
+        this.ball.vx = lerp(this.ball.vx, targetVX, PLAYER_CONTACT_RESPONSE) + player.vx * 0.22;
+        this.ball.vy = lerp(this.ball.vy, targetVY, PLAYER_CONTACT_RESPONSE) + player.vy * 0.18;
+
+        const tx = -ny;
+        const ty = nx;
+        const tangential = (player.vx * tx + player.vy * ty) * PLAYER_TANGENT_TRANSFER;
+        this.ball.vx += tx * tangential;
+        this.ball.vy += ty * tangential;
+
+        const speed = Math.hypot(this.ball.vx, this.ball.vy);
+        if(speed > BALL_MAX_SPEED){
+          const scale = BALL_MAX_SPEED / speed;
+          this.ball.vx *= scale;
+          this.ball.vy *= scale;
+        }
+        if(this.ball.vy > -BALL_MIN_BOUNCE){
+          this.ball.vy = -BALL_MIN_BOUNCE;
+        }
 
         this.ball.lastTouchSide = player.side;
         this.ball.lastTouchedBy = player;
@@ -643,12 +776,15 @@
           if(this.ball.x + BALL_RADIUS > netLeft && this.ball.x - BALL_RADIUS < netRight){
             if(this.ball.prevX <= netLeft && this.ball.x > netLeft){
               this.ball.x = netLeft - BALL_RADIUS;
-              this.ball.vx *= -0.4;
+              this.ball.vx = -Math.abs(this.ball.vx) * 0.6;
+              this.ball.vy *= 0.88;
             } else if(this.ball.prevX >= netRight && this.ball.x < netRight){
               this.ball.x = netRight + BALL_RADIUS;
-              this.ball.vx *= -0.4;
+              this.ball.vx = Math.abs(this.ball.vx) * 0.6;
+              this.ball.vy *= 0.88;
             } else {
-              this.ball.vy = Math.abs(this.ball.vy) * -0.3;
+              this.ball.vy = -Math.abs(this.ball.vy) * 0.55;
+              this.ball.vx *= 0.82;
               this.ball.y = netTop - BALL_RADIUS;
             }
             hitSide = this.ball.lastTouchSide || 'left';
@@ -1015,7 +1151,9 @@
 
     let training = false;
     let episodes = 0;
-    const maxSteps = 3600;
+    let rallyDurationSeconds = 30;
+    let maxSteps = Math.round(rallyDurationSeconds / DT);
+    let endlessTraining = false;
     let stepCount = 0;
     let episodeLeftReward = 0;
     let episodeRightReward = 0;
@@ -1044,6 +1182,8 @@
         lastPointWinner = 'Left team';
       } else if(outcome === 'right'){
         lastPointWinner = 'Right team';
+      } else if(outcome === 'training'){
+        lastPointWinner = 'Training block';
       } else {
         lastPointWinner = 'Timeout';
       }
@@ -1079,6 +1219,16 @@
         rightReward += 0.12;
       }
 
+      if(events.floorBounce){
+        if(events.floorBounce === 'left'){
+          leftReward -= 0.32;
+          rightReward += 0.08;
+        } else {
+          rightReward -= 0.32;
+          leftReward += 0.08;
+        }
+      }
+
       if(events.floorSide){
         if(events.floorSide === 'left'){
           leftReward -= 2.5;
@@ -1098,7 +1248,7 @@
       const leftAction = qAgent.act(leftState, training);
       const rightAction = dqnAgent.act(rightState, training);
 
-      const {done} = env.step(leftAction, rightAction);
+      const {done} = env.step(leftAction, rightAction, endlessTraining);
       const {leftReward, rightReward} = shapeRewards();
 
       rallySeconds += DT;
@@ -1116,16 +1266,35 @@
       episodeRightReward += rightReward;
       stepCount++;
 
-      let serveSide = env.ball.lastTouchSide === 'left' ? 'right' : 'left';
-      if(done || stepCount >= maxSteps){
-        const outcome = done ? (env.events.floorSide === 'left' ? 'right' : 'left') : 'timeout';
+      const reachedStepLimit = stepCount >= maxSteps;
+      const reachedGenerationLimit = endlessTraining && rallySeconds >= rallyDurationSeconds;
+      const shouldFinalize = (!endlessTraining && (done || reachedStepLimit)) || (endlessTraining && reachedGenerationLimit);
+
+      if(shouldFinalize){
+        let outcome;
+        if(endlessTraining){
+          outcome = 'training';
+        } else if(done){
+          outcome = env.events.floorSide === 'left' ? 'right' : 'left';
+        } else {
+          outcome = 'timeout';
+        }
         finalizeRally(outcome);
         episodes++;
         qAgent.endEpisode(episodeLeftReward);
         dqnAgent.endEpisode(episodeRightReward);
         rewardHistory.push({left:episodeLeftReward, right:episodeRightReward});
         if(rewardHistory.length > 24) rewardHistory.shift();
-        serveSide = env.events.floorSide === 'left' ? 'right' : 'left';
+        let serveSide = null;
+        if(env.ball.lastTouchSide === 'left'){
+          serveSide = 'right';
+        } else if(env.ball.lastTouchSide === 'right'){
+          serveSide = 'left';
+        } else if(env.events.floorSide){
+          serveSide = env.events.floorSide === 'left' ? 'right' : 'left';
+        } else {
+          serveSide = Math.random() < 0.5 ? 'left' : 'right';
+        }
         env.reset(serveSide);
         stepCount = 0;
         episodeLeftReward = 0;
@@ -1240,6 +1409,17 @@
     const simSpeedInput = document.getElementById('slSimSpeed');
     let simSpeed = simSpeedInput ? parseInt(simSpeedInput.value, 10) : 1;
 
+    const endlessCheckbox = document.getElementById('cbEndlessRally');
+    if(endlessCheckbox){
+      endlessTraining = endlessCheckbox.checked;
+      endlessCheckbox.addEventListener('change', () => {
+        endlessTraining = endlessCheckbox.checked;
+        rallySeconds = 0;
+        stepCount = 0;
+        updateInsights();
+      });
+    }
+
     const controlBindings = [
       ['slQLearningRate','lbQLearningRate', value => { qAgent.learningRate = parseFloat(value); }],
       ['slQDiscount','lbQDiscount', value => { qAgent.gamma = parseFloat(value); }],
@@ -1259,6 +1439,10 @@
         }
       }],
       ['slGravity','lbGravity', value => { GRAVITY = parseFloat(value); }],
+      ['slGenerationSeconds','lbGenerationSeconds', value => {
+        rallyDurationSeconds = parseInt(value, 10);
+        maxSteps = Math.max(60, Math.round(rallyDurationSeconds / DT));
+      }],
       ['slSimSpeed','lbSimSpeed', value => { simSpeed = parseInt(value, 10); }]
     ];
 
@@ -1269,6 +1453,8 @@
       const update = () => {
         if(inputId === 'slSimSpeed'){
           label.textContent = `${input.value}×`;
+        } else if(inputId === 'slGenerationSeconds'){
+          label.textContent = `${parseInt(input.value, 10)} s`;
         } else if(inputId === 'slJumpHeight' || inputId === 'slArmReach'){
           label.textContent = `${Math.round(parseFloat(input.value))} px`;
         } else if(inputId === 'slGravity'){
