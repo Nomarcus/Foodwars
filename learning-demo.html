@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="sv">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Lärande-demo – Foodwars Machine Learning Lab</title>
+  <title>Learning Demo – Foodwars Machine Learning Lab</title>
   <style>
     :root {
       --bg1: #050516;
@@ -136,6 +136,7 @@
     }
     .learning-side {
       display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
       gap: 24px;
     }
     .learning-panel {
@@ -156,6 +157,15 @@
       margin: 0;
       color: var(--muted);
       line-height: 1.5;
+    }
+    .step-list {
+      margin: 0;
+      padding-left: 20px;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+    .step-list li {
+      margin-bottom: 6px;
     }
     .dataset-table {
       width: 100%;
@@ -284,6 +294,67 @@
       border: 1px solid rgba(148, 163, 209, 0.22);
       padding: 12px;
     }
+    .network-diagram {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 16px;
+      border-radius: 18px;
+      background: rgba(7, 10, 28, 0.75);
+      border: 1px solid rgba(148, 163, 209, 0.2);
+      box-shadow: inset 0 0 25px rgba(8, 12, 30, 0.4);
+      overflow-x: auto;
+      scrollbar-width: thin;
+    }
+    .network-diagram::-webkit-scrollbar {
+      height: 6px;
+    }
+    .network-diagram::-webkit-scrollbar-thumb {
+      background: rgba(56, 189, 248, 0.35);
+      border-radius: 999px;
+    }
+    .network-label {
+      font-size: 0.78rem;
+      letter-spacing: 0.08em;
+      color: rgba(148, 163, 209, 0.8);
+      text-transform: uppercase;
+    }
+    .network-node {
+      flex: 0 0 170px;
+      min-width: 160px;
+      border-radius: 14px;
+      padding: 16px 12px;
+      background: rgba(15, 20, 45, 0.85);
+      border: 1px solid rgba(56, 189, 248, 0.28);
+      text-align: center;
+      display: grid;
+      gap: 6px;
+      box-shadow: 0 18px 34px rgba(11, 16, 38, 0.45);
+    }
+    .network-node strong {
+      font-size: 1.05rem;
+      color: var(--ink);
+    }
+    .network-node span {
+      font-size: 0.88rem;
+      color: var(--muted);
+    }
+    .network-connector {
+      flex: 0 0 46px;
+      height: 2px;
+      background: linear-gradient(90deg, rgba(56, 189, 248, 0.2), rgba(56, 189, 248, 0.85), rgba(249, 115, 22, 0.85));
+      box-shadow: 0 0 18px rgba(56, 189, 248, 0.35);
+      align-self: center;
+    }
+    .network-connector.vertical {
+      width: 2px;
+      height: 60px;
+      margin: 0 auto;
+      background: linear-gradient(180deg, rgba(56, 189, 248, 0.2), rgba(56, 189, 248, 0.85));
+    }
+    .learning-side .learning-panel.spanning {
+      grid-column: span 2;
+    }
     canvas {
       width: 100%;
       height: 220px;
@@ -315,6 +386,12 @@
       .learning-grid {
         grid-template-columns: 1fr;
       }
+      .learning-side {
+        grid-template-columns: 1fr;
+      }
+      .learning-side .learning-panel.spanning {
+        grid-column: span 1;
+      }
     }
     @media (max-width: 720px) {
       .nav {
@@ -337,66 +414,108 @@
         <span class="brand-icon">ML</span>
         <div>
           <h1>Foodwars Machine Learning Lab</h1>
-          <small style="color:var(--muted); letter-spacing:0.08em; text-transform:uppercase;">Interaktivt lärande</small>
+          <small style="color:var(--muted); letter-spacing:0.08em; text-transform:uppercase;">Interactive learning environment</small>
         </div>
       </a>
       <div class="nav-links">
-        <a href="index.html">Till startsidan</a>
-        <a href="index.html#experiments">Utforska simuleringar</a>
+        <a href="index.html">Back to home</a>
+        <a href="index.html#experiments">Explore experiments</a>
       </div>
     </nav>
   </header>
   <main>
     <section class="page-intro">
-      <h2>Se hur en AI tränas steg för steg</h2>
-      <p>Den här laborationen visar hur en logistisk regression anpassar sig efter dokumentdata. Följ datasetet, se vikterna justeras i realtid och granska loggarna för att förstå hur modellen blir smartare för varje iteration.</p>
+      <h2>Watch the model learn one iteration at a time</h2>
+      <p>This lab walks through a compact logistic-regression model that decides whether a text is a recipe or a formal report. Every document comes with three features: its word count, the amount of spicy vocabulary, and how structured the writing is.</p>
+      <p>Use the controls below to stream the training loop, pause it, or step through it manually. The panels update in real time so you can see how the weights shift, how confident the classifier becomes, and how each training example nudges the decision boundary.</p>
     </section>
     <section class="learning-lab">
       <div class="learning-lab-header">
-        <h3>Datasamling och träningsloop</h3>
-        <p>Varje rad representerar ett dokument med längd, kryddpoäng och strukturbetyg. När modellen läser raderna uppdateras vikterna med gradientnedstigning för att skilja recept från rapporter.</p>
+        <h3>Data pipeline and training loop</h3>
+        <p>Each row below is a document the AI studies. Gradient descent updates the model after every read-through, pulling the recipe scores up and the report scores down until the classes separate cleanly.</p>
+        <ol class="step-list">
+          <li><strong>Scan a document:</strong> Normalise the three features so they share the same scale.</li>
+          <li><strong>Compute a weighted sum:</strong> Multiply each feature by its weight, add the bias, and run the sigmoid to turn it into a probability.</li>
+          <li><strong>Measure the error:</strong> Compare the guess with the correct label and compute the logistic loss.</li>
+          <li><strong>Update the weights:</strong> Use the gradient to nudge the weights towards lower loss.</li>
+        </ol>
       </div>
       <div class="learning-grid">
         <article class="learning-panel">
-          <h4>Datasamling som AI:n utforskar</h4>
-          <p>Följ hur varje dokument påverkar modellens förståelse. När raden markeras analyseras just det dokumentet och vikterna uppdateras.</p>
+          <h4>Dataset the AI is exploring</h4>
+          <p>Follow how every document alters the classifier. When a row highlights, that example is currently training the model. The prediction column shows the model's confidence after the latest update.</p>
           <table class="dataset-table">
             <thead>
               <tr>
-                <th>Dokument</th>
-                <th>Ord</th>
-                <th>Kryddpoäng</th>
-                <th>Struktur</th>
+                <th>Document</th>
+                <th>Words</th>
+                <th>Spice score</th>
+                <th>Structure</th>
                 <th>Label</th>
-                <th>AI-förutsägelse</th>
+                <th>AI prediction</th>
               </tr>
             </thead>
             <tbody id="dataset-body"></tbody>
           </table>
           <div class="learning-controls">
-            <button id="playButton">Spela upp lärandet</button>
-            <button id="stepButton" class="secondary">Stega en gång</button>
-            <button id="resetButton" class="secondary">Återställ</button>
-            <span id="statusText">Modellen väntar på att börja.</span>
+            <button id="playButton">Play training</button>
+            <button id="stepButton" class="secondary">Step once</button>
+            <button id="resetButton" class="secondary">Reset</button>
+            <span id="statusText">The model is idle and ready.</span>
           </div>
         </article>
         <div class="learning-side">
+          <article class="learning-panel spanning">
+            <h4>Network map of the classifier</h4>
+            <p>This logistic network has a single neuron. The input layer feeds the normalised features into weighted connections, the neuron sums them, and the sigmoid converts that score into the final probability of "recipe".</p>
+            <div class="network-diagram">
+              <div class="network-node">
+                <strong>Length</strong>
+                <span>Words in the document</span>
+              </div>
+              <div class="network-connector"></div>
+              <div class="network-node">
+                <strong>Spice terms</strong>
+                <span>Count of vivid flavour words</span>
+              </div>
+              <div class="network-connector"></div>
+              <div class="network-node">
+                <strong>Structure</strong>
+                <span>Organisation score</span>
+              </div>
+              <div class="network-connector"></div>
+              <div class="network-node">
+                <strong>Weighted sum</strong>
+                <span>Bias + feature weights</span>
+              </div>
+              <div class="network-connector"></div>
+              <div class="network-node">
+                <strong>Sigmoid</strong>
+                <span>Compresses to 0–1</span>
+              </div>
+              <div class="network-connector"></div>
+              <div class="network-node">
+                <strong>Prediction</strong>
+                <span>Recipe probability</span>
+              </div>
+            </div>
+          </article>
           <article class="learning-panel">
-            <h4>Modellens hjärna</h4>
-            <p>Gradientnedstigningen flyttar vikterna mot en bättre lösning. Högre värden visar att funktionen väger tyngre i besluten.</p>
+            <h4>Inside the model</h4>
+            <p>Gradient descent keeps nudging the weights toward a better separation. Positive values push the prediction upward when the feature grows; negative values push it down.</p>
             <div class="weights-grid" id="weightsGrid"></div>
             <div class="metrics">
               <div><strong>Iteration:</strong> <span id="iterationCount">0</span></div>
-              <div><strong>Träffsäkerhet:</strong> <span id="accuracyValue">0%</span></div>
-              <div><strong>Logistisk förlust:</strong> <span id="lossValue">0.000</span></div>
+              <div><strong>Accuracy:</strong> <span id="accuracyValue">0%</span></div>
+              <div><strong>Log loss:</strong> <span id="lossValue">0.000</span></div>
             </div>
             <div class="chart-wrapper">
               <canvas id="accuracyChart" width="520" height="220"></canvas>
             </div>
           </article>
           <article class="learning-panel">
-            <h4>Lärlogg</h4>
-            <p>Varje steg visar vilket dokument som lästes, hur säkert beslutet var och hur mycket vikterna justerades.</p>
+            <h4>Learning log</h4>
+            <p>Each entry captures the document that was processed, the model's confidence, and the magnitude of the weight update. Skim the newest messages at the top to follow the training story.</p>
             <div class="log" id="log"></div>
           </article>
         </div>
@@ -404,26 +523,26 @@
     </section>
   </main>
   <footer>
-    © 2024 Foodwars Machine Learning Lab – Fortsätt utforska våra simuleringar på startsidan.
+    © 2024 Foodwars Machine Learning Lab – Continue exploring experiments on the home page.
   </footer>
   <script>
     (() => {
       const documents = [
-        { title: "Recept: Chili-lime ramen", length: 520, spiceWords: 24, structureScore: 0.86, label: 1 },
-        { title: "Årsrapport: Livsmedelssäkerhet", length: 1500, spiceWords: 2, structureScore: 0.58, label: 0 },
-        { title: "Snabbguide: Marinader", length: 360, spiceWords: 18, structureScore: 0.72, label: 1 },
-        { title: "Notis: Regional skörd", length: 680, spiceWords: 6, structureScore: 0.64, label: 0 },
-        { title: "Recept: Vulkanstekt aubergine", length: 430, spiceWords: 21, structureScore: 0.81, label: 1 },
-        { title: "Fältstudie: Näringsinnehåll", length: 980, spiceWords: 4, structureScore: 0.67, label: 0 },
-        { title: "Blogg: Streetfood-resan", length: 610, spiceWords: 15, structureScore: 0.75, label: 1 },
-        { title: "Policybrief: Importstrategi", length: 1320, spiceWords: 3, structureScore: 0.55, label: 0 }
+        { title: "Recipe: Chili-lime ramen", length: 520, spiceWords: 24, structureScore: 0.86, label: 1 },
+        { title: "Annual report: Food safety", length: 1500, spiceWords: 2, structureScore: 0.58, label: 0 },
+        { title: "Quick guide: Marinades", length: 360, spiceWords: 18, structureScore: 0.72, label: 1 },
+        { title: "News brief: Regional harvest", length: 680, spiceWords: 6, structureScore: 0.64, label: 0 },
+        { title: "Recipe: Volcano-roasted aubergine", length: 430, spiceWords: 21, structureScore: 0.81, label: 1 },
+        { title: "Field study: Nutrient profile", length: 980, spiceWords: 4, structureScore: 0.67, label: 0 },
+        { title: "Travel blog: Street-food tour", length: 610, spiceWords: 15, structureScore: 0.75, label: 1 },
+        { title: "Policy brief: Import strategy", length: 1320, spiceWords: 3, structureScore: 0.55, label: 0 }
       ];
       const featureKeys = ["length", "spiceWords", "structureScore"];
       const featureDescriptions = {
-        bias: "Baslinje (bias)",
-        length: "Textlängd",
-        spiceWords: "Kryddspråk",
-        structureScore: "Struktur"
+        bias: "Bias baseline",
+        length: "Document length",
+        spiceWords: "Spice vocabulary",
+        structureScore: "Structure score"
       };
       const featureStats = {};
       featureKeys.forEach((key) => {
@@ -457,8 +576,8 @@
           <td>${doc.length}</td>
           <td>${doc.spiceWords}</td>
           <td>${Math.round(doc.structureScore * 100)}%</td>
-          <td><span class="badge ${doc.label ? "badge-healthy" : "badge-report"}">${doc.label ? "Recept" : "Rapport"}</span></td>
-          <td><strong class="prediction">50%</strong><br><small class="confidence" style="color:var(--muted);">Osäker</small></td>
+          <td><span class="badge ${doc.label ? "badge-healthy" : "badge-report"}">${doc.label ? "Recipe" : "Report"}</span></td>
+          <td><strong class="prediction">50%</strong><br><small class="confidence" style="color:var(--muted);">Unsure yet</small></td>
         `;
         datasetBody.appendChild(tr);
         rowRefs.push({
@@ -541,7 +660,7 @@
           const predictedLabel = probability >= 0.5 ? 1 : 0;
           const confidencePercent = Math.round(probability * 100);
           rowRefs[index].prediction.textContent = `${confidencePercent}%`;
-          rowRefs[index].confidence.textContent = predictedLabel === doc.label ? "På rätt spår" : "Behöver övas";
+          rowRefs[index].confidence.textContent = predictedLabel === doc.label ? "Correct" : "Needs more practice";
           rowRefs[index].row.classList.toggle("active", index === activeIndex);
         });
       }
@@ -602,11 +721,11 @@
       function addLogEntry({ iteration, doc, probability, error }) {
         const entry = document.createElement("div");
         entry.className = "log-entry";
-        const direction = error > 0 ? "upp" : "ned";
+        const direction = error > 0 ? "upward" : "downward";
         entry.innerHTML = `
-          <strong>Steg ${iteration}</strong> – Läser "${doc.title}".<br>
-          Modellens förutsägelse: ${(probability * 100).toFixed(1)}% recept.<br>
-          Vikterna justeras ${direction} med ${(Math.abs(error) * 100).toFixed(1)}% mot sanningen.
+          <strong>Step ${iteration}</strong> – Processed "${doc.title}".<br>
+          Prediction after the update: ${(probability * 100).toFixed(1)}% recipe.<br>
+          Weights moved ${direction} by ${(Math.abs(error) * 100).toFixed(1)}% to reduce the loss.
         `;
         logContainer.prepend(entry);
         while (logContainer.children.length > 8) {
@@ -632,7 +751,7 @@
         lossValue.textContent = metrics.loss.toFixed(3);
         drawChart();
         addLogEntry({ iteration, doc, probability, error });
-        statusText.textContent = "AI:n lär sig aktivt av dokumenten.";
+        statusText.textContent = "The AI is learning from the documents.";
       }
 
       function reset() {
@@ -650,7 +769,7 @@
         lossValue.textContent = "0.000";
         logContainer.innerHTML = "";
         drawChart();
-        statusText.textContent = "Modellen väntar på att börja.";
+        statusText.textContent = "The model is idle and ready.";
       }
 
       function play() {
@@ -659,8 +778,8 @@
           return;
         }
         playing = true;
-        playButton.textContent = "Pausa lärandet";
-        statusText.textContent = "AI:n tränar i realtid.";
+        playButton.textContent = "Pause training";
+        statusText.textContent = "The AI is training in real time.";
         loopId = setInterval(() => {
           stepLearning();
         }, 1200);
@@ -668,7 +787,7 @@
 
       function stop() {
         playing = false;
-        playButton.textContent = "Spela upp lärandet";
+        playButton.textContent = "Play training";
         if (loopId) {
           clearInterval(loopId);
           loopId = null;
@@ -678,7 +797,7 @@
       playButton.addEventListener("click", () => {
         if (playing) {
           stop();
-          statusText.textContent = "Pausat. Fortsätt när du vill.";
+          statusText.textContent = "Paused. Resume whenever you're ready.";
         } else {
           play();
         }
