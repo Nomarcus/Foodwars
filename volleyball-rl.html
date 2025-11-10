@@ -111,48 +111,17 @@
       <aside class="side">
         <section class="panel" aria-labelledby="rl-overview">
           <h2 id="rl-overview">Reinforcement learners</h2>
-          <p>Version 2.0 rebuild. Character rigs now have legs, arms and jersey numbers and the physics are tuned for a softer ball so both agents can really learn passing, setting and spiking. The left team uses tabular Q-learning while the right side fields a Double Deep Q-network with replay and target syncing.</p>
+          <p>Version 2.0 rebuild. Character rigs now have legs, arms and jersey numbers and the physics are tuned for a softer ball so both agents can really learn passing, setting and spiking. Both squads now rely on identical Double Deep Q-networks with replay buffers, soft target syncing and mirrored observation spaces so training stays perfectly balanced.</p>
           <div class="legend">
-            <div><strong>Left team:</strong> Fast tabular Q-learning over discretised rally states with contact and control shaping.</div>
+            <div><strong>Left team:</strong> Double Deep Q-network mirroring the right side, trained with shared hyperparameters.</div>
             <div><strong>Right team:</strong> Double Deep Q-network with two-layer dense model, replay buffer and soft serves.</div>
             <div>The rally reward reshaping rewards cooperative touches, aerial control and finishing the point on the opponent’s floor.</div>
           </div>
         </section>
 
-        <section class="panel" aria-labelledby="q-controls">
-          <h2 id="q-controls">Q-learning controls</h2>
-          <div class="control">
-            <div class="control-header">
-              <label class="label" for="slQLearningRate">Learning rate</label>
-              <span class="val" id="lbQLearningRate">0.18</span>
-            </div>
-            <input id="slQLearningRate" type="range" min="0.05" max="0.6" step="0.01" value="0.18">
-          </div>
-          <div class="control">
-            <div class="control-header">
-              <label class="label" for="slQDiscount">Discount γ</label>
-              <span class="val" id="lbQDiscount">0.94</span>
-            </div>
-            <input id="slQDiscount" type="range" min="0.6" max="0.99" step="0.01" value="0.94">
-          </div>
-          <div class="control">
-            <div class="control-header">
-              <label class="label" for="slQEpsilon">Exploration ε</label>
-              <span class="val" id="lbQEpsilon">0.35</span>
-            </div>
-            <input id="slQEpsilon" type="range" min="0.01" max="1" step="0.01" value="0.35">
-          </div>
-          <div class="control">
-            <div class="control-header">
-              <label class="label" for="slQEpsilonDecay">ε decay per episode</label>
-              <span class="val" id="lbQEpsilonDecay">0.993</span>
-            </div>
-            <input id="slQEpsilonDecay" type="range" min="0.90" max="0.999" step="0.001" value="0.993">
-          </div>
-        </section>
-
         <section class="panel" aria-labelledby="ddqn-controls">
           <h2 id="ddqn-controls">Double Deep Q controls</h2>
+          <p>Both teams now train with identical Double DQN agents. Adjust the shared hyperparameters below to tune how quickly the learners adapt.</p>
           <div class="control">
             <div class="control-header">
               <label class="label" for="slDqnLearningRate">Learning rate</label>
@@ -310,7 +279,7 @@
           </div>
           <div class="stat-card">
             <span class="stat-label">Left ε</span>
-            <span class="stat-value" id="lbLeftEpsilon">0.35</span>
+            <span class="stat-value" id="lbLeftEpsilon">0.40</span>
           </div>
           <div class="stat-card">
             <span class="stat-label">Right ε</span>
@@ -377,6 +346,15 @@
       {name:'left+jump', vx:-1, jump:true},
       {name:'right+jump', vx:1, jump:true}
     ];
+
+    const LEFT_ACTION_MAP = [0, 2, 1, 3, 5, 4];
+
+    function mapActionIndex(side, index){
+      if(side === 'left'){
+        return LEFT_ACTION_MAP[index] ?? 0;
+      }
+      return index;
+    }
 
     function clamp(value, min, max){
       return Math.max(min, Math.min(max, value));
@@ -794,84 +772,6 @@
       }
     }
 
-    class QLearningAgent{
-      constructor(){
-        this.q = new Map();
-        this.learningRate = 0.18;
-        this.gamma = 0.94;
-        this.epsilon = 0.35;
-        this.epsilonDecay = 0.993;
-        this.minEpsilon = 0.02;
-        this.episodes = 0;
-        this.totalReward = 0;
-      }
-      setParams({learningRate, gamma, epsilon, epsilonDecay}){
-        this.learningRate = learningRate;
-        this.gamma = gamma;
-        this.epsilon = epsilon;
-        this.epsilonDecay = epsilonDecay;
-      }
-      buildState(env){
-        const player = env.left;
-        const ball = env.ball;
-        const px = Math.floor(clamp((player.x - 80) / (NET_X - NET_WIDTH/2 - 80), 0, 0.999) * 6);
-        const py = player.grounded ? 0 : (player.y < FLOOR_Y - 180 ? 2 : 1);
-        const pvx = player.vx > 80 ? 2 : player.vx < -80 ? 0 : 1;
-        const bx = Math.floor(clamp((ball.x - 40) / (NET_X - 40), 0, 0.999) * 6);
-        const by = Math.floor(clamp((ball.y) / FLOOR_Y, 0, 0.999) * 6);
-        const bvx = ball.vx > 90 ? 2 : ball.vx < -90 ? 0 : 1;
-        const bvy = ball.vy > 80 ? 2 : ball.vy < -80 ? 0 : 1;
-        const last = ball.lastTouchSide === 'left' ? 2 : ball.lastTouchSide === 'right' ? 1 : 0;
-        const touches = Math.min(player.touches, 3);
-        return `${px}|${py}|${pvx}|${bx}|${by}|${bvx}|${bvy}|${last}|${touches}`;
-      }
-      ensureState(key){
-        if(!this.q.has(key)){
-          this.q.set(key, new Float32Array(ACTIONS.length));
-        }
-        return this.q.get(key);
-      }
-      act(stateKey, training){
-        const values = this.ensureState(stateKey);
-        if(training && Math.random() < this.epsilon){
-          return Math.floor(Math.random() * ACTIONS.length);
-        }
-        let best = 0;
-        let bestVal = values[0];
-        for(let i=1;i<values.length;i++){
-          if(values[i] > bestVal){
-            bestVal = values[i];
-            best = i;
-          }
-        }
-        return best;
-      }
-      learn(stateKey, action, reward, nextKey, done){
-        const values = this.ensureState(stateKey);
-        const current = values[action];
-        let target = reward;
-        if(!done){
-          const nextValues = this.ensureState(nextKey);
-          let maxNext = nextValues[0];
-          for(let i=1;i<nextValues.length;i++){
-            if(nextValues[i] > maxNext) maxNext = nextValues[i];
-          }
-          target += this.gamma * maxNext;
-        }
-        values[action] = current + this.learningRate * (target - current);
-      }
-      endEpisode(totalReward){
-        this.episodes++;
-        this.totalReward += totalReward;
-        this.epsilon = Math.max(this.minEpsilon, this.epsilon * this.epsilonDecay);
-      }
-      reset(){
-        this.q.clear();
-        this.episodes = 0;
-        this.totalReward = 0;
-      }
-    }
-
     function randomWeight(scale){
       return (Math.random() * 2 - 1) * scale;
     }
@@ -1031,11 +931,13 @@
     }
 
     class DoubleDQNAgent{
-      constructor(){
+      constructor(side){
+        this.side = side;
         this.inputSize = 10;
         this.actions = ACTIONS.length;
         this.gamma = 0.98;
         this.epsilon = 0.40;
+        this.baseEpsilon = this.epsilon;
         this.epsilonDecay = 0.995;
         this.minEpsilon = 0.05;
         this.learningRate = 0.0015;
@@ -1056,25 +958,33 @@
           this.target.learningRate = learningRate;
         }
         if(gamma !== undefined) this.gamma = gamma;
-        if(epsilon !== undefined) this.epsilon = epsilon;
+        if(epsilon !== undefined){
+          this.epsilon = epsilon;
+          this.baseEpsilon = epsilon;
+        }
         if(epsilonDecay !== undefined) this.epsilonDecay = epsilonDecay;
         if(batchSize !== undefined) this.batchSize = Math.max(4, Math.floor(batchSize));
         if(targetSync !== undefined) this.targetSync = Math.max(20, Math.floor(targetSync));
       }
       stateVector(env){
-        const player = env.right;
+        const mirror = this.side === 'left';
+        const player = mirror ? env.left : env.right;
         const ball = env.ball;
-        const dx = (ball.x - player.x) / FIELD_WIDTH;
+        const playerX = mirror ? FIELD_WIDTH - player.x : player.x;
+        const playerVX = mirror ? -player.vx : player.vx;
+        const ballX = mirror ? FIELD_WIDTH - ball.x : ball.x;
+        const ballVX = mirror ? -ball.vx : ball.vx;
+        const dx = (ballX - playerX) / FIELD_WIDTH;
         const dy = (ball.y - player.y) / FLOOR_Y;
         const norm = (value, scale) => clamp(value / scale, -1, 1);
         return new Float32Array([
-          (player.x / FIELD_WIDTH) * 2 - 1,
+          (playerX / FIELD_WIDTH) * 2 - 1,
           (player.y / FLOOR_Y) * 2 - 1,
-          norm(player.vx, PLAYER_MAX_SPEED),
+          norm(playerVX, PLAYER_MAX_SPEED),
           norm(player.vy, PLAYER_JUMP),
-          (ball.x / FIELD_WIDTH) * 2 - 1,
+          (ballX / FIELD_WIDTH) * 2 - 1,
           (ball.y / FLOOR_Y) * 2 - 1,
-          norm(ball.vx, BALL_MAX_SPEED),
+          norm(ballVX, BALL_MAX_SPEED),
           norm(ball.vy, BALL_MAX_SPEED),
           clamp(dx, -1, 1),
           clamp(dy, -1, 1)
@@ -1142,12 +1052,13 @@
         this.stepCounter = 0;
         this.episodes = 0;
         this.totalReward = 0;
+        this.epsilon = this.baseEpsilon;
       }
     }
 
     const env = new GameEnv();
-    const qAgent = new QLearningAgent();
-    const dqnAgent = new DoubleDQNAgent();
+    const leftAgent = new DoubleDQNAgent('left');
+    const rightAgent = new DoubleDQNAgent('right');
 
     let training = false;
     let episodes = 0;
@@ -1243,23 +1154,26 @@
     }
 
     function simulateStep(){
-      const leftState = qAgent.buildState(env);
-      const rightState = dqnAgent.stateVector(env);
-      const leftAction = qAgent.act(leftState, training);
-      const rightAction = dqnAgent.act(rightState, training);
+      const leftState = leftAgent.stateVector(env);
+      const rightState = rightAgent.stateVector(env);
+      const leftAction = leftAgent.act(leftState, training);
+      const rightAction = rightAgent.act(rightState, training);
 
-      const {done} = env.step(leftAction, rightAction, endlessTraining);
+      const envLeftAction = mapActionIndex('left', leftAction);
+      const envRightAction = mapActionIndex('right', rightAction);
+      const {done} = env.step(envLeftAction, envRightAction, endlessTraining);
       const {leftReward, rightReward} = shapeRewards();
 
       rallySeconds += DT;
 
-      const nextLeftState = qAgent.buildState(env);
-      const nextRightState = dqnAgent.stateVector(env);
+      const nextLeftState = leftAgent.stateVector(env);
+      const nextRightState = rightAgent.stateVector(env);
 
       if(training){
-        qAgent.learn(leftState, leftAction, leftReward, nextLeftState, done);
-        dqnAgent.remember({state:rightState, action:rightAction, reward:rightReward, nextState:nextRightState, done});
-        dqnAgent.train();
+        leftAgent.remember({state:leftState, action:leftAction, reward:leftReward, nextState:nextLeftState, done});
+        rightAgent.remember({state:rightState, action:rightAction, reward:rightReward, nextState:nextRightState, done});
+        leftAgent.train();
+        rightAgent.train();
       }
 
       episodeLeftReward += leftReward;
@@ -1281,8 +1195,8 @@
         }
         finalizeRally(outcome);
         episodes++;
-        qAgent.endEpisode(episodeLeftReward);
-        dqnAgent.endEpisode(episodeRightReward);
+        leftAgent.endEpisode(episodeLeftReward);
+        rightAgent.endEpisode(episodeRightReward);
         rewardHistory.push({left:episodeLeftReward, right:episodeRightReward});
         if(rewardHistory.length > 24) rewardHistory.shift();
         let serveSide = null;
@@ -1373,12 +1287,12 @@
 
     function updateStats(){
       document.getElementById('lbEpisodes').textContent = episodes.toString();
-      const leftAvg = qAgent.episodes ? qAgent.totalReward / qAgent.episodes : 0;
-      const rightAvg = dqnAgent.episodes ? dqnAgent.totalReward / dqnAgent.episodes : 0;
+      const leftAvg = leftAgent.episodes ? leftAgent.totalReward / leftAgent.episodes : 0;
+      const rightAvg = rightAgent.episodes ? rightAgent.totalReward / rightAgent.episodes : 0;
       document.getElementById('lbLeftReward').textContent = leftAvg.toFixed(2);
       document.getElementById('lbRightReward').textContent = rightAvg.toFixed(2);
-      document.getElementById('lbLeftEpsilon').textContent = qAgent.epsilon.toFixed(2);
-      document.getElementById('lbRightEpsilon').textContent = dqnAgent.epsilon.toFixed(2);
+      document.getElementById('lbLeftEpsilon').textContent = leftAgent.epsilon.toFixed(2);
+      document.getElementById('lbRightEpsilon').textContent = rightAgent.epsilon.toFixed(2);
     }
 
     function updateInsights(){
@@ -1421,16 +1335,36 @@
     }
 
     const controlBindings = [
-      ['slQLearningRate','lbQLearningRate', value => { qAgent.learningRate = parseFloat(value); }],
-      ['slQDiscount','lbQDiscount', value => { qAgent.gamma = parseFloat(value); }],
-      ['slQEpsilon','lbQEpsilon', value => { qAgent.epsilon = parseFloat(value); }],
-      ['slQEpsilonDecay','lbQEpsilonDecay', value => { qAgent.epsilonDecay = parseFloat(value); }],
-      ['slDqnLearningRate','lbDqnLearningRate', value => { dqnAgent.learningRate = parseFloat(value); dqnAgent.online.learningRate = parseFloat(value); dqnAgent.target.learningRate = parseFloat(value); }],
-      ['slDqnGamma','lbDqnGamma', value => { dqnAgent.gamma = parseFloat(value); }],
-      ['slDqnEpsilon','lbDqnEpsilon', value => { dqnAgent.epsilon = parseFloat(value); }],
-      ['slDqnEpsilonDecay','lbDqnEpsilonDecay', value => { dqnAgent.epsilonDecay = parseFloat(value); }],
-      ['slTargetSync','lbTargetSync', value => { dqnAgent.targetSync = Math.max(20, parseInt(value, 10)); }],
-      ['slBatchSize','lbBatchSize', value => { dqnAgent.batchSize = Math.max(4, parseInt(value, 10)); }],
+      ['slDqnLearningRate','lbDqnLearningRate', value => {
+        const lr = parseFloat(value);
+        leftAgent.setParams({learningRate: lr});
+        rightAgent.setParams({learningRate: lr});
+      }],
+      ['slDqnGamma','lbDqnGamma', value => {
+        const gamma = parseFloat(value);
+        leftAgent.setParams({gamma});
+        rightAgent.setParams({gamma});
+      }],
+      ['slDqnEpsilon','lbDqnEpsilon', value => {
+        const epsilon = parseFloat(value);
+        leftAgent.setParams({epsilon});
+        rightAgent.setParams({epsilon});
+      }],
+      ['slDqnEpsilonDecay','lbDqnEpsilonDecay', value => {
+        const decay = parseFloat(value);
+        leftAgent.setParams({epsilonDecay: decay});
+        rightAgent.setParams({epsilonDecay: decay});
+      }],
+      ['slTargetSync','lbTargetSync', value => {
+        const steps = Math.max(20, parseInt(value, 10));
+        leftAgent.setParams({targetSync: steps});
+        rightAgent.setParams({targetSync: steps});
+      }],
+      ['slBatchSize','lbBatchSize', value => {
+        const batch = Math.max(4, parseInt(value, 10));
+        leftAgent.setParams({batchSize: batch});
+        rightAgent.setParams({batchSize: batch});
+      }],
       ['slJumpHeight','lbJumpHeight', value => { PLAYER_JUMP = parseFloat(value); }],
       ['slArmReach','lbArmReach', value => {
         PLAYER_REACH = parseFloat(value);
@@ -1491,8 +1425,8 @@
     document.getElementById('btnReset').addEventListener('click', () => {
       training = false;
       document.getElementById('btnToggleTraining').textContent = 'Start training';
-      qAgent.reset();
-      dqnAgent.reset();
+      leftAgent.reset();
+      rightAgent.reset();
       episodes = 0;
       rewardHistory.length = 0;
       env.reset('left');
