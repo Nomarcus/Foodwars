@@ -819,7 +819,7 @@
 
 
 
-// --- Fysiska gränser m.m. (oförändrat) ---
+// --- Physical boundaries etc. (unchanged) ---
 const FIELD_WIDTH = canvas.width;
 const FIELD_HEIGHT = canvas.height;
 const BORDER_PAD = 20;
@@ -829,7 +829,7 @@ const NET_X = FIELD_WIDTH / 2;
 const NET_WIDTH = 14;
 const NET_HEIGHT = 260;
 const NET_TOP = FIELD_HEIGHT - NET_HEIGHT;
-const PLAYER_NET_CLEARANCE = 90;   // hur långt över nätet spelarna får röra sig
+const PLAYER_NET_CLEARANCE = 90;   // how far above the net players may move
 
 const BASE_PLAYER_RADIUS = 32;
 const BASE_GROUND_OFFSET = 30;
@@ -866,17 +866,17 @@ let LEG_DRAW_WIDTH = BASE_LEG_DRAW_WIDTH;
 let ballRadius = 18;
 let jumpScale = 1;
 
-// --- Rörelse & hopp: halvjusterat ---
-const MAX_MOVE_SPEED = 350;        // mellan 320 och 380
+// --- Movement & jumping: semi-adjusted ---
+const MAX_MOVE_SPEED = 350;        // between 320 and 380
 const MAX_BALL_SPEED = 520;
 
 const GRAVITY = 450;
 
-const PLAYER_GRAVITY = 1550;       // mellan 1500 och 1600
-const BASE_PLAYER_JUMP_IMPULSE = 520;   // boostad för högre block och smashar
-const BASE_PLAYER_FAST_FALL = 1100;     // mellan 1200 och 1000
+const PLAYER_GRAVITY = 1550;       // between 1500 and 1600
+const BASE_PLAYER_JUMP_IMPULSE = 520;   // boosted for higher blocks and smashes
+const BASE_PLAYER_FAST_FALL = 1100;     // between 1200 and 1000
 const PLAYER_MAX_FALL_SPEED = 900;
-const BASE_PLAYER_MAX_RISE_SPEED = 660; // mellan 720 och 600
+const BASE_PLAYER_MAX_RISE_SPEED = 660; // between 720 and 600
 
 let PLAYER_JUMP_IMPULSE = BASE_PLAYER_JUMP_IMPULSE;
 let PLAYER_FAST_FALL = BASE_PLAYER_FAST_FALL;
@@ -888,7 +888,7 @@ const WALL_BOUNCE_REWARD = 1.2;
 const NET_CLIP_PENALTY = 1.5;
 
 const SIM_DT = 1/60;
-const MAX_STEPS_BASE = 1200; // <<< ÄNDRING 9
+const MAX_STEPS_BASE = 1200; // <<< CHANGE 9
 const CROSS_REWARD = 30;
 const TOUCH_REWARD = 4;
 const SURVIVAL_REWARD = 0.06;
@@ -896,24 +896,24 @@ const COMPETITION_VICTORY_BONUS = 50;
 const COVERAGE_REWARD_SCALE = 0.012;
 const CENTER_COVERAGE_RANGE = 220;
 
-const ARM_SWING_RATE = Math.PI * 3.9;      // mellan 4.2π och 3.6π
-const ARM_FACING_LIMIT = Math.PI * 0.81;   // mellan 0.72π och 0.9π
-const LEG_SWING_RATE = Math.PI * 2.9;      // mellan 3.2π och 2.6π
-const LEG_FACING_LIMIT = Math.PI * 0.275;  // mellan 0.3π och 0.25π
+const ARM_SWING_RATE = Math.PI * 3.9;      // between 4.2π and 3.6π
+const ARM_FACING_LIMIT = Math.PI * 0.81;   // between 0.72π and 0.9π
+const LEG_SWING_RATE = Math.PI * 2.9;      // between 3.2π and 2.6π
+const LEG_FACING_LIMIT = Math.PI * 0.275;  // between 0.3π and 0.25π
 
-// --- Anti-hop cooldown: halverad intensitet ---
-const MIN_GROUNDED_TIME_BEFORE_JUMP = 0.07; // tidigare 0.18
-const JUMP_ENERGY_COST = 0.10;              // tidigare 0.20
+// --- Anti-hop cooldown: halved intensity ---
+const MIN_GROUNDED_TIME_BEFORE_JUMP = 0.07; // previously 0.18
+const JUMP_ENERGY_COST = 0.10;              // previously 0.20
 
-// --- Mitt-bias: halverad effekt ---
-const CENTER_BAND_WIDTH = 160;    // behåll bandet
-const CENTER_STEP_REWARD = 0.0075;// halva 0.015
-const EDGE_PENALTY = 0.004;       // halva 0.008
+// --- Mid-court bias: halved effect ---
+const CENTER_BAND_WIDTH = 160;    // keep the band
+const CENTER_STEP_REWARD = 0.0075;// half of 0.015
+const EDGE_PENALTY = 0.004;       // half of 0.008
 
 
-  const ARM_STRIKE_BONUS_DEFAULT = 12; // <<< ÄNDRING 5
-  const LEG_KICK_BONUS_DEFAULT = 8; // <<< ÄNDRING 5
-  const HEAD_TOUCH_PENALTY_DEFAULT = 5; // <<< ÄNDRING 5
+  const ARM_STRIKE_BONUS_DEFAULT = 12; // <<< CHANGE 5
+  const LEG_KICK_BONUS_DEFAULT = 8; // <<< CHANGE 5
+  const HEAD_TOUCH_PENALTY_DEFAULT = 5; // <<< CHANGE 5
   let armStrikeBonus = ARM_STRIKE_BONUS_DEFAULT;
   let legKickBonus = LEG_KICK_BONUS_DEFAULT;
   let headTouchPenalty = HEAD_TOUCH_PENALTY_DEFAULT;
@@ -1250,11 +1250,11 @@ const EDGE_PENALTY = 0.004;       // halva 0.008
       }
       this.grounded = this.y >= ground - 1;
       this.vx = (this.x - prevX) / dt;
-      this.updateArms(ball, dt, jump); // <<< ÄNDRING 4
-      this.updateLegs(ball, dt, jump); // <<< ÄNDRING 4
+      this.updateArms(ball, dt, jump); // <<< CHANGE 4
+      this.updateLegs(ball, dt, jump); // <<< CHANGE 4
     }
 
-    updateArms(ball, dt, jumpInput = 0){ // <<< ÄNDRING 4
+    updateArms(ball, dt, jumpInput = 0){ // <<< CHANGE 4
       const baseFacing = this.side === 'left' ? 0 : Math.PI;
       const offsets = this.side === 'left' ? [-0.35, 0.35] : [0.35, -0.35];
       const targetAngle = ball ? Math.atan2(ball.y - this.y, ball.x - this.x) : baseFacing;
@@ -1273,10 +1273,10 @@ const EDGE_PENALTY = 0.004;       // halva 0.008
           targetX = ball.x;
           targetY = ball.y;
 
-          // <<< ÄNDRING 4: Justera siktet baserat på Y-input (jumpInput)
-          // jumpInput är mellan -1 och 1.
-          // * 1 (hopp): aimAdjust blir negativ -> siktar *under* bollen (slår ner)
-          // * -1 (huka): aimAdjust blir positiv -> siktar *över* bollen (slår upp)
+          // <<< CHANGE 4: Adjust aim based on Y-input (jumpInput)
+          // jumpInput is between -1 and 1.
+          // * 1 (jump): aimAdjust becomes negative -> aims under the ball (spikes down)
+          // * -1 (duck): aimAdjust becomes positive -> aims above the ball (hits upward)
           const aimAdjust = (jumpInput * -1) * (ballRadius + 10);
           targetY += aimAdjust;
         }
@@ -1318,7 +1318,7 @@ const EDGE_PENALTY = 0.004;       // halva 0.008
       }
     }
 
-    updateLegs(ball, dt, jumpInput = 0){ // <<< ÄNDRING 4 (endast signatur)
+    updateLegs(ball, dt, jumpInput = 0){ // <<< CHANGE 4 (signature only)
       const baseFacing = Math.PI / 2;
       const offsets = [-0.28, 0.28];
       const targetAngle = ball ? Math.atan2(ball.y - this.y, ball.x - this.x) : baseFacing;
@@ -1443,7 +1443,7 @@ const EDGE_PENALTY = 0.004;       // halva 0.008
       this.reset('left');
     }
     reset(side){
-      // <<< ÄNDRING 8: Varierade servar
+      // <<< CHANGE 8: Varied serves
       const serveType = Math.random();
       if(side === 'right'){
           this.x = NET_X + 170;
@@ -1454,10 +1454,10 @@ const EDGE_PENALTY = 0.004;       // halva 0.008
       }
       
       if (serveType < 0.4) {
-          // Hög, lös serve (tvingar dem att backa)
+          // High, floaty serve (forces them to fall back)
           this.y = NET_TOP - randRange(150, 200);
-          this.vy = randRange(50, 100); // Går uppåt först
-          this.vx *= 0.6; // Långsammare horisontellt
+          this.vy = randRange(50, 100); // Moves upward first
+          this.vx *= 0.6; // Slower horizontally
       } else {
           // Standard-serve
           this.y = NET_TOP - randRange(40, 110);
@@ -1509,7 +1509,7 @@ const EDGE_PENALTY = 0.004;       // halva 0.008
       this.lastBallX = this.primaryBall ? this.primaryBall.x : NET_X;
       // initialize per-team score tracking for competition mode
       this.teamScores = {left: 0, right: 0};
-      this.maxSteps = MAX_STEPS_BASE; // <<< ÄNDRING 9
+      this.maxSteps = MAX_STEPS_BASE; // <<< CHANGE 9
     }
 
     get primaryBall(){
@@ -1704,17 +1704,17 @@ const EDGE_PENALTY = 0.004;       // halva 0.008
       const upward = -contact.normalY;
       const angleBonus = Math.max(0, upward) * 3.0;
 
-      // <<< ÄNDRING 7: "Smash"-bonus i tävlingsläge
+      // <<< CHANGE 7: "Smash" bonus in competitive mode
       if (config.mode === 'competition' && upward < -0.3 && player.y < NET_TOP) {
-          // Om träffen är mer än 30% nedåt OCH spelaren är ovanför nätet
-          this.fitness += 15.0; // Stor bonus för en smash!
+          // If the hit is more than 30% downward AND the player is above the net
+          this.fitness += 15.0; // Big bonus for a smash!
       }
 
       let reward = TOUCH_REWARD + angleBonus;
 
-      // <<< ÄNDRING 6: Bonus för att vara i luften
+      // <<< CHANGE 6: Bonus for being airborne
       if (!player.grounded) {
-          reward += 4.0; // Bonus för "aerial"
+          reward += 4.0; // Bonus for an "aerial"
       }
 
       if(contact.type === 'arm'){
@@ -1850,7 +1850,7 @@ const EDGE_PENALTY = 0.004;       // halva 0.008
         if(ball.y - ballRadius <= NET_TOP){
           this.crossings++;
           this.fitness += CROSS_REWARD;
-          this.maxSteps += 300; // <<< ÄNDRING 9: Lägg till tid
+          this.maxSteps += 300; // <<< CHANGE 9: Add time
           // update team score in competition mode
           if(config.mode === 'competition'){
             const last = this.lastTouchSide;
@@ -1886,7 +1886,7 @@ const EDGE_PENALTY = 0.004;       // halva 0.008
         this.currentRallyDuration += dt;
       }
 
-      // <<< ÄNDRING 9: Dynamisk maxSteps hanteras nu av this.maxSteps
+      // <<< CHANGE 9: Dynamic maxSteps now handled by this.maxSteps
       // const maxSteps = MAX_STEPS_BASE + (generation - 1) * 50;
 
       const outputs = this.genome.feedForward(this.getInputs());
@@ -1925,7 +1925,7 @@ const EDGE_PENALTY = 0.004;       // halva 0.008
         }
         this.lastBallX = primary.x;
 
-        // Belöning för att täcka sannolikt nedslagsområde och förbereda sig
+        // Reward for covering the likely landing zone and preparing
         const landing = predictLandingWithBounce(primary);
         const predictedX = landing ? landing.x : clamp(primary.x, BORDER_PAD + ballRadius, FIELD_WIDTH - BORDER_PAD - ballRadius);
         const predictedSide = predictedX < NET_X ? 'left' : 'right';
@@ -1950,7 +1950,7 @@ const EDGE_PENALTY = 0.004;       // halva 0.008
         });
       }
 
-      if(this.steps >= this.maxSteps){ // <<< ÄNDRING 9
+      if(this.steps >= this.maxSteps){ // <<< CHANGE 9
         this.done = true;
         this.endCurrentRally();
       }
@@ -2093,7 +2093,7 @@ const EDGE_PENALTY = 0.004;       // halva 0.008
       recordGenerationFitness(generationBest);
       // (7) Auto-decay mutation slightly each generation, lower-bounded
       const decayFactor = 0.98;
-      config.mutationRate = Math.max(10, Math.min(80, config.mutationRate * decayFactor)); // <<< ÄNDRING 2
+      config.mutationRate = Math.max(10, Math.min(80, config.mutationRate * decayFactor)); // <<< CHANGE 2
 
       population.evolve(config);
       evaluationOrder = population.genomes.slice();
@@ -2336,8 +2336,8 @@ const EDGE_PENALTY = 0.004;       // halva 0.008
       ctx.moveTo(player.x, player.y);
       ctx.lineTo(wallX, player.y);
       ctx.stroke();
-      // <<< ÄNDRING 1: Logik för att rita sensorer från lemmar borttagen
-      // (den ritade bara från lemmar om de var med i inputs, vilket de inte är längre)
+      // <<< CHANGE 1: Logic for drawing sensors from limbs removed
+      // (it only drew from limbs if they were part of the inputs, which they no longer are)
     });
     // draw ball velocity vector
     ctx.strokeStyle = 'rgba(255,255,255,0.4)';

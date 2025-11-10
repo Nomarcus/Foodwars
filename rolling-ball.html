@@ -1,11 +1,11 @@
 <!DOCTYPE html>
-<html lang="sv">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>NEAT Studsboll - Förfinad</title>
+<title>NEAT Bouncing Ball - Refined</title>
 <style>
-    /* ... (Din exakta CSS-kod från originalet, ingen ändring behövs) ... */
+    /* ... (Your exact CSS code from the original, no change needed) ... */
     :root {
         --bg-gradient-start: #1f2633;
         --bg-gradient-end: #121722;
@@ -214,7 +214,7 @@
         vertical-align: bottom;
         border-radius: 2px 2px 0 0;
     }
-    /* NYTT FÖR AI-VISUALISERING */
+    /* NEW FOR AI VISUALIZATION */
     #nnCanvas {
         width: 100%;
         height: 180px;
@@ -225,7 +225,7 @@
 </style>
 </head>
 <body>
-<a class="back-home" href="index.html">← Till startsidan</a>
+<a class="back-home" href="index.html">← Back to home</a>
 <div class="main-area">
     <canvas id="canvas" width="1200" height="600"></canvas>
     <div class="stats">
@@ -234,23 +234,23 @@
             <div class="value" id="generation">1</div>
         </div>
         <div class="stat-box">
-            <div class="label">Levande</div>
+            <div class="label">Alive</div>
             <div class="value" id="alive">0</div>
         </div>
         <div class="stat-box">
-            <div class="label">Bästa Fitness</div>
+            <div class="label">Best Fitness</div>
             <div class="value" id="bestEver">0</div>
         </div>
         <div class="stat-box">
-            <div class="label">Bästa Hinder</div>
+            <div class="label">Most Obstacles</div>
             <div class="value" id="bestObstacles">0</div>
         </div>
         <div class="stat-box">
-            <div class="label">Bästa Nu</div>
+            <div class="label">Current Best</div>
             <div class="value" id="bestNow">0</div>
         </div>
         <div class="stat-box">
-            <div class="label">Genomsnitt Nu</div>
+            <div class="label">Current Average</div>
             <div class="value" id="average">0</div>
         </div>
     </div>
@@ -258,19 +258,19 @@
 
 <div class="side-panel">
     <div class="panel-section">
-        <h3>🎮 Kontroller</h3>
-        <button onclick="resetGeneration()">🔄 Ny Generation</button>
-        <button onclick="togglePause()">⏯️ Pausa/Fortsätt</button>
-        <button onclick="showBestOnly()">⭐ Visa Bara Bästa</button>
-        <button onclick="saveBest()">💾 Spara Bästa AI</button>
-        <button onclick="loadBest()">📂 Ladda Sparad AI</button>
+        <h3>🎮 Controls</h3>
+        <button onclick="resetGeneration()">🔄 New Generation</button>
+        <button onclick="togglePause()">⏯️ Pause/Resume</button>
+        <button onclick="showBestOnly()">⭐ Show Only the Top</button>
+        <button onclick="saveBest()">💾 Save Top AI</button>
+        <button onclick="loadBest()">📂 Load Saved AI</button>
         <div id="saveStatus" style="font-size: 0.75rem; color: #9aa7c2; margin-top: 8px; min-height: 16px;"></div>
     </div>
 
     <div class="panel-section">
-        <h3>⚡ Simulering</h3>
+        <h3>⚡ Simulation</h3>
         <div class="control-group">
-            <label>Hastighet <span class="value-display" id="speedVal">1.0x</span></label>
+            <label>Speed <span class="value-display" id="speedVal">1.0x</span></label>
             <input type="range" id="speed" min="0.1" max="5" step="0.1" value="1">
         </div>
         <div class="control-group">
@@ -282,53 +282,53 @@
             <input type="range" id="progressTimeout" min="2" max="15" step="1" value="5">
         </div>
         <div class="control-group">
-            <label>Sensorlängd <span class="value-display" id="sensorLengthVal">150</span></label>
+            <label>Sensor Length <span class="value-display" id="sensorLengthVal">150</span></label>
             <input type="range" id="sensorLength" min="50" max="500" step="10" value="150">
         </div>
         <div class="control-group">
-            <label>Visa Sensorer <span class="value-display" id="sensorsVal">Ja</span></label>
+            <label>Show Sensors <span class="value-display" id="sensorsVal">Yes</span></label>
             <input type="range" id="showSensors" min="0" max="1" step="1" value="1">
         </div>
     </div>
-     <div class="panel-section">
-        <h3>🌍 Bana (Oändlig!)</h3>
+    <div class="panel-section">
+        <h3>🌍 Track (Endless!)</h3>
         <div class="control-group">
-            <label>Svårighetstillväxt <span class="value-display" id="difficultyGrowthVal">1.0x</span></label>
+            <label>Difficulty Growth <span class="value-display" id="difficultyGrowthVal">1.0x</span></label>
             <input type="range" id="difficultyGrowth" min="0.3" max="2" step="0.1" value="1">
         </div>
         <div class="control-group">
-            <label>Hinderhöjd <span class="value-display" id="obstacleHeightVal">1.0x</span></label>
+            <label>Obstacle Height <span class="value-display" id="obstacleHeightVal">1.0x</span></label>
             <input type="range" id="obstacleHeight" min="0.3" max="2" step="0.1" value="1">
         </div>
         <div class="control-group">
-            <label>Första Hinder Vid <span class="value-display" id="firstObstacleVal">800</span></label>
+            <label>First Obstacle At <span class="value-display" id="firstObstacleVal">800</span></label>
             <input type="range" id="firstObstacle" min="300" max="1500" step="50" value="800">
         </div>
     </div>
     <div class="panel-section">
-        <h3>⚙️ Fysik</h3>
+        <h3>⚙️ Physics</h3>
         <div class="control-group">
-            <label>Bollstorlek <span class="value-display" id="ballSizeVal">12</span></label>
+            <label>Ball Size <span class="value-display" id="ballSizeVal">12</span></label>
             <input type="range" id="ballSize" min="8" max="20" step="1" value="12">
         </div>
         <div class="control-group">
-            <label>Gravitation <span class="value-display" id="gravityVal">0.5</span></label>
+            <label>Gravity <span class="value-display" id="gravityVal">0.5</span></label>
             <input type="range" id="gravity" min="0.1" max="1" step="0.05" value="0.5">
         </div>
         <div class="control-group">
-            <label>Studskraft <span class="value-display" id="bounceVal">0.6</span></label>
+            <label>Bounciness <span class="value-display" id="bounceVal">0.6</span></label>
             <input type="range" id="bounce" min="0" max="1" step="0.05" value="0.6">
         </div>
         <div class="control-group">
-            <label>Hopphöjd <span class="value-display" id="jumpVal">12</span></label>
+            <label>Jump Height <span class="value-display" id="jumpVal">12</span></label>
             <input type="range" id="jumpPower" min="5" max="20" step="0.5" value="12">
         </div>
         <div class="control-group">
-            <label>Friktion <span class="value-display" id="frictionVal">0.98</span></label>
+            <label>Friction <span class="value-display" id="frictionVal">0.98</span></label>
             <input type="range" id="friction" min="0.9" max="0.99" step="0.01" value="0.98">
         </div>
         <div class="control-group">
-            <label>Max Hastighet <span class="value-display" id="maxSpeedVal">8</span></label>
+            <label>Max Speed <span class="value-display" id="maxSpeedVal">8</span></label>
             <input type="range" id="maxSpeed" min="3" max="15" step="0.5" value="8">
         </div>
     </div>
@@ -349,12 +349,12 @@
     </div>
     
     <div class="panel-section">
-        <h3>🧠 AI-Hjärna (Bästa Nu)</h3>
+        <h3>🧠 AI Brain (Current Best)</h3>
         <canvas id="nnCanvas" width="300" height="180"></canvas>
     </div>
 
     <div class="panel-section">
-        <h3>📊 Historik</h3>
+        <h3>📊 Training History</h3>
         <div class="chart" id="chart"></div>
     </div>
 </div>
@@ -390,12 +390,12 @@ let showOnlyBest = false;
 let lastProgressTime = 0;
 let lastBestDistance = 0;
 
-// NYTT: För fixed timestep
-const FIXED_DT = 1 / 60; // Kör fysiken i 60hz
+// NEW: Fixed timestep support
+const FIXED_DT = 1 / 60; // Run physics at 60hz
 let lastTime = 0;
 let accumulator = 0;
 
-// NYTT: För fjädrande kamera
+// NEW: Springy camera
 let camera = {
     x: 0,
     vx: 0,
@@ -403,18 +403,18 @@ let camera = {
     damping: 0.8
 };
 
-// NYTT: För screen shake
+// NEW: Screen shake
 let screenShake = 0;
 function triggerScreenShake(amount) {
     screenShake = Math.max(screenShake, amount);
 }
 
 // ============= NEAT IMPLEMENTATION =============
-// ... (Din NEAT-kod (Genome, Population) är perfekt. Den klistras in här oförändrad) ...
+// ... (Your NEAT code (Genome, Population) is perfect. It is pasted here unchanged) ...
 class Genome {
     constructor() {
         this.weights = [];
-        // 24 sensorer + 7 extra tillstånd -> hidden layer -> 3 outputs (hoppa, gasa, bromsa)
+        // 24 sensors + 7 extra states -> hidden layer -> 3 outputs (jump, accelerate, brake)
         this.inputSize = 31;
         this.hiddenSize = 16;
         this.outputSize = 3;
@@ -454,10 +454,10 @@ class Genome {
         for (let i = 0; i < this.weights.length; i++) {
             if (Math.random() < rate) {
                 if (Math.random() < 0.1) {
-                    this.weights[i] = Math.random() * 2 - 1; // Helt nytt värde
+                    this.weights[i] = Math.random() * 2 - 1; // Brand new value
                 } else {
                     this.weights[i] += (Math.random() - 0.5) * 0.5; // Justera lite
-                    this.weights[i] = Math.max(-2, Math.min(2, this.weights[i])); // Kläm fast värdet
+                    this.weights[i] = Math.max(-2, Math.min(2, this.weights[i])); // Clamp the value
                 }
             }
         }
@@ -482,7 +482,7 @@ class Population {
         this.bestFitness = 0;
         this.bestGenome = null;
         this.history = [];
-        this.bestObstaclesEver = 0; // NYTT: För fitness
+        this.bestObstaclesEver = 0; // NEW: For fitness
     }
     
     evolve() {
@@ -496,7 +496,7 @@ class Population {
         if (best > this.bestFitness) {
             this.bestFitness = best;
             this.bestGenome = this.genomes[0];
-            // NYTT: Uppdatera bästa hinder klarade
+            // NEW: Update best obstacles cleared
             const bestBall = balls.find(b => b.genome === this.bestGenome);
             if (bestBall) {
                 this.bestObstaclesEver = Math.max(this.bestObstaclesEver, bestBall.obstaclesCleared);
@@ -608,7 +608,7 @@ function spawnParticles(x, y, color, count = 5, baseSpeed = 2) {
             Math.cos(angle) * speed,
             Math.sin(angle) * speed,
             color,
-            0.5 + Math.random() * 0.5 // livslängd i sekunder
+            0.5 + Math.random() * 0.5 // lifetime in seconds
         );
         
         nextParticleIndex = (nextParticleIndex + 1) % MAX_PARTICLES;
@@ -635,11 +635,11 @@ class Ball {
         this.distance = 0;
         this.radius = config.ballSize;
 
-        // NYTT: För S&S
+        // NEW: For S&S
         this.squash = 1.0;
         this.stretch = 1.0;
 
-        // NYTT: För fitness & AI-visualisering
+        // NEW: For fitness & AI visualization
         this.obstaclesCleared = 0;
         this.lastObstacleIndex = -1;
         this.lastInputs = new Array(this.genome.inputSize).fill(0);
@@ -674,10 +674,10 @@ class Ball {
                 const terrainY = terrain.getHeight(checkX);
                 
                 if (checkY >= terrainY) {
-                    // Träff! Binärsök för exakt avstånd.
+                    // Hit! Binary search for exact distance.
                     let low = dist - coarseStep;
                     let high = dist;
-                    for (let i = 0; i < 5; i++) { // 5 iterationer räcker
+                    for (let i = 0; i < 5; i++) { // 5 iterations are enough
                         const mid = (low + high) / 2;
                         const midX = this.x + dx * mid;
                         const midY = this.y + dy * mid;
@@ -691,10 +691,10 @@ class Ball {
                     break;
                 }
             }
-            sensors.push(1.0 - (hitDist / rayLength)); // Invertera: 1 = nära, 0 = långt borta
+            sensors.push(1.0 - (hitDist / rayLength)); // Invert: 1 = near, 0 = far away
         }
 
-        this.lastSensorInputs = sensors; // Spara för sensorvisualisering
+        this.lastSensorInputs = sensors; // Save for sensor visualization
         return sensors;
     }
 
@@ -743,7 +743,7 @@ class Ball {
         const accelerate = outputs[1];
         const brake = outputs[2];
 
-        this.vy += config.gravity * dt * 60; // dt*60 för att matcha originalskalan
+        this.vy += config.gravity * dt * 60; // dt*60 to match the original scale
         
         const terrainY = terrain.getHeight(this.x);
         const wasOnGround = this.onGround;
@@ -771,7 +771,7 @@ class Ball {
             }
         }
         
-        // NYTT: Återställ S&S
+        // NEW: Reset S&S
         this.squash += (1 - this.squash) * 0.1;
         this.stretch += (1 - this.stretch) * 0.1;
 
@@ -798,7 +798,7 @@ class Ball {
 
         this.speedScore += Math.max(0, this.vx) * dt;
 
-        if (this.x < camera.x - 200 || this.y > 700) { // Dö om utanför skärmen
+        if (this.x < camera.x - 200 || this.y > 700) { // Die when outside the screen
             this.alive = false;
             spawnParticles(this.x, this.y, `hsla(${this.hue}, 70%, 60%, 1)`, 10);
             triggerScreenShake(5);
@@ -832,14 +832,14 @@ class Ball {
                 }
             }
             
-            // NYTT: Fitness-logik för att klara hinder
+            // NEW: Fitness logic for clearing obstacles
             if (obs.index > this.lastObstacleIndex && this.x > obs.x + obs.width) {
                 this.obstaclesCleared++;
                 this.lastObstacleIndex = obs.index;
             }
 
         } else {
-            // Kolla om vi passerat hinder som vi var på väg mot
+            // Check if we passed the obstacle we were approaching
             const lastObs = terrain.getLastObstacleBefore(this.x);
             if (lastObs && lastObs.index > this.lastObstacleIndex) {
                  this.obstaclesCleared++;
@@ -867,13 +867,13 @@ class Ball {
         // NYTT: Applicera Squash & Stretch
         ctx.scale(this.squash, this.stretch);
 
-        // ... (Resten av din 'draw'-funktion är densamma) ...
+        // ... (The rest of your 'draw' function is the same) ...
         // Enhanced shadow with blur
         ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
         ctx.shadowBlur = 8;
         ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
         ctx.beginPath();
-        // Skuggan ska inte S&S, så vi skalar emot det
+        // The shadow should not S&S, so scale it back
         ctx.ellipse(0, r * 1.5 / this.stretch, r * 0.9 / this.squash, r * 0.35 / this.stretch, 0, 0, Math.PI * 2);
         ctx.fill();
         ctx.shadowBlur = 0;
@@ -926,7 +926,7 @@ class Ball {
         ctx.restore();
     }
     
-    // NYTT: Sensor-ritning använder nu den optimerade metoden
+    // NEW: Sensor rendering now uses the optimized method
     drawSensors(ctx, cameraX, terrain) {
         if (!this.alive || !config.showSensors) return;
 
@@ -946,7 +946,7 @@ class Ball {
             const dx = Math.cos(rad);
             const dy = Math.sin(rad);
 
-            // Använd det sparade sensorvärdet (inverterat)
+            // Use the saved sensor value (inverted)
             const sensorValue = this.lastSensorInputs ? this.lastSensorInputs[i] : 0;
             let hitDist = (1.0 - sensorValue) * rayLength;
             
@@ -1005,7 +1005,7 @@ class Terrain {
             y: 500 - height, 
             width, 
             height,
-            index: this.obstacleIndex // NYTT: Index för fitness
+            index: this.obstacleIndex // NEW: Index for fitness
         });
         
         this.nextObstacleX += spacing;
@@ -1032,7 +1032,7 @@ class Terrain {
         return 500;
     }
     
-    // NYTT: OPTIMERAD med BINÄRSÖKNING
+    // NEW: OPTIMIZED with BINARY SEARCH
     getObstacleAt(x) {
         let low = 0;
         let high = this.obstacles.length - 1;
@@ -1076,7 +1076,7 @@ class Terrain {
         return candidate;
     }
 
-    // NYTT: För fitness-logik
+    // NEW: For fitness logic
     getLastObstacleBefore(x) {
         let low = 0;
         let high = this.obstacles.length - 1;
@@ -1095,7 +1095,7 @@ class Terrain {
     }
     
     draw(ctx, cameraX) {
-        // ... (Din 'draw'-funktion för terräng är densamma) ...
+        // ... (Your 'draw' function for terrain is the same) ...
         // Enhanced ground with depth
         const groundGradient = ctx.createLinearGradient(0, 500 * config.zoom, 0, canvas.height);
         groundGradient.addColorStop(0, '#3a4f2a');
@@ -1143,7 +1143,7 @@ class Terrain {
             const h = obs.height * config.zoom;
             const y = obs.y * config.zoom;
             
-            // ... (Resten av hinder-ritningen är densamma) ...
+            // ... (The rest of the obstacle rendering is the same) ...
             const obsGradient = ctx.createLinearGradient(screenX, y, screenX + w, y);
             obsGradient.addColorStop(0, '#6d4c2a');
             obsGradient.addColorStop(0.3, '#8B4513');
@@ -1192,7 +1192,7 @@ class Terrain {
 const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d');
 
-// NYTT: Canvas för AI-hjärnan
+// NEW: Canvas for the AI brain
 const nnCanvas = document.getElementById('nnCanvas');
 const nnCtx = nnCanvas.getContext('2d');
 
@@ -1202,7 +1202,7 @@ let balls = population.genomes.map(g => new Ball(g));
 let bestBall = null;
 
 // ============= KONTROLLER =============
-// ... (Din 'setupControls' är densamma) ...
+// ... (Your 'setupControls' is the same) ...
 function setupControls() {
     const sliders = {
         speed: { display: 'speedVal', format: v => v.toFixed(1) + 'x' },
@@ -1261,11 +1261,11 @@ function resetGeneration() {
     updateChart();
 }
 
-// ... (Resten av dina kontroller är desamma) ...
+// ... (The rest of your controls are the same) ...
 function togglePause() {
     paused = !paused;
     if (!paused) {
-        lastTime = performance.now(); // Förhindra massiv dt-hopp
+        lastTime = performance.now(); // Prevent massive dt jumps
         requestAnimationFrame(gameLoop); // Starta loopen igen
     }
 }
@@ -1281,7 +1281,7 @@ function showBestOnly() {
 function saveBest() {
     const saveStatus = document.getElementById('saveStatus');
     if (!population.bestGenome) {
-        saveStatus.textContent = '❌ Ingen bästa AI att spara än';
+        saveStatus.textContent = '❌ No top AI available to save yet';
         saveStatus.style.color = '#ff6b6b';
         return;
     }
@@ -1307,7 +1307,7 @@ function loadBest() {
     const savedData = localStorage.getItem('neatBallBest');
     
     if (!savedData) {
-        saveStatus.textContent = '❌ Ingen sparad AI hittades';
+        saveStatus.textContent = '❌ No saved AI found';
         saveStatus.style.color = '#ff6b6b';
         return;
     }
@@ -1380,7 +1380,7 @@ function drawNN(ctx, genome, inputs, outputs) {
             const weight = genome.weights[w_idx++];
             
             const alpha = Math.min(Math.abs(weight) * 0.8, 0.8);
-            ctx.strokeStyle = weight > 0 ? `rgba(67, 160, 71, ${alpha})` : `rgba(229, 57, 53, ${alpha})`; // Grön / Röd
+            ctx.strokeStyle = weight > 0 ? `rgba(67, 160, 71, ${alpha})` : `rgba(229, 57, 53, ${alpha})`; // Green / Red
             ctx.lineWidth = Math.min(Math.abs(weight) * 1.5, 2);
             
             ctx.beginPath();
@@ -1414,8 +1414,8 @@ function drawNN(ctx, genome, inputs, outputs) {
     // Input-noder
     for (let i = 0; i < genome.inputSize; i++) {
         const y = layerMargin + (h - layerMargin*2) * (i / (genome.inputSize - 1));
-        const activation = inputs ? inputs[i] : 0; // Värdet är 0-1
-        ctx.fillStyle = `rgba(255, 159, 67, ${0.2 + activation * 0.8})`; // Accentfärg
+        const activation = inputs ? inputs[i] : 0; // Value is 0-1
+        ctx.fillStyle = `rgba(255, 159, 67, ${0.2 + activation * 0.8})`; // Accent color
         ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
         ctx.beginPath();
         ctx.arc(inputX, y, nodeRadius, 0, Math.PI * 2);
@@ -1423,7 +1423,7 @@ function drawNN(ctx, genome, inputs, outputs) {
         ctx.stroke();
     }
     
-    // Hidden-noder (Kan ej visa aktivering enkelt utan att köra nätet igen)
+    // Hidden nodes (Cannot show activation easily without re-running the net)
     for (let i = 0; i < genome.hiddenSize; i++) {
         const y = layerMargin + (h - layerMargin*2) * (i / (genome.hiddenSize - 1));
         ctx.fillStyle = `rgba(100, 100, 100, 0.5)`;
@@ -1438,8 +1438,8 @@ function drawNN(ctx, genome, inputs, outputs) {
     const outputLabels = ["Hopp", "Gasa", "Broms"];
     for (let i = 0; i < genome.outputSize; i++) {
         const y = layerMargin + (h - layerMargin*2) * (i / (genome.outputSize - 1));
-        const activation = outputs ? (outputs[i] + 1) / 2 : 0; // Värdet är -1 till 1
-        ctx.fillStyle = `rgba(245, 87, 108, ${0.2 + activation * 0.8})`; // Annan accentfärg
+        const activation = outputs ? (outputs[i] + 1) / 2 : 0; // Value ranges from -1 to 1
+        ctx.fillStyle = `rgba(245, 87, 108, ${0.2 + activation * 0.8})`; // Alternate accent color
         ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
         ctx.beginPath();
         ctx.arc(outputX, y, nodeRadius + 1, 0, Math.PI * 2);
@@ -1479,14 +1479,14 @@ function updatePhysics(dt) {
             
             if (ball.genome.fitness > currentBestFitness) {
                 currentBestFitness = ball.genome.fitness;
-                bestBall = ball; // Spara den bästa bollen för NN-visualisering
+                bestBall = ball; // Save the best ball for NN visualization
             }
         }
     }
     
     terrain.update(leadX);
     
-    // NYTT: Fjädrande kamera-logik
+    // NEW: Spring camera logic
     const targetX = leadX - 300;
     const accel = (targetX - camera.x) * camera.spring;
     camera.vx += accel;
@@ -1522,7 +1522,7 @@ function updatePhysics(dt) {
 
 // ============= NY: RITLOOP =============
 function draw() {
-    ctx.save(); // Spara state för screen shake
+    ctx.save(); // Save state for screen shake
 
     // NYTT: Applicera screen shake
     const shakeX = (Math.random() - 0.5) * screenShake;
@@ -1640,16 +1640,16 @@ function draw() {
     ctx.strokeRect(10, 10, 220, 70);
     ctx.font = 'bold 14px Inter';
     ctx.fillStyle = '#ff9f43';
-    ctx.fillText('🏁 Oändlig Bana!', 20, 30);
+    ctx.fillText('🏁 Endless Track!', 20, 30);
     ctx.fillStyle = '#f5f7ff';
     ctx.font = '12px Inter';
     ctx.fillText('Hinder genererade: ' + terrain.obstacleIndex, 20, 50);
-    ctx.fillText('Bästa fitness: ' + Math.floor(population.bestFitness), 20, 65);
+    ctx.fillText('Best fitness: ' + Math.floor(population.bestFitness), 20, 65);
     ctx.restore();
 
-    ctx.restore(); // Återställ från screen shake
+    ctx.restore(); // Reset from screen shake
 
-    // NYTT: Rita AI-hjärnan
+    // NEW: Draw the AI brain
     if (bestBall) {
         drawNN(nnCtx, bestBall.genome, bestBall.lastInputs, bestBall.lastOutputs);
     } else {
@@ -1667,13 +1667,13 @@ function gameLoop(now) {
     
     accumulator += dt * config.speed;
     
-    // Kör fysik-uppdateringar i fasta steg
+    // Run physics updates in fixed steps
     while (accumulator >= FIXED_DT) {
         updatePhysics(FIXED_DT);
         accumulator -= FIXED_DT;
     }
     
-    // Rita så ofta som möjligt
+    // Render as often as possible
     draw();
     
     requestAnimationFrame(gameLoop);
