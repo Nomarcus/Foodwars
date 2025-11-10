@@ -1094,30 +1094,35 @@ class Terrain {
 
             this.surfacePoints.push({ x: nextX, y: nextY, type: uphill ? 'Uphill' : 'Downhill' });
         } else {
-            const preHoleGap = 140 + Math.random() * 220;
-            nextX += preHoleGap;
-            const holeWidth = 80 + Math.random() * 110 + progressFactor * 60;
-            let flatLength = 160 + Math.random() * 240;
-
+            const leadIn = 100 + Math.random() * 160;
+            nextX += leadIn;
             this.surfacePoints.push({ x: nextX, y: baseGroundY, type: 'Flat' });
 
-            const holeStart = nextX;
+            const climbLength = 160 + Math.random() * 220;
+            const climbHeight = 40 + Math.random() * 110 + progressFactor * 40;
+            const peakY = clamp(baseGroundY - climbHeight, 360, 580);
 
-            nextX += holeWidth;
-            this.surfacePoints.push({ x: nextX, y: baseGroundY, type: 'Hole' });
+            nextX += climbLength;
+            this.surfacePoints.push({ x: nextX, y: peakY, type: 'Uphill' });
 
-            this.holes.push({
-                start: holeStart,
-                end: nextX,
-                ground: baseGroundY
-            });
+            const descendLength = 160 + Math.random() * 220;
+            const makeValley = Math.random() < 0.45;
+            const descendTarget = makeValley
+                ? clamp(baseGroundY + (30 + Math.random() * 90), 360, 580)
+                : baseGroundY;
 
-            if (Math.random() < 0.4) {
-                flatLength += 120 + Math.random() * 220;
+            nextX += descendLength;
+            this.surfacePoints.push({ x: nextX, y: descendTarget, type: 'Downhill' });
+
+            if (makeValley) {
+                const climbOutLength = 140 + Math.random() * 220;
+                nextX += climbOutLength;
+                this.surfacePoints.push({ x: nextX, y: baseGroundY, type: 'Uphill' });
+            } else {
+                const flatExit = 120 + Math.random() * 200;
+                nextX += flatExit;
+                this.surfacePoints.push({ x: nextX, y: baseGroundY, type: 'Flat' });
             }
-
-            nextX += flatLength;
-            this.surfacePoints.push({ x: nextX, y: baseGroundY, type: 'Flat' });
             this.obstacleIndex++;
         }
 
