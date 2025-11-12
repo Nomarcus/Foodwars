@@ -619,7 +619,7 @@
         const curr = centerPoints[i];
         const next = centerPoints[(i + 1) % pointCount];
         const dir = normalize({ x: next.x - prev.x, y: next.y - prev.y });
-        const normal = { x: -dir.y, y: dir.x };
+        const normal = { x: dir.y, y: -dir.x };
         inner.push({ x: curr.x - normal.x * width / 2, y: curr.y - normal.y * width / 2 });
         outer.push({ x: curr.x + normal.x * width / 2, y: curr.y + normal.y * width / 2 });
         checkpoints.push({
@@ -655,7 +655,7 @@
       const startCenter = centerPoints[startIdx];
       const nextCenter = centerPoints[(startIdx + 1) % pointCount];
       const startDir = normalize({ x: nextCenter.x - startCenter.x, y: nextCenter.y - startCenter.y });
-      const startNormal = { x: -startDir.y, y: startDir.x };
+      const startNormal = { x: startDir.y, y: -startDir.x };
       const spawnBase = {
         x: startCenter.x - startDir.x * 35,
         y: startCenter.y - startDir.y * 35
