@@ -411,7 +411,7 @@
               <label for="track-type">Bantyp</label>
               <select id="track-type">
                 <option value="round">Rund bana</option>
-                <option value="labyrinth">Labyrintbana</option>
+                <option value="retro">Retro bana</option>
               </select>
             </div>
             <div class="switch-row">
@@ -484,15 +484,8 @@
         smoothingPasses: 2,
         angleJitter: 0.28
       },
-      labyrinthTrack: {
-        rows: 9,
-        rowVariance: 3,
-        cols: 16,
-        colVariance: 4,
-        cellSize: 70,
-        jitter: 22,
-        smoothingPasses: 2,
-        width: 80
+      retroTrack: {
+        width: 92
       }
     };
     config.inputSize = config.sensorCount + 5;
@@ -546,14 +539,22 @@
     });
 
     function describeTrackMode(mode) {
-      return mode === 'labyrinth' ? 'labyrintbana' : 'rund bana';
+      return mode === 'retro' ? 'retro bana' : 'rund bana';
+    }
+
+    function updateSeedLabel() {
+      if (config.trackMode === 'retro') {
+        hudSeed.textContent = 'Layout: Retro';
+      } else {
+        hudSeed.textContent = `Seed: ${trackSeed}`;
+      }
     }
 
     trackTypeSelect.addEventListener('change', () => {
       config.trackMode = trackTypeSelect.value;
       track = generateTrack(trackSeed, config.trackMode);
       updateTrackScale();
-      hudSeed.textContent = `Seed: ${trackSeed}`;
+      updateSeedLabel();
       resetPopulation();
       leaderboard = [];
       renderLeaderboard();
@@ -570,10 +571,12 @@
     });
 
     newTrackBtn.addEventListener('click', () => {
-      trackSeed = Math.floor(Math.random() * 1_000_000);
+      if (config.trackMode !== 'retro') {
+        trackSeed = Math.floor(Math.random() * 1_000_000);
+      }
       track = generateTrack(trackSeed, config.trackMode);
       updateTrackScale();
-      hudSeed.textContent = `Seed: ${trackSeed}`;
+      updateSeedLabel();
       resetPopulation();
       leaderboard = [];
       renderLeaderboard();
@@ -644,76 +647,48 @@
       return centerPoints;
     }
 
-    function createLabyrinthCenterPoints(rng) {
-      const cfg = config.labyrinthTrack;
-      const rows = Math.max(6, cfg.rows + Math.floor(rng() * cfg.rowVariance));
-      const cols = Math.max(8, cfg.cols + Math.floor(rng() * cfg.colVariance));
-      const cell = cfg.cellSize;
-      const xStart = -((cols - 1) * cell) / 2;
-      const yStart = -((rows - 1) * cell) / 2;
-      const xPositions = Array.from({ length: cols }, (_, i) => xStart + i * cell);
-      const points = [];
-
-      let y = yStart;
-      for (let r = 0; r < rows; r++) {
-        const xs = r % 2 === 0 ? xPositions : [...xPositions].reverse();
-        for (const x of xs) {
-          points.push({
-            x: x + (rng() - 0.5) * cfg.jitter,
-            y: y + (rng() - 0.5) * cfg.jitter
-          });
-        }
-        if (r < rows - 1) {
-          y += cell;
-          const lastX = xs[xs.length - 1];
-          points.push({
-            x: lastX + (rng() - 0.5) * cfg.jitter,
-            y: y + (rng() - 0.5) * cfg.jitter
-          });
-        }
-      }
-
-      const xMin = xPositions[0];
-      const xMax = xPositions[xPositions.length - 1];
-      const yBottom = yStart + (rows - 1) * cell;
-
-      const pushCorner = (x, y) => {
-        points.push({
-          x: x + (rng() - 0.5) * cfg.jitter,
-          y: y + (rng() - 0.5) * cfg.jitter
-        });
-      };
-
-      const lastPoint = points[points.length - 1];
-      if (Math.abs(lastPoint.x - xMax) > cell * 0.25 || Math.abs(lastPoint.y - yBottom) > cell * 0.25) {
-        pushCorner(xMax, yBottom);
-      }
-      pushCorner(xMax, yStart);
-      pushCorner(xMin, yStart);
-
-      const smoothPasses = cfg.smoothingPasses || 0;
-      const totalPoints = points.length;
-      for (let s = 0; s < smoothPasses; s++) {
-        const smooth = [];
-        for (let i = 0; i < totalPoints; i++) {
-          const prev = points[(i - 1 + totalPoints) % totalPoints];
-          const curr = points[i];
-          const next = points[(i + 1) % totalPoints];
-          smooth.push({
-            x: (prev.x + curr.x * 2 + next.x) / 4,
-            y: (prev.y + curr.y * 2 + next.y) / 4
-          });
-        }
-        for (let i = 0; i < totalPoints; i++) points[i] = smooth[i];
-      }
-
-      return points;
+    function createRetroCenterPoints() {
+      return [
+        { x: -10, y: 280 },
+        { x: 120, y: 260 },
+        { x: 220, y: 220 },
+        { x: 290, y: 160 },
+        { x: 320, y: 80 },
+        { x: 330, y: -10 },
+        { x: 320, y: -90 },
+        { x: 280, y: -150 },
+        { x: 210, y: -190 },
+        { x: 120, y: -210 },
+        { x: 30, y: -200 },
+        { x: -60, y: -170 },
+        { x: -140, y: -130 },
+        { x: -210, y: -70 },
+        { x: -250, y: 0 },
+        { x: -270, y: 90 },
+        { x: -250, y: 170 },
+        { x: -200, y: 230 },
+        { x: -130, y: 270 },
+        { x: -70, y: 260 },
+        { x: -30, y: 220 },
+        { x: -10, y: 170 },
+        { x: 0, y: 120 },
+        { x: 20, y: 70 },
+        { x: 60, y: 30 },
+        { x: 120, y: 10 },
+        { x: 190, y: 20 },
+        { x: 250, y: 60 },
+        { x: 260, y: 120 },
+        { x: 210, y: 180 },
+        { x: 140, y: 220 },
+        { x: 60, y: 240 },
+        { x: 10, y: 230 }
+      ];
     }
 
     function generateTrack(seed, mode = 'round') {
       const rng = mulberry32(seed);
-      const centerPoints = mode === 'labyrinth' ? createLabyrinthCenterPoints(rng) : createRoundCenterPoints(rng);
-      const width = mode === 'labyrinth' ? config.labyrinthTrack.width : config.track.width;
+      const centerPoints = mode === 'retro' ? createRetroCenterPoints() : createRoundCenterPoints(rng);
+      const width = mode === 'retro' ? config.retroTrack.width : config.track.width;
       const pointCount = centerPoints.length;
 
       const inner = [];
@@ -1393,7 +1368,7 @@
       resizeCanvas();
       track = generateTrack(trackSeed, config.trackMode);
       updateTrackScale();
-      hudSeed.textContent = `Seed: ${trackSeed}`;
+      updateSeedLabel();
       population = new Population(config.populationSize);
       startGeneration();
       renderLeaderboard();
