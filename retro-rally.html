@@ -407,6 +407,13 @@
               <label for="speed-slider">Sim-hastighet</label>
               <input type="range" id="speed-slider" min="0.5" max="2.5" value="1" step="0.1" />
             </div>
+            <div class="control-row">
+              <label for="track-type">Bantyp</label>
+              <select id="track-type">
+                <option value="round">Rund bana</option>
+                <option value="labyrinth">Labyrintbana</option>
+              </select>
+            </div>
             <div class="switch-row">
               <span>Visa sensorer</span>
               <input type="checkbox" id="toggle-sensors" checked />
@@ -468,6 +475,7 @@
       maxGenerationTime: 120,
       simSpeed: 1,
       showSensors: true,
+      trackMode: 'round',
       track: {
         pointCount: 26,
         width: 120,
@@ -475,6 +483,16 @@
         radiusVariance: 90,
         smoothingPasses: 2,
         angleJitter: 0.28
+      },
+      labyrinthTrack: {
+        rows: 9,
+        rowVariance: 3,
+        cols: 16,
+        colVariance: 4,
+        cellSize: 70,
+        jitter: 22,
+        smoothingPasses: 2,
+        width: 80
       }
     };
     config.inputSize = config.sensorCount + 5;
@@ -509,6 +527,9 @@
     const toggleSensors = document.getElementById('toggle-sensors');
     const pauseBtn = document.getElementById('pause-btn');
     const newTrackBtn = document.getElementById('new-track');
+    const trackTypeSelect = document.getElementById('track-type');
+
+    trackTypeSelect.value = config.trackMode;
 
     toggleSensors.addEventListener('change', () => {
       config.showSensors = toggleSensors.checked;
@@ -524,6 +545,22 @@
       addEvent(paused ? 'Simuleringen är pausad.' : 'Simuleringen kör igen.');
     });
 
+    function describeTrackMode(mode) {
+      return mode === 'labyrinth' ? 'labyrintbana' : 'rund bana';
+    }
+
+    trackTypeSelect.addEventListener('change', () => {
+      config.trackMode = trackTypeSelect.value;
+      track = generateTrack(trackSeed, config.trackMode);
+      updateTrackScale();
+      hudSeed.textContent = `Seed: ${trackSeed}`;
+      resetPopulation();
+      leaderboard = [];
+      renderLeaderboard();
+      statLap.textContent = '—';
+      addEvent(`Bytte till ${describeTrackMode(config.trackMode)}.`);
+    });
+
     applyPopulationBtn.addEventListener('click', () => {
       const value = Math.max(8, Math.min(80, parseInt(popInput.value, 10) || config.populationSize));
       popInput.value = value;
@@ -534,14 +571,14 @@
 
     newTrackBtn.addEventListener('click', () => {
       trackSeed = Math.floor(Math.random() * 1_000_000);
-      track = generateTrack(trackSeed);
+      track = generateTrack(trackSeed, config.trackMode);
       updateTrackScale();
       hudSeed.textContent = `Seed: ${trackSeed}`;
       resetPopulation();
       leaderboard = [];
       renderLeaderboard();
       statLap.textContent = '—';
-      addEvent('Ny slumpgenererad bana laddad.');
+      addEvent(`Ny ${describeTrackMode(config.trackMode)} laddad.`);
     });
 
     function addEvent(text) {
@@ -580,36 +617,105 @@
       };
     }
 
-    function generateTrack(seed) {
-      const rng = mulberry32(seed);
-      const pointCount = config.track.pointCount;
-      const baseRadius = config.track.baseRadius;
-      const variance = config.track.radiusVariance;
-      const jitter = config.track.angleJitter;
-
+    function createRoundCenterPoints(rng) {
+      const cfg = config.track;
       const centerPoints = [];
-      for (let i = 0; i < pointCount; i++) {
-        const baseAngle = (i / pointCount) * Math.PI * 2;
-        const angle = baseAngle + (rng() - 0.5) * jitter;
-        const radius = baseRadius + (rng() - 0.5) * variance;
+      for (let i = 0; i < cfg.pointCount; i++) {
+        const baseAngle = (i / cfg.pointCount) * Math.PI * 2;
+        const angle = baseAngle + (rng() - 0.5) * cfg.angleJitter;
+        const radius = cfg.baseRadius + (rng() - 0.5) * cfg.radiusVariance;
         centerPoints.push({ x: Math.cos(angle) * radius, y: Math.sin(angle) * radius });
       }
 
-      for (let s = 0; s < config.track.smoothingPasses; s++) {
+      for (let s = 0; s < cfg.smoothingPasses; s++) {
         const smooth = [];
-        for (let i = 0; i < pointCount; i++) {
-          const prev = centerPoints[(i - 1 + pointCount) % pointCount];
+        for (let i = 0; i < cfg.pointCount; i++) {
+          const prev = centerPoints[(i - 1 + cfg.pointCount) % cfg.pointCount];
           const curr = centerPoints[i];
-          const next = centerPoints[(i + 1) % pointCount];
+          const next = centerPoints[(i + 1) % cfg.pointCount];
           smooth.push({
             x: (prev.x + curr.x * 2 + next.x) / 4,
             y: (prev.y + curr.y * 2 + next.y) / 4
           });
         }
-        for (let i = 0; i < pointCount; i++) centerPoints[i] = smooth[i];
+        for (let i = 0; i < cfg.pointCount; i++) centerPoints[i] = smooth[i];
       }
 
-      const width = config.track.width;
+      return centerPoints;
+    }
+
+    function createLabyrinthCenterPoints(rng) {
+      const cfg = config.labyrinthTrack;
+      const rows = Math.max(6, cfg.rows + Math.floor(rng() * cfg.rowVariance));
+      const cols = Math.max(8, cfg.cols + Math.floor(rng() * cfg.colVariance));
+      const cell = cfg.cellSize;
+      const xStart = -((cols - 1) * cell) / 2;
+      const yStart = -((rows - 1) * cell) / 2;
+      const xPositions = Array.from({ length: cols }, (_, i) => xStart + i * cell);
+      const points = [];
+
+      let y = yStart;
+      for (let r = 0; r < rows; r++) {
+        const xs = r % 2 === 0 ? xPositions : [...xPositions].reverse();
+        for (const x of xs) {
+          points.push({
+            x: x + (rng() - 0.5) * cfg.jitter,
+            y: y + (rng() - 0.5) * cfg.jitter
+          });
+        }
+        if (r < rows - 1) {
+          y += cell;
+          const lastX = xs[xs.length - 1];
+          points.push({
+            x: lastX + (rng() - 0.5) * cfg.jitter,
+            y: y + (rng() - 0.5) * cfg.jitter
+          });
+        }
+      }
+
+      const xMin = xPositions[0];
+      const xMax = xPositions[xPositions.length - 1];
+      const yBottom = yStart + (rows - 1) * cell;
+
+      const pushCorner = (x, y) => {
+        points.push({
+          x: x + (rng() - 0.5) * cfg.jitter,
+          y: y + (rng() - 0.5) * cfg.jitter
+        });
+      };
+
+      const lastPoint = points[points.length - 1];
+      if (Math.abs(lastPoint.x - xMax) > cell * 0.25 || Math.abs(lastPoint.y - yBottom) > cell * 0.25) {
+        pushCorner(xMax, yBottom);
+      }
+      pushCorner(xMax, yStart);
+      pushCorner(xMin, yStart);
+
+      const smoothPasses = cfg.smoothingPasses || 0;
+      const totalPoints = points.length;
+      for (let s = 0; s < smoothPasses; s++) {
+        const smooth = [];
+        for (let i = 0; i < totalPoints; i++) {
+          const prev = points[(i - 1 + totalPoints) % totalPoints];
+          const curr = points[i];
+          const next = points[(i + 1) % totalPoints];
+          smooth.push({
+            x: (prev.x + curr.x * 2 + next.x) / 4,
+            y: (prev.y + curr.y * 2 + next.y) / 4
+          });
+        }
+        for (let i = 0; i < totalPoints; i++) points[i] = smooth[i];
+      }
+
+      return points;
+    }
+
+    function generateTrack(seed, mode = 'round') {
+      const rng = mulberry32(seed);
+      const centerPoints = mode === 'labyrinth' ? createLabyrinthCenterPoints(rng) : createRoundCenterPoints(rng);
+      const width = mode === 'labyrinth' ? config.labyrinthTrack.width : config.track.width;
+      const pointCount = centerPoints.length;
+
       const inner = [];
       const outer = [];
       const checkpoints = [];
@@ -1285,13 +1391,14 @@
 
     function init() {
       resizeCanvas();
-      track = generateTrack(trackSeed);
+      track = generateTrack(trackSeed, config.trackMode);
       updateTrackScale();
       hudSeed.textContent = `Seed: ${trackSeed}`;
       population = new Population(config.populationSize);
       startGeneration();
       renderLeaderboard();
-      addEvent('Simulering startad. Lycka till!');
+      const startTrackLabel = describeTrackMode(config.trackMode);
+      addEvent(`Simulering startad. ${startTrackLabel.charAt(0).toUpperCase() + startTrackLabel.slice(1)} vald.`);
       requestAnimationFrame(loop);
     }
 
