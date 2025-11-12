@@ -1,0 +1,1301 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Retro Rally Lab – NEAT RC Evolution</title>
+  <style>
+    :root {
+      --bg: #040412;
+      --bg-alt: #0d0b2c;
+      --panel: rgba(19, 18, 46, 0.82);
+      --ink: #f8f5ff;
+      --muted: #9aa4df;
+      --line-1: #ff7bc5;
+      --line-2: #76f7ff;
+      --line-3: #ffd166;
+      --road: #161931;
+      --road-alt: #212652;
+      --track-glow: rgba(118, 247, 255, 0.35);
+      --accent: #ff61d8;
+      --accent-2: #5af0ff;
+      --accent-3: #f6c945;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "Inter", "Segoe UI", system-ui, sans-serif;
+      background: radial-gradient(circle at 20% 12%, rgba(255, 107, 199, 0.2), transparent 42%),
+                  radial-gradient(circle at 88% 8%, rgba(90, 240, 255, 0.18), transparent 48%),
+                  linear-gradient(160deg, var(--bg) 0%, var(--bg-alt) 58%, #05051b 100%);
+      color: var(--ink);
+      display: flex;
+      flex-direction: column;
+    }
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      border-bottom: 1px solid rgba(118, 130, 204, 0.28);
+      background: linear-gradient(120deg, rgba(4, 5, 22, 0.92) 0%, rgba(12, 10, 34, 0.65) 65%, rgba(25, 17, 70, 0.38) 100%);
+      backdrop-filter: blur(12px);
+    }
+    .nav {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 20px 28px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+    }
+    .brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 14px;
+      text-decoration: none;
+      color: inherit;
+      padding: 10px 16px;
+      border-radius: 999px;
+      border: 1px solid rgba(118, 130, 204, 0.35);
+      background: linear-gradient(135deg, rgba(255, 123, 197, 0.22), rgba(90, 240, 255, 0.18));
+      box-shadow: 0 18px 38px rgba(18, 19, 48, 0.55);
+    }
+    .brand-icon {
+      width: 42px;
+      height: 42px;
+      border-radius: 14px;
+      background: conic-gradient(from 90deg, #ff61d8, #5af0ff, #ffd166, #ff61d8);
+      display: grid;
+      place-items: center;
+      font-weight: 700;
+      font-size: 20px;
+      box-shadow: 0 16px 30px rgba(255, 97, 216, 0.35);
+    }
+    .brand h1 {
+      margin: 0;
+      font-size: clamp(1.1rem, 2vw, 1.5rem);
+      letter-spacing: 0.04em;
+    }
+    .nav-links {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 12px;
+    }
+    .nav-links a {
+      text-decoration: none;
+      color: var(--ink);
+      padding: 10px 18px;
+      border-radius: 999px;
+      border: 1px solid rgba(90, 240, 255, 0.24);
+      background: rgba(13, 14, 40, 0.65);
+      box-shadow: 0 16px 30px rgba(12, 13, 36, 0.4);
+      transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+    }
+    .nav-links a:hover {
+      transform: translateY(-2px);
+      background: linear-gradient(120deg, rgba(118, 247, 255, 0.2), rgba(255, 97, 216, 0.25));
+      box-shadow: 0 20px 40px rgba(12, 13, 36, 0.55);
+    }
+    main {
+      flex: 1;
+      display: flex;
+      justify-content: center;
+      padding: 40px 32px 72px;
+    }
+    .layout {
+      width: 100%;
+      max-width: 1200px;
+      display: grid;
+      gap: 28px;
+      grid-template-columns: minmax(0, 1fr) 340px;
+    }
+    .playfield-card {
+      position: relative;
+      border-radius: 26px;
+      background: radial-gradient(circle at 50% 50%, rgba(118, 247, 255, 0.08), transparent 70%),
+                  rgba(10, 11, 32, 0.85);
+      border: 1px solid rgba(118, 130, 204, 0.32);
+      box-shadow: 0 22px 60px rgba(9, 10, 32, 0.65);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      min-height: 560px;
+    }
+    .canvas-wrap {
+      flex: 1;
+      position: relative;
+    }
+    canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+      border-radius: 26px 26px 0 0;
+      background: radial-gradient(circle at 30% 18%, rgba(255, 107, 199, 0.18), transparent 42%),
+                  radial-gradient(circle at 68% 12%, rgba(90, 240, 255, 0.18), transparent 50%),
+                  #070720;
+    }
+    .hud {
+      position: absolute;
+      inset: 0;
+      padding: 18px 20px;
+      display: flex;
+      flex-direction: column;
+      pointer-events: none;
+    }
+    .hud-top {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      align-items: flex-start;
+    }
+    .badge {
+      padding: 6px 14px;
+      border-radius: 999px;
+      border: 1px solid rgba(118, 247, 255, 0.45);
+      background: rgba(6, 11, 28, 0.8);
+      font-size: 11px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .badge::before {
+      content: "";
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--line-2), var(--line-1));
+      box-shadow: 0 0 12px rgba(118, 247, 255, 0.6);
+    }
+    .hud-bottom {
+      margin-top: auto;
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      align-items: flex-end;
+    }
+    .stat-stack {
+      display: grid;
+      gap: 8px;
+      pointer-events: auto;
+    }
+    .stat-chip {
+      padding: 10px 14px;
+      border-radius: 12px;
+      background: rgba(10, 13, 34, 0.72);
+      border: 1px solid rgba(118, 130, 204, 0.32);
+      min-width: 160px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .stat-chip span {
+      font-size: 12px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+    .stat-chip strong {
+      font-size: 18px;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+    }
+    .side-panel {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+    .panel {
+      background: var(--panel);
+      border-radius: 22px;
+      border: 1px solid rgba(118, 130, 204, 0.32);
+      padding: 22px;
+      box-shadow: 0 18px 40px rgba(10, 12, 32, 0.55);
+    }
+    .panel h2 {
+      margin: 0 0 14px;
+      font-size: 1.05rem;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+    .grid {
+      display: grid;
+      gap: 12px 16px;
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .control-row {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    label {
+      font-size: 0.78rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+    input[type="number"],
+    input[type="range"],
+    select {
+      font: inherit;
+      padding: 10px 12px;
+      border-radius: 12px;
+      border: 1px solid rgba(118, 130, 204, 0.45);
+      background: rgba(8, 10, 26, 0.75);
+      color: var(--ink);
+      letter-spacing: 0.02em;
+    }
+    input[type="range"] { accent-color: var(--accent-2); }
+    button {
+      font: inherit;
+      border: none;
+      cursor: pointer;
+      padding: 12px 16px;
+      border-radius: 14px;
+      background: linear-gradient(135deg, rgba(255, 97, 216, 0.32), rgba(90, 240, 255, 0.32));
+      color: var(--ink);
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      transition: transform 0.2s ease, box-shadow 0.2s ease, filter 0.2s ease;
+      box-shadow: 0 14px 28px rgba(12, 15, 38, 0.6);
+    }
+    button:hover {
+      transform: translateY(-1px);
+      filter: brightness(1.05);
+      box-shadow: 0 20px 38px rgba(12, 15, 38, 0.65);
+    }
+    button.secondary {
+      background: linear-gradient(135deg, rgba(90, 240, 255, 0.16), rgba(255, 209, 102, 0.22));
+    }
+    .switch-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      background: rgba(8, 10, 26, 0.6);
+      border-radius: 12px;
+      border: 1px solid rgba(118, 130, 204, 0.32);
+      padding: 10px 12px;
+    }
+    .switch-row span {
+      font-size: 0.78rem;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+    .switch-row input { cursor: pointer; }
+    .leaderboard {
+      display: grid;
+      gap: 10px;
+      margin-top: 14px;
+    }
+    .leader-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 10px 12px;
+      border-radius: 12px;
+      background: rgba(8, 10, 26, 0.7);
+      border: 1px solid rgba(118, 130, 204, 0.28);
+      font-size: 0.86rem;
+      letter-spacing: 0.03em;
+    }
+    .leader-item strong {
+      font-weight: 600;
+    }
+    .feed {
+      max-height: 180px;
+      overflow: auto;
+      margin-top: 12px;
+      padding-right: 4px;
+    }
+    .feed p {
+      margin: 0 0 10px;
+      font-size: 0.82rem;
+      color: var(--muted);
+      letter-spacing: 0.02em;
+    }
+    .seed-label {
+      font-size: 0.8rem;
+      color: var(--muted);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      margin-top: 8px;
+    }
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.72rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: rgba(6, 10, 24, 0.75);
+      border: 1px solid rgba(118, 130, 204, 0.28);
+    }
+    @media (max-width: 980px) {
+      main { padding: 32px 18px 60px; }
+      .layout { grid-template-columns: minmax(0, 1fr); }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="nav">
+      <a class="brand" href="index.html">
+        <span class="brand-icon">RC</span>
+        <h1>Retro Rally Lab</h1>
+      </a>
+      <div class="nav-links">
+        <a href="index.html">Tillbaka</a>
+        <a href="learn-neat.html">Lär dig NEAT</a>
+        <a href="foodwars.html">Foodwars Arena</a>
+      </div>
+    </div>
+  </header>
+  <main>
+    <div class="layout">
+      <section class="playfield-card">
+        <div class="canvas-wrap">
+          <canvas id="trackCanvas"></canvas>
+          <div class="hud">
+            <div class="hud-top">
+              <span class="badge">Top-Down RC Evolution</span>
+              <div class="pill" id="hud-seed">Seed: —</div>
+            </div>
+            <div class="hud-bottom">
+              <div class="stat-stack">
+                <div class="stat-chip">
+                  <span>Generation</span>
+                  <strong id="stat-generation">1</strong>
+                </div>
+                <div class="stat-chip">
+                  <span>Levande bilar</span>
+                  <strong id="stat-alive">0 / 0</strong>
+                </div>
+              </div>
+              <div class="stat-stack">
+                <div class="stat-chip">
+                  <span>Bästa fitness</span>
+                  <strong id="stat-best">0</strong>
+                </div>
+                <div class="stat-chip">
+                  <span>Bästa varv</span>
+                  <strong id="stat-lap">—</strong>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+      <aside class="side-panel">
+        <div class="panel">
+          <h2>Kontroller</h2>
+          <div class="grid">
+            <div class="control-row">
+              <label for="population-input">Antal bilar</label>
+              <input type="number" id="population-input" min="8" max="80" step="1" value="40" />
+              <button id="apply-population">Uppdatera population</button>
+            </div>
+            <div class="control-row">
+              <label for="speed-slider">Sim-hastighet</label>
+              <input type="range" id="speed-slider" min="0.5" max="2.5" value="1" step="0.1" />
+            </div>
+            <div class="switch-row">
+              <span>Visa sensorer</span>
+              <input type="checkbox" id="toggle-sensors" checked />
+            </div>
+            <div class="switch-row">
+              <span>Frys / fortsätt</span>
+              <button class="secondary" id="pause-btn">Pausa</button>
+            </div>
+            <button id="new-track">Ny slumpbana</button>
+            <div class="seed-label">Varv registreras när bilen korsar alla checkpoints i följd.</div>
+          </div>
+        </div>
+        <div class="panel">
+          <h2>Varv-topplista</h2>
+          <div class="leaderboard" id="lap-list"></div>
+          <div class="feed" id="event-feed"></div>
+        </div>
+      </aside>
+    </div>
+  </main>
+  <script>
+    const canvas = document.getElementById('trackCanvas');
+    const ctx = canvas.getContext('2d');
+    let dpr = window.devicePixelRatio || 1;
+
+    function resizeCanvas() {
+      const rect = canvas.getBoundingClientRect();
+      dpr = window.devicePixelRatio || 1;
+      canvas.width = rect.width * dpr;
+      canvas.height = rect.height * dpr;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      if (track) {
+        updateTrackScale();
+      }
+    }
+
+    window.addEventListener('resize', resizeCanvas);
+
+    const config = {
+      populationSize: 40,
+      mutationRate: 0.28,
+      elitism: 0.18,
+      hiddenSize: 18,
+      sensorCount: 7,
+      sensorSpread: Math.PI * 1.4,
+      sensorLength: 220,
+      carRadius: 10,
+      acceleration: 0.38,
+      brake: 0.52,
+      friction: 0.9,
+      maxSpeed: 5.6,
+      turnRate: 2.6,
+      checkpointReward: 6,
+      lapReward: 80,
+      speedReward: 0.015,
+      deathPenalty: -4,
+      progressTimeout: 6,
+      maxLapTime: 85,
+      maxGenerationTime: 120,
+      simSpeed: 1,
+      showSensors: true,
+      track: {
+        pointCount: 26,
+        width: 120,
+        baseRadius: 250,
+        radiusVariance: 90,
+        smoothingPasses: 2,
+        angleJitter: 0.28
+      }
+    };
+    config.inputSize = config.sensorCount + 5;
+
+    const palette = [
+      '#ff58c6', '#62f5ff', '#ffd166', '#8c7bff', '#ff7b7b', '#5cf4a1', '#ff9f1c', '#9d7cff',
+      '#ff6bd6', '#50f0e8', '#ffe066', '#5e7bff'
+    ];
+
+    let paused = false;
+    let track = null;
+    let trackSeed = Math.floor(Math.random() * 1_000_000);
+    let population = null;
+    let cars = [];
+    let bestCar = null;
+    let leaderboard = [];
+    let events = [];
+    let generationTime = 0;
+    let lastFrame = performance.now();
+
+    const statGeneration = document.getElementById('stat-generation');
+    const statAlive = document.getElementById('stat-alive');
+    const statBest = document.getElementById('stat-best');
+    const statLap = document.getElementById('stat-lap');
+    const lapList = document.getElementById('lap-list');
+    const eventFeed = document.getElementById('event-feed');
+    const hudSeed = document.getElementById('hud-seed');
+
+    const popInput = document.getElementById('population-input');
+    const applyPopulationBtn = document.getElementById('apply-population');
+    const speedSlider = document.getElementById('speed-slider');
+    const toggleSensors = document.getElementById('toggle-sensors');
+    const pauseBtn = document.getElementById('pause-btn');
+    const newTrackBtn = document.getElementById('new-track');
+
+    toggleSensors.addEventListener('change', () => {
+      config.showSensors = toggleSensors.checked;
+    });
+
+    speedSlider.addEventListener('input', () => {
+      config.simSpeed = parseFloat(speedSlider.value);
+    });
+
+    pauseBtn.addEventListener('click', () => {
+      paused = !paused;
+      pauseBtn.textContent = paused ? 'Fortsätt' : 'Pausa';
+      addEvent(paused ? 'Simuleringen är pausad.' : 'Simuleringen kör igen.');
+    });
+
+    applyPopulationBtn.addEventListener('click', () => {
+      const value = Math.max(8, Math.min(80, parseInt(popInput.value, 10) || config.populationSize));
+      popInput.value = value;
+      config.populationSize = value;
+      resetPopulation();
+      addEvent(`Population satt till ${value} bilar.`);
+    });
+
+    newTrackBtn.addEventListener('click', () => {
+      trackSeed = Math.floor(Math.random() * 1_000_000);
+      track = generateTrack(trackSeed);
+      updateTrackScale();
+      hudSeed.textContent = `Seed: ${trackSeed}`;
+      resetPopulation();
+      leaderboard = [];
+      renderLeaderboard();
+      statLap.textContent = '—';
+      addEvent('Ny slumpgenererad bana laddad.');
+    });
+
+    function addEvent(text) {
+      const time = new Date().toLocaleTimeString('sv-SE', { hour12: false });
+      events.unshift(`<p><strong>${time}</strong> — ${text}</p>`);
+      if (events.length > 12) events.pop();
+      eventFeed.innerHTML = events.join('');
+    }
+
+    function renderLeaderboard() {
+      if (!leaderboard.length) {
+        lapList.innerHTML = '<div class="leader-item">Ingen har satt varvtid ännu.</div>';
+        statLap.textContent = '—';
+        return;
+      }
+      lapList.innerHTML = leaderboard.map((item, idx) => {
+        const color = item.color;
+        return `<div class="leader-item"><strong>#${idx + 1}</strong><span>${formatTime(item.time)}</span><span style="color:${color}">Gen ${item.generation}</span></div>`;
+      }).join('');
+      statLap.textContent = formatTime(leaderboard[0].time);
+    }
+
+    function formatTime(seconds) {
+      if (!isFinite(seconds)) return '—';
+      const mins = Math.floor(seconds / 60);
+      const secs = seconds % 60;
+      return mins > 0 ? `${mins}:${secs.toFixed(2).padStart(5, '0')}` : secs.toFixed(2) + 's';
+    }
+
+    function mulberry32(a) {
+      return function() {
+        let t = (a += 0x6d2b79f5);
+        t = Math.imul(t ^ (t >>> 15), t | 1);
+        t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+      };
+    }
+
+    function generateTrack(seed) {
+      const rng = mulberry32(seed);
+      const pointCount = config.track.pointCount;
+      const baseRadius = config.track.baseRadius;
+      const variance = config.track.radiusVariance;
+      const jitter = config.track.angleJitter;
+
+      const centerPoints = [];
+      for (let i = 0; i < pointCount; i++) {
+        const baseAngle = (i / pointCount) * Math.PI * 2;
+        const angle = baseAngle + (rng() - 0.5) * jitter;
+        const radius = baseRadius + (rng() - 0.5) * variance;
+        centerPoints.push({ x: Math.cos(angle) * radius, y: Math.sin(angle) * radius });
+      }
+
+      for (let s = 0; s < config.track.smoothingPasses; s++) {
+        const smooth = [];
+        for (let i = 0; i < pointCount; i++) {
+          const prev = centerPoints[(i - 1 + pointCount) % pointCount];
+          const curr = centerPoints[i];
+          const next = centerPoints[(i + 1) % pointCount];
+          smooth.push({
+            x: (prev.x + curr.x * 2 + next.x) / 4,
+            y: (prev.y + curr.y * 2 + next.y) / 4
+          });
+        }
+        for (let i = 0; i < pointCount; i++) centerPoints[i] = smooth[i];
+      }
+
+      const width = config.track.width;
+      const inner = [];
+      const outer = [];
+      const checkpoints = [];
+
+      for (let i = 0; i < pointCount; i++) {
+        const prev = centerPoints[(i - 1 + pointCount) % pointCount];
+        const curr = centerPoints[i];
+        const next = centerPoints[(i + 1) % pointCount];
+        const dir = normalize({ x: next.x - prev.x, y: next.y - prev.y });
+        const normal = { x: -dir.y, y: dir.x };
+        inner.push({ x: curr.x - normal.x * width / 2, y: curr.y - normal.y * width / 2 });
+        outer.push({ x: curr.x + normal.x * width / 2, y: curr.y + normal.y * width / 2 });
+        checkpoints.push({
+          a: { x: curr.x - normal.x * width / 2, y: curr.y - normal.y * width / 2 },
+          b: { x: curr.x + normal.x * width / 2, y: curr.y + normal.y * width / 2 },
+          mid: { x: curr.x, y: curr.y },
+          dir
+        });
+      }
+
+      const bounds = inner.concat(outer).reduce((acc, p) => {
+        acc.minX = Math.min(acc.minX, p.x);
+        acc.maxX = Math.max(acc.maxX, p.x);
+        acc.minY = Math.min(acc.minY, p.y);
+        acc.maxY = Math.max(acc.maxY, p.y);
+        return acc;
+      }, { minX: Infinity, maxX: -Infinity, minY: Infinity, maxY: -Infinity });
+
+      const center = {
+        x: (bounds.minX + bounds.maxX) / 2,
+        y: (bounds.minY + bounds.maxY) / 2
+      };
+
+      const outerSegments = [];
+      const innerSegments = [];
+      for (let i = 0; i < pointCount; i++) {
+        const nextIndex = (i + 1) % pointCount;
+        outerSegments.push({ a: outer[i], b: outer[nextIndex] });
+        innerSegments.push({ a: inner[nextIndex], b: inner[i] });
+      }
+
+      const startIdx = 0;
+      const startCenter = centerPoints[startIdx];
+      const nextCenter = centerPoints[(startIdx + 1) % pointCount];
+      const startDir = normalize({ x: nextCenter.x - startCenter.x, y: nextCenter.y - startCenter.y });
+      const startNormal = { x: -startDir.y, y: startDir.x };
+      const spawnBase = {
+        x: startCenter.x - startDir.x * 35,
+        y: startCenter.y - startDir.y * 35
+      };
+
+      const spawnPoints = [];
+      const perRow = 8;
+      const sideSpacing = 16;
+      const forwardSpacing = 22;
+      const spawnRows = Math.max(8, Math.ceil(config.populationSize / perRow) + 2);
+      for (let row = 0; row < spawnRows; row++) {
+        for (let col = 0; col < perRow; col++) {
+          const offsetSide = (col - (perRow - 1) / 2) * sideSpacing;
+          const offsetForward = row * forwardSpacing;
+          spawnPoints.push({
+            x: spawnBase.x - startDir.x * offsetForward + startNormal.x * offsetSide,
+            y: spawnBase.y - startDir.y * offsetForward + startNormal.y * offsetSide
+          });
+        }
+      }
+
+      return {
+        centerPoints,
+        inner,
+        outer,
+        checkpoints,
+        segments: outerSegments.concat(innerSegments),
+        spawnPoints,
+        spawnMeta: {
+          base: spawnBase,
+          dir: startDir,
+          normal: startNormal,
+          perRow,
+          sideSpacing,
+          forwardSpacing
+        },
+        bounds,
+        center,
+        scale: 1
+      };
+    }
+
+    function ensureSpawnCapacity() {
+      if (!track) return;
+      if (!track.spawnMeta) return;
+      if (track.spawnPoints.length >= config.populationSize + track.spawnMeta.perRow) return;
+      const { base, dir, normal, perRow, sideSpacing, forwardSpacing } = track.spawnMeta;
+      let row = Math.ceil(track.spawnPoints.length / perRow);
+      while (track.spawnPoints.length < config.populationSize + perRow) {
+        for (let col = 0; col < perRow; col++) {
+          const offsetSide = (col - (perRow - 1) / 2) * sideSpacing;
+          const offsetForward = row * forwardSpacing;
+          track.spawnPoints.push({
+            x: base.x - dir.x * offsetForward + normal.x * offsetSide,
+            y: base.y - dir.y * offsetForward + normal.y * offsetSide
+          });
+        }
+        row++;
+      }
+    }
+
+    function updateTrackScale() {
+      if (!track) return;
+      const width = track.bounds.maxX - track.bounds.minX;
+      const height = track.bounds.maxY - track.bounds.minY;
+      const viewWidth = canvas.width / dpr;
+      const viewHeight = canvas.height / dpr;
+      const padding = 0.85;
+      const scale = padding * Math.min(viewWidth / width, viewHeight / height);
+      track.scale = scale;
+    }
+
+    function normalize(v) {
+      const len = Math.hypot(v.x, v.y) || 1;
+      return { x: v.x / len, y: v.y / len };
+    }
+
+    function worldToScreen(point) {
+      const viewWidth = canvas.width / dpr;
+      const viewHeight = canvas.height / dpr;
+      return {
+        x: (point.x - track.center.x) * track.scale + viewWidth / 2,
+        y: (point.y - track.center.y) * track.scale + viewHeight / 2
+      };
+    }
+
+    function screenToWorld(point) {
+      const viewWidth = canvas.width / dpr;
+      const viewHeight = canvas.height / dpr;
+      return {
+        x: (point.x - viewWidth / 2) / track.scale + track.center.x,
+        y: (point.y - viewHeight / 2) / track.scale + track.center.y
+      };
+    }
+
+    function pointInPolygon(poly, x, y) {
+      let inside = false;
+      for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+        const xi = poly[i].x, yi = poly[i].y;
+        const xj = poly[j].x, yj = poly[j].y;
+        const intersect = ((yi > y) !== (yj > y)) &&
+          (x < (xj - xi) * (y - yi) / (yj - yi + 1e-6) + xi);
+        if (intersect) inside = !inside;
+      }
+      return inside;
+    }
+
+    function isInsideTrack(x, y) {
+      return pointInPolygon(track.outer, x, y) && !pointInPolygon(track.inner, x, y);
+    }
+
+    function intersectSegments(p1, p2, q1, q2) {
+      const den = (p2.x - p1.x) * (q2.y - q1.y) - (p2.y - p1.y) * (q2.x - q1.x);
+      if (Math.abs(den) < 1e-6) return false;
+      const ua = ((q1.x - p1.x) * (q2.y - q1.y) - (q1.y - p1.y) * (q2.x - q1.x)) / den;
+      const ub = ((q1.x - p1.x) * (p2.y - p1.y) - (q1.y - p1.y) * (p2.x - p1.x)) / den;
+      return ua >= 0 && ua <= 1 && ub >= 0 && ub <= 1;
+    }
+
+    function raySegmentIntersection(rx, ry, rdx, rdy, x1, y1, x2, y2) {
+      const v1x = rx - x1;
+      const v1y = ry - y1;
+      const v2x = x2 - x1;
+      const v2y = y2 - y1;
+      const det = rdx * v2y - rdy * v2x;
+      if (Math.abs(det) < 1e-6) return null;
+      const t1 = (v2x * v1y - v2y * v1x) / det;
+      const t2 = (rdx * v1y - rdy * v1x) / det;
+      if (t1 >= 0 && t1 <= config.sensorLength && t2 >= 0 && t2 <= 1) {
+        return t1;
+      }
+      return null;
+    }
+
+    class Genome {
+      constructor() {
+        this.inputSize = config.inputSize;
+        this.hiddenSize = config.hiddenSize;
+        this.outputSize = 2;
+        this.weights = [];
+        const totalWeights = (this.inputSize * this.hiddenSize) + (this.hiddenSize * this.outputSize);
+        for (let i = 0; i < totalWeights; i++) {
+          this.weights.push(Math.random() * 2 - 1);
+        }
+        this.fitness = 0;
+      }
+
+      activate(inputs) {
+        const hidden = new Array(this.hiddenSize).fill(0);
+        let w = 0;
+        for (let h = 0; h < this.hiddenSize; h++) {
+          let sum = 0;
+          for (let i = 0; i < this.inputSize; i++) {
+            sum += inputs[i] * this.weights[w++];
+          }
+          hidden[h] = Math.tanh(sum);
+        }
+        const outputs = new Array(this.outputSize).fill(0);
+        for (let o = 0; o < this.outputSize; o++) {
+          let sum = 0;
+          for (let h = 0; h < this.hiddenSize; h++) {
+            sum += hidden[h] * this.weights[w++];
+          }
+          outputs[o] = Math.tanh(sum);
+        }
+        return outputs;
+      }
+
+      mutate(rate) {
+        for (let i = 0; i < this.weights.length; i++) {
+          if (Math.random() < rate) {
+            if (Math.random() < 0.1) {
+              this.weights[i] = Math.random() * 2 - 1;
+            } else {
+              this.weights[i] += (Math.random() - 0.5) * 0.5;
+              this.weights[i] = Math.max(-2, Math.min(2, this.weights[i]));
+            }
+          }
+        }
+      }
+
+      crossover(other) {
+        const child = new Genome();
+        for (let i = 0; i < this.weights.length; i++) {
+          child.weights[i] = Math.random() < 0.5 ? this.weights[i] : other.weights[i];
+        }
+        return child;
+      }
+    }
+
+    class Population {
+      constructor(size) {
+        this.size = size;
+        this.genomes = Array.from({ length: size }, () => new Genome());
+        this.generation = 1;
+        this.bestFitness = 0;
+      }
+
+      evolve() {
+        this.genomes.sort((a, b) => b.fitness - a.fitness);
+        const best = this.genomes[0].fitness;
+        if (best > this.bestFitness) {
+          this.bestFitness = best;
+        }
+        const newGenomes = [];
+        const eliteCount = Math.max(1, Math.floor(config.elitism * this.size));
+        for (let i = 0; i < eliteCount; i++) {
+          newGenomes.push(this.genomes[i]);
+        }
+        while (newGenomes.length < this.size) {
+          const parent1 = this.selectParent();
+          const parent2 = this.selectParent();
+          const child = parent1.crossover(parent2);
+          child.mutate(config.mutationRate);
+          newGenomes.push(child);
+        }
+        this.genomes = newGenomes;
+        this.generation++;
+      }
+
+      selectParent() {
+        const totalFitness = this.genomes.reduce((sum, g) => sum + Math.max(0, g.fitness), 0);
+        if (totalFitness === 0) {
+          return this.genomes[Math.floor(Math.random() * this.genomes.length)];
+        }
+        let rand = Math.random() * totalFitness;
+        for (const genome of this.genomes) {
+          rand -= Math.max(0, genome.fitness);
+          if (rand <= 0) return genome;
+        }
+        return this.genomes[0];
+      }
+    }
+
+    class Car {
+      constructor(genome, spawnIndex, color) {
+        this.genome = genome;
+        this.spawnIndex = spawnIndex;
+        this.color = color;
+        this.reset();
+      }
+
+      reset() {
+        const spawn = track.spawnPoints[this.spawnIndex % track.spawnPoints.length];
+        const startDir = normalize({
+          x: track.centerPoints[1].x - track.centerPoints[0].x,
+          y: track.centerPoints[1].y - track.centerPoints[0].y
+        });
+        this.x = spawn.x;
+        this.y = spawn.y;
+        this.angle = Math.atan2(startDir.y, startDir.x);
+        this.vx = 0;
+        this.vy = 0;
+        this.dead = false;
+        this.timeAlive = 0;
+        this.sinceCheckpoint = 0;
+        this.lapTime = 0;
+        this.bestLap = Infinity;
+        this.laps = 0;
+        this.nextCheckpoint = 0;
+        this.fitness = 0;
+        this.prevX = this.x;
+        this.prevY = this.y;
+        this.lastSensors = new Array(config.sensorCount).fill(1);
+      }
+
+      update(dt) {
+        if (this.dead) return;
+        this.timeAlive += dt;
+        this.sinceCheckpoint += dt;
+        this.lapTime += dt;
+
+        const sensors = this.castSensors();
+        this.lastSensors = sensors;
+        const speed = Math.hypot(this.vx, this.vy);
+        const nextCp = track.checkpoints[this.nextCheckpoint];
+        const angleToCp = Math.atan2(nextCp.mid.y - this.y, nextCp.mid.x - this.x) - this.angle;
+        const inputs = [];
+        for (let i = 0; i < sensors.length; i++) inputs.push(sensors[i]);
+        inputs.push(speed / config.maxSpeed);
+        inputs.push(Math.sin(angleToCp));
+        inputs.push(Math.cos(angleToCp));
+        inputs.push(this.nextCheckpoint / track.checkpoints.length);
+        inputs.push(1);
+
+        const [throttleRaw, steerRaw] = this.genome.activate(inputs);
+        const throttle = throttleRaw;
+        const steer = steerRaw;
+
+        const forwardAx = Math.cos(this.angle);
+        const forwardAy = Math.sin(this.angle);
+        const accel = throttle >= 0 ? throttle * config.acceleration : throttle * config.brake;
+        this.vx += forwardAx * accel * dt * 60;
+        this.vy += forwardAy * accel * dt * 60;
+
+        const turnInfluence = Math.max(0.2, Math.min(1, speed / config.maxSpeed + 0.1));
+        this.angle += steer * config.turnRate * dt * turnInfluence;
+
+        this.vx *= Math.pow(config.friction, dt * 60);
+        this.vy *= Math.pow(config.friction, dt * 60);
+
+        const newSpeed = Math.hypot(this.vx, this.vy);
+        if (newSpeed > config.maxSpeed) {
+          const ratio = config.maxSpeed / newSpeed;
+          this.vx *= ratio;
+          this.vy *= ratio;
+        }
+
+        this.prevX = this.x;
+        this.prevY = this.y;
+        this.x += this.vx * dt * 60;
+        this.y += this.vy * dt * 60;
+
+        if (!isInsideTrack(this.x, this.y)) {
+          this.destroy(config.deathPenalty);
+          return;
+        }
+
+        const progress = this.checkCheckpoints();
+        this.fitness += config.speedReward * newSpeed;
+        if (progress) {
+          this.fitness += config.checkpointReward;
+          this.sinceCheckpoint = 0;
+        }
+
+        if (this.sinceCheckpoint > config.progressTimeout || this.lapTime > config.maxLapTime) {
+          this.destroy(-6);
+          return;
+        }
+
+        this.genome.fitness = this.fitness;
+      }
+
+      destroy(penalty = 0) {
+        if (this.dead) return;
+        this.dead = true;
+        this.fitness += penalty;
+        this.genome.fitness = this.fitness;
+      }
+
+      checkCheckpoints() {
+        const cp = track.checkpoints[this.nextCheckpoint];
+        if (!cp) return false;
+        const crossed = intersectSegments(
+          { x: this.prevX, y: this.prevY },
+          { x: this.x, y: this.y },
+          cp.a,
+          cp.b
+        );
+        if (crossed) {
+          this.nextCheckpoint = (this.nextCheckpoint + 1) % track.checkpoints.length;
+          if (this.nextCheckpoint === 0) {
+            this.laps++;
+            if (this.lapTime < this.bestLap) {
+              this.bestLap = this.lapTime;
+              registerLap(this);
+            }
+            this.fitness += config.lapReward + Math.max(0, (config.maxLapTime - this.lapTime) * 0.6);
+            this.lapTime = 0;
+          }
+          return true;
+        }
+        return false;
+      }
+
+      castSensors() {
+        const readings = [];
+        const startAngle = -config.sensorSpread / 2;
+        for (let i = 0; i < config.sensorCount; i++) {
+          const angle = this.angle + startAngle + (config.sensorSpread / (config.sensorCount - 1)) * i;
+          const dx = Math.cos(angle);
+          const dy = Math.sin(angle);
+          let minDist = config.sensorLength;
+          for (const seg of track.segments) {
+            const dist = raySegmentIntersection(this.x, this.y, dx, dy, seg.a.x, seg.a.y, seg.b.x, seg.b.y);
+            if (dist !== null && dist < minDist) {
+              minDist = dist;
+            }
+          }
+          const normalized = Math.max(0, Math.min(1, minDist / config.sensorLength));
+          readings.push(normalized);
+        }
+        return readings;
+      }
+
+      draw(ctx) {
+        const screenPos = worldToScreen({ x: this.x, y: this.y });
+        const angle = this.angle;
+        const size = config.carRadius * track.scale * 0.7;
+        ctx.save();
+        ctx.translate(screenPos.x, screenPos.y);
+        ctx.rotate(angle);
+        ctx.fillStyle = this.color;
+        ctx.strokeStyle = 'rgba(0,0,0,0.3)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        if (ctx.roundRect) {
+          ctx.roundRect(-size * 0.8, -size * 0.5, size * 1.6, size, size * 0.4);
+        } else {
+          const radius = size * 0.4;
+          const w = size * 1.6;
+          const h = size;
+          const x = -w / 2;
+          const y = -h / 2;
+          ctx.moveTo(x + radius, y);
+          ctx.lineTo(x + w - radius, y);
+          ctx.quadraticCurveTo(x + w, y, x + w, y + radius);
+          ctx.lineTo(x + w, y + h - radius);
+          ctx.quadraticCurveTo(x + w, y + h, x + w - radius, y + h);
+          ctx.lineTo(x + radius, y + h);
+          ctx.quadraticCurveTo(x, y + h, x, y + h - radius);
+          ctx.lineTo(x, y + radius);
+          ctx.quadraticCurveTo(x, y, x + radius, y);
+        }
+        ctx.fill();
+        ctx.stroke();
+        ctx.fillStyle = 'rgba(0,0,0,0.3)';
+        ctx.fillRect(0, -size * 0.35, size * 0.6, size * 0.7);
+        ctx.restore();
+
+        if (config.showSensors && bestCar === this && !this.dead) {
+          this.drawSensors(ctx, screenPos);
+        }
+      }
+
+      drawSensors(ctx, screenPos) {
+        const startAngle = -config.sensorSpread / 2;
+        ctx.save();
+        ctx.globalAlpha = 0.5;
+        const cache = this.lastSensors || this.castSensors();
+        for (let i = 0; i < config.sensorCount; i++) {
+          const sensorValue = cache[i];
+          const angle = this.angle + startAngle + (config.sensorSpread / (config.sensorCount - 1)) * i;
+          const length = sensorValue * config.sensorLength * track.scale;
+          ctx.strokeStyle = `rgba(255, 255, 255, ${0.3 + 0.4 * (1 - sensorValue)})`;
+          ctx.beginPath();
+          ctx.moveTo(screenPos.x, screenPos.y);
+          ctx.lineTo(screenPos.x + Math.cos(angle) * length, screenPos.y + Math.sin(angle) * length);
+          ctx.stroke();
+        }
+        ctx.restore();
+      }
+    }
+
+    function registerLap(car) {
+      leaderboard.push({ time: car.bestLap, generation: population.generation, color: car.color });
+      leaderboard.sort((a, b) => a.time - b.time);
+      leaderboard = leaderboard.slice(0, 6);
+      renderLeaderboard();
+      statLap.textContent = formatTime(leaderboard[0].time);
+      addEvent(`Nytt varvrekord: ${formatTime(car.bestLap)} (Gen ${population.generation})`);
+    }
+
+    function resetPopulation() {
+      population = new Population(config.populationSize);
+      ensureSpawnCapacity();
+      startGeneration();
+    }
+
+    function startGeneration() {
+      generationTime = 0;
+      ensureSpawnCapacity();
+      bestCar = null;
+      cars = population.genomes.map((genome, idx) => {
+        genome.fitness = 0;
+        const color = palette[idx % palette.length];
+        return new Car(genome, idx, color);
+      });
+      statGeneration.textContent = population.generation;
+      statAlive.textContent = `${cars.length} / ${cars.length}`;
+      statBest.textContent = population.bestFitness.toFixed(1);
+    }
+
+    function nextGeneration() {
+      const bestScore = cars.reduce((max, car) => Math.max(max, car.fitness), -Infinity);
+      if (isFinite(bestScore)) {
+        addEvent(`Generation ${population.generation} klar – bästa fitness ${bestScore.toFixed(1)}.`);
+      }
+      population.evolve();
+      startGeneration();
+      statBest.textContent = population.bestFitness.toFixed(1);
+    }
+
+    function update(dt) {
+      if (!track || paused) return;
+      generationTime += dt;
+      let alive = 0;
+      let currentBest = null;
+      for (const car of cars) {
+        if (!car.dead) {
+          car.update(dt * config.simSpeed);
+        }
+        if (!car.dead) {
+          alive++;
+          if (!currentBest || car.fitness > currentBest.fitness) {
+            currentBest = car;
+          }
+        }
+      }
+      bestCar = currentBest;
+      statAlive.textContent = `${alive} / ${cars.length}`;
+      if (currentBest) {
+        population.bestFitness = Math.max(population.bestFitness, currentBest.fitness);
+        statBest.textContent = currentBest.fitness.toFixed(1);
+      }
+
+      if (alive === 0 || generationTime > config.maxGenerationTime) {
+        nextGeneration();
+      }
+    }
+
+    function draw() {
+      if (!track) return;
+      const viewWidth = canvas.width / dpr;
+      const viewHeight = canvas.height / dpr;
+      ctx.save();
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      const gradient = ctx.createLinearGradient(0, 0, viewWidth, viewHeight);
+      gradient.addColorStop(0, 'rgba(9, 10, 26, 0.95)');
+      gradient.addColorStop(1, 'rgba(4, 5, 18, 1)');
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, 0, viewWidth, viewHeight);
+
+      ctx.lineJoin = 'round';
+      ctx.lineCap = 'round';
+
+      ctx.save();
+      ctx.translate(viewWidth / 2, viewHeight / 2);
+      ctx.scale(track.scale, track.scale);
+      ctx.translate(-track.center.x, -track.center.y);
+
+      ctx.fillStyle = '#050512';
+      ctx.beginPath();
+      for (let i = 0; i < track.outer.length; i++) {
+        const p = track.outer[i];
+        if (i === 0) ctx.moveTo(p.x, p.y);
+        else ctx.lineTo(p.x, p.y);
+      }
+      ctx.closePath();
+      ctx.fill();
+
+      const roadGradient = ctx.createLinearGradient(track.center.x - 200, track.center.y - 200, track.center.x + 200, track.center.y + 200);
+      roadGradient.addColorStop(0, 'rgba(33, 38, 82, 0.95)');
+      roadGradient.addColorStop(1, 'rgba(21, 24, 50, 0.9)');
+      ctx.fillStyle = roadGradient;
+      ctx.beginPath();
+      for (let i = 0; i < track.outer.length; i++) {
+        const p = track.outer[i];
+        if (i === 0) ctx.moveTo(p.x, p.y);
+        else ctx.lineTo(p.x, p.y);
+      }
+      ctx.closePath();
+      ctx.fill();
+
+      ctx.fillStyle = '#030414';
+      ctx.beginPath();
+      for (let i = 0; i < track.inner.length; i++) {
+        const p = track.inner[i];
+        if (i === 0) ctx.moveTo(p.x, p.y);
+        else ctx.lineTo(p.x, p.y);
+      }
+      ctx.closePath();
+      ctx.fill();
+
+      ctx.strokeStyle = 'rgba(118, 247, 255, 0.2)';
+      ctx.lineWidth = 4 / track.scale;
+      ctx.beginPath();
+      for (let i = 0; i < track.outer.length; i++) {
+        const p = track.outer[i];
+        if (i === 0) ctx.moveTo(p.x, p.y);
+        else ctx.lineTo(p.x, p.y);
+      }
+      ctx.closePath();
+      ctx.stroke();
+
+      ctx.strokeStyle = 'rgba(255, 97, 216, 0.18)';
+      ctx.beginPath();
+      for (let i = 0; i < track.inner.length; i++) {
+        const p = track.inner[i];
+        if (i === 0) ctx.moveTo(p.x, p.y);
+        else ctx.lineTo(p.x, p.y);
+      }
+      ctx.closePath();
+      ctx.stroke();
+
+      ctx.lineWidth = 2 / track.scale;
+      ctx.setLineDash([10 / track.scale, 16 / track.scale]);
+      ctx.strokeStyle = 'rgba(255, 209, 102, 0.5)';
+      for (let i = 0; i < track.checkpoints.length; i++) {
+        const cp = track.checkpoints[i];
+        ctx.beginPath();
+        ctx.moveTo(cp.a.x, cp.a.y);
+        ctx.lineTo(cp.b.x, cp.b.y);
+        ctx.stroke();
+      }
+      ctx.setLineDash([]);
+
+      ctx.restore();
+
+      for (const car of cars) {
+        if (!car.dead) car.draw(ctx);
+      }
+      for (const car of cars) {
+        if (car.dead) car.draw(ctx);
+      }
+
+      if (bestCar) {
+        const pos = worldToScreen({ x: bestCar.x, y: bestCar.y });
+        const pulse = (Math.sin(performance.now() / 200) + 1) * 0.5;
+        ctx.strokeStyle = `rgba(255, 97, 216, ${0.3 + 0.4 * pulse})`;
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(pos.x, pos.y, 22, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+
+      ctx.restore();
+    }
+
+    function loop(timestamp) {
+      const dt = Math.min(0.05, (timestamp - lastFrame) / 1000);
+      lastFrame = timestamp;
+      update(dt);
+      draw();
+      requestAnimationFrame(loop);
+    }
+
+    function init() {
+      resizeCanvas();
+      track = generateTrack(trackSeed);
+      updateTrackScale();
+      hudSeed.textContent = `Seed: ${trackSeed}`;
+      population = new Population(config.populationSize);
+      startGeneration();
+      renderLeaderboard();
+      addEvent('Simulering startad. Lycka till!');
+      requestAnimationFrame(loop);
+    }
+
+    init();
+  </script>
+</body>
+</html>
