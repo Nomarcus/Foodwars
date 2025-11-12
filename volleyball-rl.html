@@ -320,10 +320,21 @@
     const BALL_RADIUS = 20;
     const BALL_MAX_SPEED = 520;
     const BALL_AIR_DRAG = 0.996;
-    const BALL_WALL_RESTITUTION = 0.78;
-    const BALL_CEILING_RESTITUTION = 0.68;
-    const FLOOR_RESTITUTION = 0.82;
-    const FLOOR_FRICTION = 0.88;
+    const BALL_SWEEP_STEPS = 5;
+    const FLOOR_BOUNCE_RESTITUTION = 0.9;
+    const FLOOR_DROP_RESTITUTION = 0.42;
+    const FLOOR_TANGENT_KEEP = 0.55;
+    const FLOOR_RANDOM_SPIN = 60;
+    const WALL_RESTITUTION = 0.78;
+    const WALL_TANGENT_KEEP = 0.88;
+    const CEILING_RESTITUTION = 0.7;
+    const CEILING_TANGENT_KEEP = 0.9;
+    const NET_TOP_RESTITUTION = 0.56;
+    const NET_TOP_TANGENT_KEEP = 0.48;
+    const NET_TOP_PUSH = 95;
+    const NET_SIDE_RESTITUTION = 0.4;
+    const NET_SIDE_TANGENT_KEEP = 0.42;
+    const NET_SIDE_PUSH = 65;
     const BALL_MIN_BOUNCE = 58;
     const PLAYER_CONTACT_BASE = 260;
     const PLAYER_CONTACT_RANDOM = 90;
@@ -362,6 +373,20 @@
 
     function lerp(a, b, t){
       return a + (b - a) * t;
+    }
+
+    function bounceVelocity(vx, vy, nx, ny, restitution, tangentKeep){
+      const dot = vx * nx + vy * ny;
+      if(dot >= 0){
+        return {vx, vy};
+      }
+      const vnX = dot * nx;
+      const vnY = dot * ny;
+      const vtX = vx - vnX;
+      const vtY = vy - vnY;
+      const newVx = -vnX * restitution + vtX * tangentKeep;
+      const newVy = -vnY * restitution + vtY * tangentKeep;
+      return {vx:newVx, vy:newVy};
     }
 
     class Player{
@@ -541,6 +566,8 @@
         this.lastTouchedBy = null;
         this.prevX = this.x;
         this.prevY = this.y;
+        this.collisions = this.createCollisionState();
+        this.clearCollisions();
       }
       reset(servingSide, leftPlayer, rightPlayer){
         const server = servingSide === 'left' ? leftPlayer : rightPlayer;
@@ -556,43 +583,158 @@
         this.lastTouchedBy = null;
         this.prevX = this.x;
         this.prevY = this.y;
+        this.clearCollisions();
       }
-      step(){
+      createCollisionState(){
+        return {
+          floor:false,
+          floorSide:null,
+          wall:null,
+          ceiling:false,
+          net:false,
+          netSide:null
+        };
+      }
+      clearCollisions(){
+        const state = this.collisions;
+        state.floor = false;
+        state.floorSide = null;
+        state.wall = null;
+        state.ceiling = false;
+        state.net = false;
+        state.netSide = null;
+      }
+      step(keepAlive = false){
         this.prevX = this.x;
         this.prevY = this.y;
+        this.clearCollisions();
 
-        this.vy += GRAVITY * DT;
-        this.vx *= BALL_AIR_DRAG;
-        this.vy *= BALL_AIR_DRAG;
+        let vx = this.vx;
+        let vy = this.vy + GRAVITY * DT;
 
-        this.x += this.vx * DT;
-        this.y += this.vy * DT;
+        vx *= BALL_AIR_DRAG;
+        vy *= BALL_AIR_DRAG;
 
-        const clampSpeed = () => {
-          if(this.vx > BALL_MAX_SPEED) this.vx = BALL_MAX_SPEED;
-          if(this.vx < -BALL_MAX_SPEED) this.vx = -BALL_MAX_SPEED;
-          if(this.vy > BALL_MAX_SPEED) this.vy = BALL_MAX_SPEED;
-          if(this.vy < -BALL_MAX_SPEED) this.vy = -BALL_MAX_SPEED;
-        };
-        clampSpeed();
+        let px = this.x;
+        let py = this.y;
+        let remaining = DT;
 
-        if(this.x - BALL_RADIUS < 40){
-          this.x = 40 + BALL_RADIUS;
-          this.vx = Math.abs(this.vx) * BALL_WALL_RESTITUTION;
-          this.vy *= 0.94;
-          clampSpeed();
+        const floorPlane = FLOOR_Y - BALL_RADIUS;
+        const ceilingPlane = 40 + BALL_RADIUS;
+        const leftPlane = 40 + BALL_RADIUS;
+        const rightPlane = FIELD_WIDTH - 40 - BALL_RADIUS;
+
+        for(let i = 0; i < BALL_SWEEP_STEPS && remaining > 1e-5; i++){
+          let earliest = remaining;
+          let surface = null;
+          let nx = 0;
+          let ny = 0;
+
+          if(vy > 0){
+            const t = (floorPlane - py) / vy;
+            if(t >= 0 && t <= earliest){
+              earliest = t;
+              surface = 'floor';
+              nx = 0; ny = -1;
+            }
+          } else if(py > floorPlane && surface === null){
+            earliest = 0;
+            surface = 'floor';
+            nx = 0; ny = -1;
+          }
+
+          if(vy < 0){
+            const t = (ceilingPlane - py) / vy;
+            if(t >= 0 && t <= earliest){
+              earliest = t;
+              surface = 'ceiling';
+              nx = 0; ny = 1;
+            }
+          } else if(py < ceilingPlane && surface === null){
+            earliest = 0;
+            surface = 'ceiling';
+            nx = 0; ny = 1;
+          }
+
+          if(vx < 0){
+            const t = (leftPlane - px) / vx;
+            if(t >= 0 && t <= earliest){
+              earliest = t;
+              surface = 'leftWall';
+              nx = 1; ny = 0;
+            }
+          } else if(px < leftPlane && surface === null){
+            earliest = 0;
+            surface = 'leftWall';
+            nx = 1; ny = 0;
+          }
+
+          if(vx > 0){
+            const t = (rightPlane - px) / vx;
+            if(t >= 0 && t <= earliest){
+              earliest = t;
+              surface = 'rightWall';
+              nx = -1; ny = 0;
+            }
+          } else if(px > rightPlane && surface === null){
+            earliest = 0;
+            surface = 'rightWall';
+            nx = -1; ny = 0;
+          }
+
+          if(surface){
+            px += vx * earliest;
+            py += vy * earliest;
+            remaining = Math.max(remaining - earliest, 0);
+
+            if(surface === 'floor'){
+              const bounce = bounceVelocity(vx, vy, nx, ny, keepAlive ? FLOOR_BOUNCE_RESTITUTION : FLOOR_DROP_RESTITUTION, FLOOR_TANGENT_KEEP);
+              vx = bounce.vx;
+              vy = bounce.vy;
+              if(keepAlive && vy > -BALL_MIN_BOUNCE){
+                vy = -BALL_MIN_BOUNCE;
+              }
+              if(keepAlive && Math.abs(vx) < FLOOR_RANDOM_SPIN * 0.5){
+                vx += (Math.random() * 2 - 1) * FLOOR_RANDOM_SPIN;
+              }
+              this.collisions.floor = true;
+              this.collisions.floorSide = px < NET_X ? 'left' : 'right';
+            } else if(surface === 'leftWall' || surface === 'rightWall'){
+              const bounce = bounceVelocity(vx, vy, nx, ny, WALL_RESTITUTION, WALL_TANGENT_KEEP);
+              vx = bounce.vx;
+              vy = bounce.vy;
+              this.collisions.wall = surface;
+            } else if(surface === 'ceiling'){
+              const bounce = bounceVelocity(vx, vy, nx, ny, CEILING_RESTITUTION, CEILING_TANGENT_KEEP);
+              vx = bounce.vx;
+              vy = bounce.vy;
+              this.collisions.ceiling = true;
+            }
+
+            px += nx * 0.01;
+            py += ny * 0.01;
+
+            if(earliest <= 1e-5){
+              remaining = 0;
+              break;
+            }
+          } else {
+            px += vx * remaining;
+            py += vy * remaining;
+            remaining = 0;
+          }
         }
-        if(this.x + BALL_RADIUS > FIELD_WIDTH - 40){
-          this.x = FIELD_WIDTH - 40 - BALL_RADIUS;
-          this.vx = -Math.abs(this.vx) * BALL_WALL_RESTITUTION;
-          this.vy *= 0.94;
-          clampSpeed();
-        }
-        if(this.y - BALL_RADIUS < 40){
-          this.y = 40 + BALL_RADIUS;
-          this.vy = Math.abs(this.vy) * BALL_CEILING_RESTITUTION;
-          this.vx *= 0.96;
-          clampSpeed();
+
+        this.x = px;
+        this.y = py;
+        this.vx = vx;
+        this.vy = vy;
+
+        const speed = Math.hypot(this.vx, this.vy);
+        if(speed > BALL_MAX_SPEED){
+          const scale = BALL_MAX_SPEED / speed;
+          this.vx *= scale;
+          this.vy *= scale;
         }
       }
       draw(context){
@@ -648,7 +790,7 @@
         this.left.integrate();
         this.right.integrate();
 
-        this.ball.step();
+        this.ball.step(keepBallAlive);
 
         if(this.resolvePlayerBall(this.left)){
           this.events.leftTouch = true;
@@ -661,26 +803,11 @@
           this.events.netHit = netHit;
         }
 
-        if(this.ball.y + BALL_RADIUS >= FLOOR_Y){
-          this.ball.y = FLOOR_Y - BALL_RADIUS;
+        if(this.ball.collisions.floor){
           if(keepBallAlive){
-            const speed = Math.abs(this.ball.vy);
-            const bounce = Math.max(speed * FLOOR_RESTITUTION, BALL_MIN_BOUNCE);
-            this.ball.vy = -bounce;
-            this.ball.vx *= FLOOR_FRICTION;
-            if(Math.abs(this.ball.vx) < 20){
-              this.ball.vx += (Math.random() * 2 - 1) * 25;
-            }
-            this.events.floorBounce = this.ball.x < NET_X ? 'left' : 'right';
-            const floorSpeed = Math.hypot(this.ball.vx, this.ball.vy);
-            if(floorSpeed > BALL_MAX_SPEED){
-              const scale = BALL_MAX_SPEED / floorSpeed;
-              this.ball.vx *= scale;
-              this.ball.vy *= scale;
-            }
+            this.events.floorBounce = this.ball.collisions.floorSide;
           } else {
-            this.events.floorSide = this.ball.x < NET_X ? 'left' : 'right';
-            this.ball.vy = -Math.abs(this.ball.vy) * 0.45;
+            this.events.floorSide = this.ball.collisions.floorSide;
           }
         }
 
@@ -750,23 +877,61 @@
         const netRight = NET_X + NET_WIDTH/2;
         let hitSide = null;
 
-        if(this.ball.y + BALL_RADIUS > netTop && this.ball.y - BALL_RADIUS < FLOOR_Y){
-          if(this.ball.x + BALL_RADIUS > netLeft && this.ball.x - BALL_RADIUS < netRight){
-            if(this.ball.prevX <= netLeft && this.ball.x > netLeft){
-              this.ball.x = netLeft - BALL_RADIUS;
-              this.ball.vx = -Math.abs(this.ball.vx) * 0.6;
-              this.ball.vy *= 0.88;
-            } else if(this.ball.prevX >= netRight && this.ball.x < netRight){
-              this.ball.x = netRight + BALL_RADIUS;
-              this.ball.vx = Math.abs(this.ball.vx) * 0.6;
-              this.ball.vy *= 0.88;
+        const closestX = clamp(this.ball.x, netLeft, netRight);
+        const closestY = clamp(this.ball.y, netTop, FLOOR_Y);
+        const dx = this.ball.x - closestX;
+        const dy = this.ball.y - closestY;
+        const distSq = dx * dx + dy * dy;
+
+        if(distSq < BALL_RADIUS * BALL_RADIUS){
+          let nx = dx;
+          let ny = dy;
+          let dist = Math.sqrt(distSq);
+          if(dist === 0){
+            if(Math.abs(this.ball.prevY - netTop) < Math.abs(this.ball.prevX - NET_X)){
+              nx = 0;
+              ny = -1;
             } else {
-              this.ball.vy = -Math.abs(this.ball.vy) * 0.55;
-              this.ball.vx *= 0.82;
-              this.ball.y = netTop - BALL_RADIUS;
+              nx = this.ball.x < NET_X ? -1 : 1;
+              ny = 0;
             }
-            hitSide = this.ball.lastTouchSide || 'left';
+            dist = 1;
           }
+          nx /= dist;
+          ny /= dist;
+
+          const depth = BALL_RADIUS - dist;
+          this.ball.x += nx * (depth + 0.6);
+          this.ball.y += ny * (depth + 0.6);
+
+          const hittingTop = Math.abs(ny) >= Math.abs(nx);
+          const restitution = hittingTop ? NET_TOP_RESTITUTION : NET_SIDE_RESTITUTION;
+          const tangentKeep = hittingTop ? NET_TOP_TANGENT_KEEP : NET_SIDE_TANGENT_KEEP;
+          const bounce = bounceVelocity(this.ball.vx, this.ball.vy, nx, ny, restitution, tangentKeep);
+          this.ball.vx = bounce.vx;
+          this.ball.vy = bounce.vy;
+
+          if(hittingTop){
+            const push = this.ball.lastTouchSide === 'left' ? -1 : this.ball.lastTouchSide === 'right' ? 1 : (this.ball.x < NET_X ? -1 : 1);
+            this.ball.vx += push * NET_TOP_PUSH;
+            if(this.ball.vy > -BALL_MIN_BOUNCE){
+              this.ball.vy = -BALL_MIN_BOUNCE;
+            }
+          } else {
+            const push = nx > 0 ? 1 : -1;
+            this.ball.vx += push * NET_SIDE_PUSH;
+          }
+
+          const speed = Math.hypot(this.ball.vx, this.ball.vy);
+          if(speed > BALL_MAX_SPEED){
+            const scale = BALL_MAX_SPEED / speed;
+            this.ball.vx *= scale;
+            this.ball.vy *= scale;
+          }
+
+          this.ball.collisions.net = true;
+          this.ball.collisions.netSide = this.ball.lastTouchSide || (this.ball.x < NET_X ? 'left' : 'right');
+          hitSide = this.ball.collisions.netSide;
         }
         return hitSide;
       }
