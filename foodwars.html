@@ -729,6 +729,24 @@ const ctx = canvas.getContext('2d');
 if(canvas){
   canvas.style.touchAction = 'none';
 }
+let canvasBounds = null;
+let canvasBoundsTimestamp = 0;
+const CANVAS_BOUNDS_MAX_AGE = 250;
+function updateCanvasBounds(){
+  if(!canvas) return;
+  canvasBounds = canvas.getBoundingClientRect();
+  canvasBoundsTimestamp = getNow();
+}
+function invalidateCanvasBounds(){
+  canvasBoundsTimestamp = 0;
+}
+if(canvas){
+  updateCanvasBounds();
+  if(typeof window !== 'undefined'){
+    window.addEventListener('resize', updateCanvasBounds);
+    window.addEventListener('scroll', invalidateCanvasBounds, true);
+  }
+}
 const W = canvas.width, H = canvas.height;
 
 const brainCanvas = document.getElementById('brainVizCanvas');
@@ -745,6 +763,14 @@ const brainTeamSelect = Q('brainTeamSelect');
 const performanceBtn = document.getElementById('btnPerformance');
 const navPresetSelect = Q('selNavPreset');
 const navPresetLabel = Q('lbNavPreset');
+const statElements = {
+  gen: document.getElementById('stat-gen'),
+  teams: document.getElementById('stat-teams'),
+  fruits: document.getElementById('stat-fruits'),
+  deliveries: document.getElementById('stat-deliveries'),
+  top: document.getElementById('stat-top')
+};
+const statCache = { gen:null, teams:null, fruits:null, deliveries:null, top:null };
 let brainCanvasWidth = brainCanvas ? brainCanvas.clientWidth : 0;
 let brainCanvasHeight = brainCanvas ? brainCanvas.clientHeight : 0;
 let brainVizEnabled = false;
@@ -754,6 +780,8 @@ const AGENT_BASE_RADIUS = 5.2;
 const AGENT_BASE_PICKUP_RADIUS = 9;
 const AGENT_BASE_SEPARATION_RADIUS = 22;
 const AGENT_TRAIL_WIDTH = 2;
+let currentTopAgent = null;
+let currentTopFitness = -Infinity;
 
 const TOOL_SELECT='select';
 const TOOL_CIRCLE='circle';
@@ -2065,26 +2093,36 @@ function applyPreset(name){
 
 function refreshStats(){
   if(performanceModeActive) return;
-  const genEl = Q('stat-gen');
-  if(genEl) genEl.textContent = evo.gen;
-  const teamEl = Q('stat-teams');
-  if(teamEl) teamEl.textContent = activeTeamStates.length;
-  const fruitEl = Q('stat-fruits');
-  if(fruitEl) fruitEl.textContent = fruits.length;
   let deliveries = 0;
   let topFitness = 0;
   for(const team of activeTeamStates){
     deliveries += team.goal?.delivered || 0;
     topFitness = Math.max(topFitness, team.peakFitness||0, team.bestFitnessCurrent||0);
   }
-  const deliveryEl = Q('stat-deliveries');
-  if(deliveryEl) deliveryEl.textContent = deliveries;
-  const topEl = Q('stat-top');
-  if(topEl) topEl.textContent = Math.round(topFitness);
+  const nextValues = {
+    gen: String(evo.gen),
+    teams: String(activeTeamStates.length),
+    fruits: String(fruits.length),
+    deliveries: String(deliveries),
+    top: String(Math.round(topFitness))
+  };
+  for(const key of Object.keys(statElements)){
+    const el = statElements[key];
+    if(!el || !(key in nextValues)) continue;
+    const value = nextValues[key];
+    if(statCache[key] === value) continue;
+    statCache[key] = value;
+    el.textContent = value;
+  }
 }
 
 function getCanvasCoords(evt){
-  const rect = canvas.getBoundingClientRect();
+  if(!canvas) return { x:0, y:0 };
+  const now = getNow();
+  if(!canvasBounds || (now - canvasBoundsTimestamp) > CANVAS_BOUNDS_MAX_AGE){
+    updateCanvasBounds();
+  }
+  const rect = canvasBounds || canvas.getBoundingClientRect();
   let clientX = evt?.clientX;
   let clientY = evt?.clientY;
   if((clientX === undefined || clientY === undefined) && evt?.touches?.length){
@@ -2903,22 +2941,6 @@ function generateLabyrinthObstacles(options={}){
     }
   }
 
-  const extraLinks = Math.round(cols * rows * 0.18);
-  for(let i=0; i<extraLinks; i++){
-    const col = Math.floor(Math.random() * cols);
-    const row = Math.floor(Math.random() * rows);
-    const dir = dirs[Math.floor(Math.random() * dirs.length)];
-    const nx = col + dir.dx;
-    const ny = row + dir.dy;
-    if(nx < 0 || ny < 0 || nx >= cols || ny >= rows) continue;
-    const cell = cells[row][col];
-    const neighbor = cells[ny][nx];
-    if(cell.walls[dir.wall]){
-      cell.walls[dir.wall] = false;
-      neighbor.walls[dir.opposite] = false;
-    }
-  }
-
   const borderCandidates = [];
   for(let col=0; col<cols; col++){
     borderCandidates.push({ cell:cells[0][col], wall:'top' });
@@ -2928,13 +2950,38 @@ function generateLabyrinthObstacles(options={}){
     borderCandidates.push({ cell:cells[row][0], wall:'left' });
     borderCandidates.push({ cell:cells[row][cols-1], wall:'right' });
   }
-  const openings = Math.max(3, Math.round(Math.sqrt(cols * rows) / 2));
-  for(let i=0; i<openings && borderCandidates.length>0; i++){
-    const idx = Math.floor(Math.random() * borderCandidates.length);
-    const entry = borderCandidates.splice(idx, 1)[0];
-    if(entry && entry.cell && entry.cell.walls[entry.wall] !== undefined){
-      entry.cell.walls[entry.wall] = false;
+  const requestedOpenings = Number.isFinite(options.openings) ? Math.floor(options.openings) : 2;
+  const openings = clamp(requestedOpenings, 2, Math.max(2, Math.round(Math.sqrt(cols * rows) / 3)));
+  const selectedEntries = [];
+  if(borderCandidates.length){
+    const firstIndex = Math.floor(Math.random() * borderCandidates.length);
+    selectedEntries.push(borderCandidates.splice(firstIndex, 1)[0]);
+    while(selectedEntries.length < openings && borderCandidates.length){
+      let bestIdx = 0;
+      let bestScore = -Infinity;
+      for(let i=0; i<borderCandidates.length; i++){
+        const candidate = borderCandidates[i];
+        if(!candidate || !candidate.cell) continue;
+        let minDistance = Infinity;
+        for(const chosen of selectedEntries){
+          if(!chosen || !chosen.cell) continue;
+          const dx = candidate.cell.col - chosen.cell.col;
+          const dy = candidate.cell.row - chosen.cell.row;
+          const dist = Math.abs(dx) + Math.abs(dy);
+          if(dist < minDistance) minDistance = dist;
+        }
+        if(minDistance > bestScore){
+          bestScore = minDistance;
+          bestIdx = i;
+        }
+      }
+      selectedEntries.push(borderCandidates.splice(bestIdx, 1)[0]);
     }
+    selectedEntries.forEach((entry)=>{
+      if(entry && entry.cell && entry.cell.walls[entry.wall] !== undefined){
+        entry.cell.walls[entry.wall] = false;
+      }
+    });
   }
 
   const thickness = clamp(Math.min(cellWidth, cellHeight) * 0.32, 10, 28);
@@ -3855,6 +3902,10 @@ function trackBestBrain(agent, teamState){
   if(!Number.isFinite(fitness)) return;
   const net = agent.netRef?.net;
   if(!net) return;
+  if(fitness > currentTopFitness){
+    currentTopFitness = fitness;
+    currentTopAgent = agent;
+  }
   const teamId = teamState.config.id;
   const cache = ensureTeamBrainCache(teamId);
   if(cache){
@@ -4763,10 +4814,9 @@ function setup(){
   refreshStats();
 }
 
-function drawTrail(trail,color){
+function drawTrail(trail,color,lineWidth){
   if(trail.length<2) return;
-  const width = Math.max(1.2, AGENT_TRAIL_WIDTH * params.agentScale);
-  ctx.lineWidth = width;
+  ctx.lineWidth = lineWidth;
   const grad=ctx.createLinearGradient(trail[0].x,trail[0].y,trail[trail.length-1].x,trail[trail.length-1].y);
   grad.addColorStop(0,'rgba(255,255,255,0)');
   grad.addColorStop(1,color);
@@ -4916,19 +4966,24 @@ function getSensorStrokeColor(key, vec, agent){
 
 function drawAgentSensors(agent){
   if(!params.showSensorRadar) return;
-  if(!agent || !agent.sensorVectors) return;
-  const entries = Object.entries(agent.sensorVectors);
-  if(!entries.length) return;
-  ctx.save();
-  ctx.lineCap='round';
-  ctx.lineJoin='round';
-  for(const [key, vec] of entries){
+  const sensorVectors = agent?.sensorVectors;
+  if(!sensorVectors) return;
+  let initialized = false;
+  for(const key in sensorVectors){
+    if(!Object.prototype.hasOwnProperty.call(sensorVectors, key)) continue;
+    const vec = sensorVectors[key];
     if(!vec) continue;
     const magnitude = Number.isFinite(vec.magnitude) ? vec.magnitude : Math.hypot(vec.x||0, vec.y||0);
     if(!magnitude || magnitude <= 0.0001) continue;
     const nx = vec.x / magnitude;
     const ny = vec.y / magnitude;
     if(!Number.isFinite(nx) || !Number.isFinite(ny)) continue;
+    if(!initialized){
+      ctx.save();
+      ctx.lineCap='round';
+      ctx.lineJoin='round';
+      initialized = true;
+    }
     const scale = params.agentScale || 1;
     const clampedMag = Math.min(1.5, Math.abs(magnitude));
     const length = (28 + clampedMag * 36) * scale;
@@ -4946,7 +5001,9 @@ function drawAgentSensors(agent){
     ctx.arc(tipX, tipY, 3 + clampedMag * 1.8, 0, TAU);
     ctx.fill();
   }
-  ctx.restore();
+  if(initialized){
+    ctx.restore();
+  }
 }
 
 function draw(){
@@ -4982,17 +5039,14 @@ function draw(){
   }
 
   // Agents (no shadow flash)
-  let topAgent = null;
-  let topAgentFitness = -Infinity;
-  for(const team of activeTeamStates){
-    for(const agent of team.agents){
-      const f = Number(agent.fitness);
-      if(Number.isFinite(f) && f > topAgentFitness){
-        topAgentFitness = f;
-        topAgent = agent;
-      }
-    }
-  }
+  const agentRadius = Math.max(2.5, AGENT_BASE_RADIUS * params.agentScale);
+  const outlineWidth = Math.max(1.2, 2*params.agentScale);
+  const carryOutlineWidth = Math.max(1.5, outlineWidth + 0.6*params.agentScale);
+  const energyRingOffset = Math.max(2.5, 2.2 * params.agentScale);
+  const energyRingRadius = agentRadius + energyRingOffset;
+  const energyRingLineWidth = Math.max(1.2, 1.6 * params.agentScale);
+  const trailLineWidth = Math.max(1.2, AGENT_TRAIL_WIDTH * params.agentScale);
+  const highlightedAgent = (!currentTopAgent || currentTopAgent.dead) ? null : currentTopAgent;
   for(const team of activeTeamStates){
     const outline = team.config.outline || '#0f172a';
     for(const a of team.agents){
@@ -5001,33 +5055,29 @@ function draw(){
         drawAgentSensors(a);
       }
       ctx.beginPath();
-      const agentRadius = Math.max(2.5, AGENT_BASE_RADIUS * params.agentScale);
       ctx.arc(a.x,a.y,agentRadius,0,Math.PI*2);
       ctx.fillStyle = isDead ? 'rgba(148,163,209,0.28)' : team.config.color;
       ctx.fill();
-      const outlineWidth = Math.max(1.2, 2*params.agentScale);
       ctx.lineWidth=outlineWidth;
       ctx.strokeStyle = isDead ? 'rgba(71,85,105,0.85)' : outline;
       ctx.stroke();
       if(!isDead && a.carry){
-        const carryOutline = Math.max(1.5, outlineWidth + 0.6*params.agentScale);
-        ctx.lineWidth=carryOutline;
+        ctx.lineWidth=carryOutlineWidth;
         ctx.strokeStyle='#ffff33';
         ctx.stroke();
       }
       if(!isDead && a.energyMax>0 && params.showEnergyHalo){
         const ratio = clamp(a.energy / (a.energyMax||1), 0, 1);
-        const ringRadius = agentRadius + Math.max(2.5, 2.2 * params.agentScale);
         ctx.beginPath();
-        ctx.arc(a.x, a.y, ringRadius, -Math.PI/2, -Math.PI/2 + TAU*ratio);
-        ctx.lineWidth = Math.max(1.2, 1.6 * params.agentScale);
+        ctx.arc(a.x, a.y, energyRingRadius, -Math.PI/2, -Math.PI/2 + TAU*ratio);
+        ctx.lineWidth = energyRingLineWidth;
         ctx.strokeStyle = 'rgba(250,204,21,0.85)';
         ctx.stroke();
       }
       if(!performanceModeActive && !isDead){
-        drawTrail(a.trail, team.config.color);
+        drawTrail(a.trail, team.config.color, trailLineWidth);
       }
-      if(!isDead && params.showTopHighlight && topAgent && a === topAgent){
+      if(!isDead && params.showTopHighlight && highlightedAgent && a === highlightedAgent){
         drawTopAgentHighlight(a, agentRadius);
       }
     }
@@ -5084,6 +5134,8 @@ function advanceGeneration(){
   setup();
 }
 function runSimulationStep(){
+  currentTopAgent = null;
+  currentTopFitness = -Infinity;
   updatePathCostsIfNeeded();
   for(const team of activeTeamStates){
     for(const agent of team.agents){
