@@ -1,1632 +1,549 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="sv">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>VolleyLab – Q-Learning & Double Deep RL</title>
-  <style>
-    :root {
-      --bg1:#050516;
-      --panel:rgba(18,24,56,.82);
-      --ink:#f1f5ff;
-      --muted:#a1a9d8;
-      --accent:#f472b6;
-      --accent-cyan:#38bdf8;
-      --accent-emerald:#2dd4bf;
-      --silver:rgba(222,231,255,.55);
-      --ok:#34d399;
-      --warn:#f59e0b;
-    }
-    *{box-sizing:border-box}
-    body{margin:0; min-height:100vh; display:flex; flex-direction:column; background:radial-gradient(circle at 42% 18%, rgba(87,51,183,.55) 0%, rgba(39,56,121,.78) 40%, var(--bg1) 100%); color:var(--ink); font-family:"Inter",system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;}
-
-    .main-nav{position:sticky; top:0; z-index:100; padding:22px 48px; display:flex; align-items:center; justify-content:space-between; background:linear-gradient(120deg, rgba(15,20,48,.92) 0%, rgba(10,14,34,.75) 60%, rgba(10,14,34,.35) 100%); backdrop-filter:blur(14px); border-bottom:1px solid var(--silver); box-shadow:0 22px 45px rgba(5,9,25,.55)}
-    .brand{display:flex; align-items:center; gap:12px; font-size:22px; font-weight:700; letter-spacing:.02em; color:var(--ink)}
-    .brand-dot{width:14px; height:14px; border-radius:50%; background:linear-gradient(135deg, var(--accent) 0%, #8b5cf6 100%); box-shadow:0 0 18px rgba(244,114,182,.6)}
-    .nav-links{display:flex; align-items:center; gap:12px; flex-wrap:wrap}
-    .pill-link,.pill-button{display:inline-flex; align-items:center; justify-content:center; padding:10px 20px; border-radius:999px; border:1px solid rgba(56,189,248,.45); background:linear-gradient(120deg, rgba(56,189,248,.18), rgba(139,92,246,.18)); color:var(--ink); text-decoration:none; font-size:14px; font-weight:600; letter-spacing:.03em; transition:transform .2s ease, box-shadow .2s ease, filter .2s ease}
-    .pill-link.secondary{border-color:rgba(139,92,246,.45); background:linear-gradient(120deg, rgba(139,92,246,.18), rgba(244,114,182,.18))}
-    .pill-link:hover,.pill-button:hover{transform:translateY(-1px); filter:brightness(1.05); box-shadow:0 16px 32px rgba(56,189,248,.25)}
-    .pill-link:focus-visible,.pill-button:focus-visible{outline:2px solid rgba(56,189,248,.65); outline-offset:3px}
-    .pill-button{cursor:pointer; border-color:rgba(244,114,182,.45); background:linear-gradient(120deg, rgba(244,114,182,.25), rgba(59,130,246,.22))}
-    .pill-link[aria-current="page"]{border-color:rgba(244,114,182,.65); background:linear-gradient(120deg, rgba(244,114,182,.22), rgba(59,130,246,.22)); box-shadow:0 18px 38px rgba(244,114,182,.28)}
-
-    main{flex:1; display:flex; justify-content:center; align-items:flex-start; padding:40px 48px 64px}
-    .wrap{display:flex; width:100%; max-width:2000px; gap:40px; align-items:flex-start; justify-content:center}
-    .field-area{flex:1 1 auto; display:flex; flex-direction:column; align-items:stretch; gap:18px; min-width:0}
-    .playfield-frame{position:relative; padding:18px; border-radius:30px; background:rgba(4,8,26,.85); box-shadow:0 18px 36px rgba(9,14,36,.55); border:1px solid rgba(148,163,209,.22)}
-    canvas{width:100%; height:auto; max-width:1100px; border-radius:24px; background:#04091f; box-shadow:0 0 45px rgba(15,23,61,.65), inset 0 0 22px rgba(118,133,255,.12); border:1px solid var(--silver)}
-
-    .stats-bar{display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:16px; padding:18px 22px; border-radius:18px; background:rgba(11,16,44,.78); border:1px solid var(--silver); box-shadow:0 18px 32px rgba(5,9,25,.45)}
-    .stat-card{display:flex; flex-direction:column; gap:6px}
-    .stat-label{font-size:12px; text-transform:uppercase; letter-spacing:.12em; color:var(--muted)}
-    .stat-value{font-size:26px; font-weight:700; letter-spacing:.02em; color:var(--ink)}
-
-    .chart-panel{display:flex; flex-direction:column; gap:12px; padding:20px 22px; border-radius:20px; background:rgba(11,16,44,.78); border:1px solid var(--silver); box-shadow:0 18px 32px rgba(5,9,25,.45)}
-    .chart-header{display:flex; align-items:center; justify-content:space-between; gap:12px}
-    .chart-header h2{margin:0; font-size:16px; letter-spacing:.02em}
-    .chart-note{font-size:12px; color:var(--muted)}
-    .fitness-chart{position:relative; display:flex; align-items:flex-end; gap:10px; height:160px; padding:14px 16px; border-radius:16px; border:1px dashed rgba(148,163,209,.35); background:rgba(6,12,34,.72); overflow:visible}
-    .fitness-chart.is-empty::after{content:'Training will populate this chart'; position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:13px; color:var(--muted); letter-spacing:.02em}
-    .fitness-bar{flex:1; min-width:12px; background:linear-gradient(180deg, rgba(56,189,248,.85) 0%, rgba(139,92,246,.65) 70%, rgba(15,23,42,.8) 100%); border-radius:12px 12px 0 0; border:1px solid rgba(148,163,209,.45); position:relative; transition:height .35s ease, transform .2s ease}
-    .fitness-bar--emerald{background:linear-gradient(180deg, rgba(45,212,191,.85) 0%, rgba(34,197,94,.65) 70%, rgba(15,23,42,.8) 100%); border-color:rgba(52,211,153,.45)}
-    .fitness-bar span{position:absolute; bottom:calc(100% + 6px); left:50%; transform:translateX(-50%); font-size:11px; font-weight:600; color:var(--muted); white-space:nowrap; letter-spacing:.02em}
-    .fitness-bar small{position:absolute; bottom:4px; left:50%; transform:translateX(-50%); font-size:10px; color:rgba(241,245,255,.78); letter-spacing:.08em; text-shadow:0 1px 2px rgba(2,6,23,.6)}
-
-    .side{width:360px; flex:0 1 360px; display:flex; flex-direction:column; gap:20px}
-    .panel{background:var(--panel); border:1px solid var(--silver); padding:22px; border-radius:20px; backdrop-filter:blur(16px); box-shadow:0 18px 45px rgba(5,7,24,.55)}
-    .panel h2{margin:0 0 12px; font-size:18px; letter-spacing:.02em}
-    .panel p{margin:0 0 14px; font-size:13px; line-height:1.6; color:var(--muted)}
-    .control-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:16px}
-    .control{display:flex; flex-direction:column; gap:10px; padding:12px 14px; border-radius:14px; border:1px solid rgba(148,163,209,.24); background:rgba(10,16,46,.55); box-shadow:inset 0 0 12px rgba(56,189,248,.08)}
-    .toggle{display:flex; align-items:center; gap:12px; font-size:13px; color:var(--ink)}
-    .toggle input{width:18px; height:18px; accent-color:var(--accent-cyan)}
-    .control-header{display:flex; align-items:center; justify-content:space-between; gap:12px}
-    .label{font-size:13px; color:var(--muted); letter-spacing:.02em}
-    .val{font-family:ui-monospace,Menlo,Consolas,monospace; font-size:12px; padding:4px 8px; border-radius:8px; background:rgba(10,16,46,.7); border:1px solid var(--silver); color:var(--accent-cyan); box-shadow:inset 0 0 12px rgba(56,189,248,.12)}
-    input[type=range]{width:100%; accent-color:var(--accent-cyan)}
-    input[type=number]{width:100%; padding:6px 10px; border-radius:10px; border:1px solid rgba(148,163,209,.28); background:rgba(10,16,46,.55); color:var(--ink); font-family:inherit}
-    .btn{display:block; width:100%; padding:12px 14px; border-radius:12px; border:1px solid rgba(45,212,191,.45); background:linear-gradient(120deg, rgba(45,212,191,.18), rgba(59,130,246,.18)); color:var(--ink); cursor:pointer; text-align:center; margin-top:14px; font-weight:600; letter-spacing:.02em; transition:transform .2s ease, box-shadow .2s ease, filter .2s ease}
-    .btn:hover{filter:brightness(1.08); transform:translateY(-1px); box-shadow:0 20px 36px rgba(45,212,191,.28)}
-    .btn:disabled{opacity:.55; cursor:not-allowed; filter:saturate(.5); box-shadow:none}
-
-    .legend{border-radius:18px; border:1px solid rgba(148,163,209,.28); background:rgba(11,16,44,.72); padding:18px; display:grid; gap:10px; font-size:12px; color:var(--muted)}
-    .legend strong{color:var(--ink)}
-    .insight-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:12px; padding-top:4px}
-    .insight-card{padding:14px 16px; border-radius:14px; border:1px solid rgba(148,163,209,.24); background:rgba(10,16,46,.55); box-shadow:inset 0 0 12px rgba(56,189,248,.06)}
-    .insight-label{font-size:11px; text-transform:uppercase; letter-spacing:.12em; color:var(--muted)}
-    .insight-value{font-size:18px; font-weight:600; color:var(--ink)}
-    .sr-only{position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0}
-
-    @media (max-width:1200px){
-      .wrap{flex-direction:column; align-items:center}
-      .side{width:100%; max-width:720px}
-    }
-    @media (max-width:900px){
-      main{padding:32px 28px 56px}
-    }
-    @media (max-width:768px){
-      .main-nav{flex-direction:column; align-items:flex-start; gap:16px; padding:18px 24px}
-      main{padding:28px 20px 52px}
-      .wrap{gap:28px}
-      .stats-bar{grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:12px; padding:16px 18px}
-      .stat-value{font-size:22px}
-      canvas{width:100%; height:auto}
-    }
-  </style>
+    <meta charset="UTF-8">
+    <title>AI Volleyball - Reinforcement Learning</title>
+    <style>
+        body {
+            margin: 0;
+            background-color: #1a1a1a;
+            color: white;
+            font-family: monospace;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            height: 100vh;
+            overflow: hidden;
+        }
+        #gameCanvas {
+            background: linear-gradient(to bottom, #2b32b2, #1488cc);
+            border: 4px solid #fff;
+            box-shadow: 0 0 30px rgba(0,0,0,0.6);
+        }
+        #ui {
+            width: 800px;
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+            background: #333;
+            padding: 10px;
+            border-radius: 8px;
+        }
+        .stat-box {
+            text-align: center;
+        }
+        button, label {
+            cursor: pointer;
+            font-size: 14px;
+            padding: 5px 10px;
+            background: #444;
+            border: 1px solid #666;
+            color: white;
+            border-radius: 4px;
+        }
+        button:hover { background: #555; }
+        input[type="checkbox"] { transform: scale(1.5); margin-right: 5px; }
+        .control-panel { display: flex; gap: 20px; align-items: center; }
+    </style>
 </head>
 <body>
-  <header class="main-nav">
-    <div class="brand"><span class="brand-dot"></span>VolleyLab RL</div>
-    <nav class="nav-links" aria-label="Primary navigation">
-      <a class="pill-link" href="index.html">← Start</a>
-      <a class="pill-link" href="volleyball.html">Volley NEAT lab</a>
-      <a class="pill-link secondary" href="volleyball-rl.html" aria-current="page">Volley RL lab</a>
-      <a class="pill-link" href="balllab.html">BallLab</a>
-      <a class="pill-link" href="learn-neat.html">How NEAT works</a>
-    </nav>
-  </header>
-  <main>
-    <div class="wrap">
-      <aside class="side">
-        <section class="panel" aria-labelledby="rl-overview">
-          <h2 id="rl-overview">Reinforcement learners</h2>
-          <p>Version 2.0 rebuild. Character rigs now have legs, arms and jersey numbers and the physics are tuned for a softer ball so both agents can really learn passing, setting and spiking. Both squads now rely on identical Double Deep Q-networks with replay buffers, soft target syncing and mirrored observation spaces so training stays perfectly balanced.</p>
-          <div class="legend">
-            <div><strong>Left team:</strong> Double Deep Q-network mirroring the right side, trained with shared hyperparameters.</div>
-            <div><strong>Right team:</strong> Double Deep Q-network with two-layer dense model, replay buffer and soft serves.</div>
-            <div>The rally reward reshaping rewards cooperative touches, aerial control and finishing the point on the opponent’s floor.</div>
-          </div>
-        </section>
 
-        <section class="panel" aria-labelledby="ddqn-controls">
-          <h2 id="ddqn-controls">Double Deep Q controls</h2>
-          <p>Both teams now train with identical Double DQN agents. Adjust the shared hyperparameters below to tune how quickly the learners adapt.</p>
-          <div class="control">
-            <div class="control-header">
-              <label class="label" for="slDqnLearningRate">Learning rate</label>
-              <span class="val" id="lbDqnLearningRate">0.0015</span>
+    <div id="ui">
+        <div class="stat-box" style="color:#FF5722">
+            <h3>AI Vänster</h3>
+            <div id="scoreP1">Poäng: 0</div>
+            <div id="epsilonP1">Utforskning: 100%</div>
+        </div>
+        
+        <div class="control-panel">
+            <div class="stat-box">
+                <h3>Status</h3>
+                <div id="episodeCount">Episod: 0</div>
             </div>
-            <input id="slDqnLearningRate" type="range" min="0.0005" max="0.01" step="0.0005" value="0.0015">
-          </div>
-          <div class="control">
-            <div class="control-header">
-              <label class="label" for="slDqnGamma">Discount γ</label>
-              <span class="val" id="lbDqnGamma">0.98</span>
-            </div>
-            <input id="slDqnGamma" type="range" min="0.7" max="0.999" step="0.001" value="0.98">
-          </div>
-          <div class="control">
-            <div class="control-header">
-              <label class="label" for="slDqnEpsilon">Exploration ε</label>
-              <span class="val" id="lbDqnEpsilon">0.40</span>
-            </div>
-            <input id="slDqnEpsilon" type="range" min="0.01" max="1" step="0.01" value="0.40">
-          </div>
-          <div class="control">
-            <div class="control-header">
-              <label class="label" for="slDqnEpsilonDecay">ε decay per episode</label>
-              <span class="val" id="lbDqnEpsilonDecay">0.995</span>
-            </div>
-            <input id="slDqnEpsilonDecay" type="range" min="0.90" max="0.999" step="0.001" value="0.995">
-          </div>
-          <div class="control">
-            <div class="control-header">
-              <label class="label" for="slTargetSync">Target sync (steps)</label>
-              <span class="val" id="lbTargetSync">480</span>
-            </div>
-            <input id="slTargetSync" type="range" min="60" max="2000" step="20" value="480">
-          </div>
-          <div class="control">
-            <div class="control-header">
-              <label class="label" for="slBatchSize">Batch size</label>
-              <span class="val" id="lbBatchSize">64</span>
-            </div>
-            <input id="slBatchSize" type="range" min="8" max="128" step="4" value="64">
-          </div>
-        </section>
-
-        <section class="panel" aria-labelledby="sim-controls">
-          <h2 id="sim-controls">Simulation</h2>
-          <div class="control">
-            <div class="control-header">
-              <label class="label" for="slSimSpeed">Sim speed</label>
-              <span class="val" id="lbSimSpeed">6×</span>
-            </div>
-            <input id="slSimSpeed" type="range" min="1" max="20" step="1" value="6">
-          </div>
-          <div class="control">
-            <div class="control-header">
-              <label class="label" for="cbEndlessRally">Endless rally</label>
-            </div>
-            <label class="toggle" for="cbEndlessRally">
-              <input id="cbEndlessRally" type="checkbox">
-              <span>Keep the ball alive between generations</span>
+            <label>
+                <input type="checkbox" id="fastForward">
+                Snabbspola (Träning)
             </label>
-          </div>
-          <div class="control">
-            <div class="control-header">
-              <label class="label" for="slGenerationSeconds">Generation length</label>
-              <span class="val" id="lbGenerationSeconds">30 s</span>
-            </div>
-            <input id="slGenerationSeconds" type="range" min="15" max="120" step="5" value="30">
-          </div>
-          <button class="btn" id="btnToggleTraining">Start training</button>
-          <button class="btn" id="btnReset">Reset learners</button>
-        </section>
+            <button onclick="resetAI()">Nollställ Hjärnor</button>
+        </div>
 
-        <section class="panel" aria-labelledby="player-tuning">
-          <h2 id="player-tuning">Player tuning</h2>
-          <p>Fine-tune jump power and arm reach to shape each athlete’s aerial control.</p>
-          <div class="control">
-            <div class="control-header">
-              <label class="label" for="slJumpHeight">Jump height</label>
-              <span class="val" id="lbJumpHeight">460 px</span>
-            </div>
-            <input id="slJumpHeight" type="range" min="300" max="600" step="10" value="460">
-          </div>
-          <div class="control">
-            <div class="control-header">
-              <label class="label" for="slArmReach">Arm reach</label>
-              <span class="val" id="lbArmReach">58 px</span>
-            </div>
-            <input id="slArmReach" type="range" min="40" max="100" step="2" value="58">
-          </div>
-        </section>
-
-        <section class="panel" aria-labelledby="physics-tuning">
-          <h2 id="physics-tuning">Ball physics</h2>
-          <p>Soften or weight the ball’s arc with direct control over world gravity.</p>
-          <div class="control">
-            <div class="control-header">
-              <label class="label" for="slGravity">Gravity pull</label>
-              <span class="val" id="lbGravity">520 px/s²</span>
-            </div>
-            <input id="slGravity" type="range" min="360" max="640" step="5" value="520">
-          </div>
-        </section>
-
-        <section class="panel" aria-labelledby="insight-heading">
-          <h2 id="insight-heading">Rally intelligence</h2>
-          <p>Six rapid-fire telemetry reads help you judge how the agents are adapting.</p>
-          <div class="insight-grid" aria-live="polite">
-            <div class="insight-card">
-              <span class="insight-label">Gravity</span>
-              <span class="insight-value" id="lbGravitySetting">520 px/s²</span>
-            </div>
-            <div class="insight-card">
-              <span class="insight-label">Rally clock</span>
-              <span class="insight-value" id="lbRallyClock">0.00 s</span>
-            </div>
-            <div class="insight-card">
-              <span class="insight-label">Last point</span>
-              <span class="insight-value" id="lbLastWinner">—</span>
-            </div>
-            <div class="insight-card">
-              <span class="insight-label">Longest rally</span>
-              <span class="insight-value" id="lbLongestRally">0.00 s</span>
-            </div>
-            <div class="insight-card">
-              <span class="insight-label">Avg rally</span>
-              <span class="insight-value" id="lbAverageRally">0.00 s</span>
-            </div>
-            <div class="insight-card">
-              <span class="insight-label">Touch spread</span>
-              <span class="insight-value" id="lbRallyTouches">L:0 / R:0</span>
-            </div>
-          </div>
-        </section>
-      </aside>
-
-      <div class="field-area">
-        <section class="playfield-frame" aria-labelledby="canvas-heading">
-          <h2 class="sr-only" id="canvas-heading">VolleyLab arena</h2>
-          <canvas id="playfield" width="1100" height="620" role="img" aria-label="VolleyLab RL simulation"></canvas>
-        </section>
-
-        <section class="stats-bar" aria-live="polite">
-          <div class="stat-card">
-            <span class="stat-label">Episodes</span>
-            <span class="stat-value" id="lbEpisodes">0</span>
-          </div>
-          <div class="stat-card">
-            <span class="stat-label">Left avg reward</span>
-            <span class="stat-value" id="lbLeftReward">0.00</span>
-          </div>
-          <div class="stat-card">
-            <span class="stat-label">Right avg reward</span>
-            <span class="stat-value" id="lbRightReward">0.00</span>
-          </div>
-          <div class="stat-card">
-            <span class="stat-label">Left ε</span>
-            <span class="stat-value" id="lbLeftEpsilon">0.40</span>
-          </div>
-          <div class="stat-card">
-            <span class="stat-label">Right ε</span>
-            <span class="stat-value" id="lbRightEpsilon">0.40</span>
-          </div>
-        </section>
-
-        <section class="chart-panel" aria-labelledby="chart-heading">
-          <div class="chart-header">
-            <h2 id="chart-heading">Episode reward history</h2>
-            <span class="chart-note">Rolling 24 most recent episodes</span>
-          </div>
-          <div class="fitness-chart" id="rewardChart"></div>
-        </section>
-      </div>
+        <div class="stat-box" style="color:#4CAF50">
+            <h3>AI Höger</h3>
+            <div id="scoreP2">Poäng: 0</div>
+            <div id="epsilonP2">Utforskning: 100%</div>
+        </div>
     </div>
-  </main>
 
-  <script>
-    const canvas = document.getElementById('playfield');
-    const ctx = canvas.getContext('2d');
+    <canvas id="gameCanvas" width="800" height="450"></canvas>
 
-    const FIELD_WIDTH = canvas.width;
-    const FIELD_HEIGHT = canvas.height;
-    const FLOOR_Y = FIELD_HEIGHT - 70;
-    const NET_X = FIELD_WIDTH / 2;
-    const NET_WIDTH = 16;
-    const NET_HEIGHT = 240;
-    let GRAVITY = 520;
-    const DT = 1 / 120;
+<script>
+/**
+ * ENKELT NEURALT NÄTVERK & DEEP Q-LEARNING BIBLIOTEK (Vanilla JS)
+ * Författat för att vara snabbt och fungera i webbläsaren utan externa bibliotek.
+ */
 
-    const PLAYER_BODY_RADIUS = 32;
-    let PLAYER_REACH = 58;
-    const PLAYER_MAX_SPEED = 320;
-    let PLAYER_JUMP = 460;
-    const PLAYER_ACCEL = 1100;
+// Hyperparametrar för inlärning
+const LEARNING_RATE = 0.01; // Hur snabbt de anpassar sig
+const DISCOUNT_FACTOR = 0.95; // Hur mycket de bryr sig om framtida belöningar
+const MEMORY_SIZE = 2000; // Hur många "minnen" de sparar
+const BATCH_SIZE = 32; // Hur många minnen de tränar på åt gången
 
-    const BALL_RADIUS = 20;
-    const BALL_MAX_SPEED = 520;
-    const BALL_AIR_DRAG = 0.996;
-    const BALL_SWEEP_STEPS = 5;
-    const FLOOR_BOUNCE_RESTITUTION = 0.9;
-    const FLOOR_DROP_RESTITUTION = 0.42;
-    const FLOOR_TANGENT_KEEP = 0.55;
-    const FLOOR_RANDOM_SPIN = 60;
-    const WALL_RESTITUTION = 0.78;
-    const WALL_TANGENT_KEEP = 0.88;
-    const CEILING_RESTITUTION = 0.7;
-    const CEILING_TANGENT_KEEP = 0.9;
-    const NET_TOP_RESTITUTION = 0.56;
-    const NET_TOP_TANGENT_KEEP = 0.48;
-    const NET_TOP_PUSH = 95;
-    const NET_SIDE_RESTITUTION = 0.4;
-    const NET_SIDE_TANGENT_KEEP = 0.42;
-    const NET_SIDE_PUSH = 65;
-    const BALL_MIN_BOUNCE = 58;
-    const PLAYER_CONTACT_BASE = 260;
-    const PLAYER_CONTACT_RANDOM = 90;
-    const PLAYER_CONTACT_RESPONSE = 0.78;
-    const PLAYER_TANGENT_TRANSFER = 0.18;
+// Aktiveringsfunktioner
+const sigmoid = x => 1 / (1 + Math.exp(-x));
+const dSigmoid = y => y * (1 - y);
+const relu = x => Math.max(0, x);
+const dRelu = y => y > 0 ? 1 : 0;
 
-    let rallySeconds = 0;
-    let totalRallySeconds = 0;
-    let rallyCount = 0;
-    let longestRallySeconds = 0;
-    let lastPointWinner = '—';
-    let lastLeftTouches = 0;
-    let lastRightTouches = 0;
+class NeuralNetwork {
+    constructor(inputNodes, hiddenNodes, outputNodes) {
+        this.inputNodes = inputNodes;
+        this.hiddenNodes = hiddenNodes;
+        this.outputNodes = outputNodes;
 
-    const ACTIONS = [
-      {name:'idle', vx:0, jump:false},
-      {name:'left', vx:-1, jump:false},
-      {name:'right', vx:1, jump:false},
-      {name:'jump', vx:0, jump:true},
-      {name:'left+jump', vx:-1, jump:true},
-      {name:'right+jump', vx:1, jump:true}
-    ];
-
-    const LEFT_ACTION_MAP = [0, 2, 1, 3, 5, 4];
-
-    function mapActionIndex(side, index){
-      if(side === 'left'){
-        return LEFT_ACTION_MAP[index] ?? 0;
-      }
-      return index;
+        // Vikter (Slumpmässiga från början)
+        this.weightsIH = new Float32Array(this.hiddenNodes * this.inputNodes).map(() => Math.random() * 2 - 1);
+        this.weightsHO = new Float32Array(this.outputNodes * this.hiddenNodes).map(() => Math.random() * 2 - 1);
+        
+        // Bias
+        this.biasH = new Float32Array(this.hiddenNodes).map(() => Math.random() * 2 - 1);
+        this.biasO = new Float32Array(this.outputNodes).map(() => Math.random() * 2 - 1);
     }
 
-    function clamp(value, min, max){
-      return Math.max(min, Math.min(max, value));
-    }
-
-    function lerp(a, b, t){
-      return a + (b - a) * t;
-    }
-
-    function bounceVelocity(vx, vy, nx, ny, restitution, tangentKeep){
-      const dot = vx * nx + vy * ny;
-      if(dot >= 0){
-        return {vx, vy};
-      }
-      const vnX = dot * nx;
-      const vnY = dot * ny;
-      const vtX = vx - vnX;
-      const vtY = vy - vnY;
-      const newVx = -vnX * restitution + vtX * tangentKeep;
-      const newVy = -vnY * restitution + vtY * tangentKeep;
-      return {vx:newVx, vy:newVy};
-    }
-
-    class Player{
-      constructor(side, number){
-        this.side = side;
-        this.number = number;
-        this.limbPhase = Math.random() * Math.PI * 2;
-        this.locomotion = 0;
-        this.reset();
-      }
-      reset(){
-        this.x = this.side === 'left' ? FIELD_WIDTH * 0.27 : FIELD_WIDTH * 0.73;
-        this.y = FLOOR_Y - PLAYER_BODY_RADIUS;
-        this.vx = 0;
-        this.vy = 0;
-        this.grounded = true;
-        this.touches = 0;
-        this.limbPhase = Math.random() * Math.PI * 2;
-        this.locomotion = 0;
-      }
-      applyAction(action){
-        if(action.vx !== 0){
-          this.vx += action.vx * PLAYER_ACCEL * DT;
-        } else {
-          this.vx *= 0.82;
-        }
-        this.vx = clamp(this.vx, -PLAYER_MAX_SPEED, PLAYER_MAX_SPEED);
-        if(action.jump && this.grounded){
-          this.vy = -PLAYER_JUMP;
-          this.grounded = false;
-        }
-      }
-      integrate(){
-        this.vy += GRAVITY * DT;
-        this.x += this.vx * DT;
-        this.y += this.vy * DT;
-
-        const minX = this.side === 'left' ? 90 : NET_X + NET_WIDTH/2 + PLAYER_BODY_RADIUS;
-        const maxX = this.side === 'left' ? NET_X - NET_WIDTH/2 - PLAYER_BODY_RADIUS : FIELD_WIDTH - 90;
-        this.x = clamp(this.x, minX, maxX);
-
-        if(this.y + PLAYER_BODY_RADIUS >= FLOOR_Y){
-          this.y = FLOOR_Y - PLAYER_BODY_RADIUS;
-          this.vy = 0;
-          this.grounded = true;
-        } else {
-          this.grounded = false;
-        }
-
-        const movement = clamp(Math.abs(this.vx) / PLAYER_MAX_SPEED, 0, 1);
-        const cycleSpeed = this.grounded ? 9 : 5;
-        this.limbPhase = (this.limbPhase + movement * cycleSpeed * DT) % (Math.PI * 2);
-        this.locomotion = movement;
-      }
-      draw(context){
-        context.save();
-        context.translate(this.x, this.y);
-
-        const orientation = this.side === 'left' ? 1 : -1;
-        const baseColor = this.side === 'left' ? '#38bdf8' : '#f472b6';
-        const glowColor = this.side === 'left' ? '#67e8f9' : '#f9a8d4';
-        const shadowColor = this.side === 'left' ? 'rgba(14,165,233,0.55)' : 'rgba(251,113,133,0.55)';
-        const jointColor = 'rgba(248,250,252,0.75)';
-        const tipColor = 'rgba(148,163,209,0.65)';
-
-        const orientAngle = angle => orientation === 1 ? angle : Math.PI - angle;
-        const locomotion = this.locomotion || 0;
-        const airborne = this.grounded ? 0 : 1;
-        const stride = Math.sin(this.limbPhase) * locomotion;
-        const armSwing = Math.sin(this.limbPhase + Math.PI / 2) * locomotion;
-        const reachLift = clamp(-this.vy / PLAYER_JUMP, 0, 1);
-
-        const drawJointedLimb = (startX, startY, originAngle, bend, length, thickness) => {
-          const upper = length * 0.55;
-          const lower = length * 0.45;
-          const hipAngle = orientAngle(originAngle);
-          const kneeAngle = orientAngle(originAngle + bend);
-          const kneeX = startX + Math.cos(hipAngle) * upper;
-          const kneeY = startY + Math.sin(hipAngle) * upper;
-          const footX = kneeX + Math.cos(kneeAngle) * lower;
-          const footY = kneeY + Math.sin(kneeAngle) * lower;
-
-          context.strokeStyle = glowColor;
-          context.shadowColor = shadowColor;
-          context.shadowBlur = 16;
-          context.lineCap = 'round';
-          context.lineWidth = thickness;
-          context.beginPath();
-          context.moveTo(startX, startY);
-          context.lineTo(kneeX, kneeY);
-          context.stroke();
-
-          context.lineWidth = thickness * 0.82;
-          context.beginPath();
-          context.moveTo(kneeX, kneeY);
-          context.lineTo(footX, footY);
-          context.stroke();
-
-          context.shadowBlur = 0;
-          context.fillStyle = jointColor;
-          context.beginPath();
-          context.arc(kneeX, kneeY, thickness * 0.45, 0, Math.PI * 2);
-          context.fill();
-
-          context.fillStyle = tipColor;
-          context.beginPath();
-          context.arc(footX, footY, thickness * 0.55, 0, Math.PI * 2);
-          context.fill();
-        };
-
-        const hipSpacing = PLAYER_BODY_RADIUS * 0.3;
-        const hipY = PLAYER_BODY_RADIUS * 0.35;
-        const legLength = PLAYER_BODY_RADIUS * 1.9;
-        const legBendBase = 0.9 + locomotion * 0.25 + airborne * 0.2;
-        const frontHipX = orientation === 1 ? hipSpacing : -hipSpacing;
-        const rearHipX = -frontHipX;
-
-        drawJointedLimb(frontHipX, hipY, Math.PI / 2 - stride * 0.45 - airborne * 0.12, legBendBase, legLength, 8);
-        drawJointedLimb(rearHipX, hipY, Math.PI / 2 + stride * 0.45 - airborne * 0.08, legBendBase + locomotion * 0.12, legLength, 8);
-
-        const shoulderSpacing = PLAYER_BODY_RADIUS * 0.35;
-        const shoulderY = -PLAYER_BODY_RADIUS * 0.05;
-        const armLength = PLAYER_BODY_RADIUS * 1.65;
-        const frontShoulderX = orientation === 1 ? shoulderSpacing : -shoulderSpacing;
-        const rearShoulderX = -frontShoulderX;
-
-        const frontArmAngle = -Math.PI / 3.2 - armSwing * 0.35 - reachLift * 0.5;
-        const backArmAngle = -Math.PI / 1.8 + armSwing * 0.25 - reachLift * 0.35;
-        const frontArmBend = 0.55 + reachLift * 0.4;
-        const backArmBend = 0.75 + reachLift * 0.25;
-
-        drawJointedLimb(frontShoulderX, shoulderY, frontArmAngle, frontArmBend, armLength, 6);
-        drawJointedLimb(rearShoulderX, shoulderY, backArmAngle, backArmBend, armLength * 0.92, 6);
-
-        const coreRadius = PLAYER_BODY_RADIUS * 0.88;
-        const glow = context.createRadialGradient(-coreRadius * 0.25, -coreRadius * 0.25, coreRadius * 0.2, 0, 0, coreRadius * 1.1);
-        glow.addColorStop(0, 'rgba(248,250,252,0.92)');
-        glow.addColorStop(0.45, baseColor);
-        glow.addColorStop(1, 'rgba(15,23,61,0.85)');
-
-        context.shadowColor = shadowColor;
-        context.shadowBlur = 22;
-        context.fillStyle = glow;
-        context.beginPath();
-        context.arc(0, 0, coreRadius, 0, Math.PI * 2);
-        context.fill();
-
-        context.shadowBlur = 0;
-        context.strokeStyle = 'rgba(148,163,209,0.38)';
-        context.lineWidth = 4;
-        context.beginPath();
-        context.arc(0, 0, coreRadius * 0.72, 0, Math.PI * 2);
-        context.stroke();
-
-        context.fillStyle = 'rgba(255,255,255,0.18)';
-        context.beginPath();
-        context.arc(-coreRadius * 0.28, -coreRadius * 0.32, coreRadius * 0.42, 0, Math.PI * 2);
-        context.fill();
-
-        context.fillStyle = 'rgba(255,255,255,0.4)';
-        context.font = `${PLAYER_BODY_RADIUS * 0.7}px "Bebas Neue", "Inter", sans-serif`;
-        context.textAlign = 'center';
-        context.textBaseline = 'middle';
-        context.fillText(this.number.toString(), 0, 0);
-
-        context.restore();
-      }
-    }
-
-    class Ball{
-      constructor(){
-        this.x = NET_X;
-        this.y = FLOOR_Y - 200;
-        this.vx = 0;
-        this.vy = 0;
-        this.lastTouchSide = null;
-        this.lastTouchedBy = null;
-        this.prevX = this.x;
-        this.prevY = this.y;
-        this.collisions = this.createCollisionState();
-        this.clearCollisions();
-      }
-      reset(servingSide, leftPlayer, rightPlayer){
-        const server = servingSide === 'left' ? leftPlayer : rightPlayer;
-        const fallbackX = servingSide === 'left' ? FIELD_WIDTH * 0.27 : FIELD_WIDTH * 0.73;
-        const baseX = server ? server.x : fallbackX;
-        const baseY = server ? server.y : FLOOR_Y - PLAYER_BODY_RADIUS;
-        const lift = PLAYER_BODY_RADIUS + PLAYER_REACH + BALL_RADIUS + 8;
-        this.x = baseX;
-        this.y = Math.max(60, baseY - lift);
-        this.vx = 0;
-        this.vy = 0;
-        this.lastTouchSide = servingSide;
-        this.lastTouchedBy = null;
-        this.prevX = this.x;
-        this.prevY = this.y;
-        this.clearCollisions();
-      }
-      createCollisionState(){
-        return {
-          floor:false,
-          floorSide:null,
-          wall:null,
-          ceiling:false,
-          net:false,
-          netSide:null
-        };
-      }
-      clearCollisions(){
-        const state = this.collisions;
-        state.floor = false;
-        state.floorSide = null;
-        state.wall = null;
-        state.ceiling = false;
-        state.net = false;
-        state.netSide = null;
-      }
-      step(keepAlive = false){
-        this.prevX = this.x;
-        this.prevY = this.y;
-        this.clearCollisions();
-
-        let vx = this.vx;
-        let vy = this.vy + GRAVITY * DT;
-
-        vx *= BALL_AIR_DRAG;
-        vy *= BALL_AIR_DRAG;
-
-        let px = this.x;
-        let py = this.y;
-        let remaining = DT;
-
-        const floorPlane = FLOOR_Y - BALL_RADIUS;
-        const ceilingPlane = 40 + BALL_RADIUS;
-        const leftPlane = 40 + BALL_RADIUS;
-        const rightPlane = FIELD_WIDTH - 40 - BALL_RADIUS;
-
-        for(let i = 0; i < BALL_SWEEP_STEPS && remaining > 1e-5; i++){
-          let earliest = remaining;
-          let surface = null;
-          let nx = 0;
-          let ny = 0;
-
-          if(vy > 0){
-            const t = (floorPlane - py) / vy;
-            if(t >= 0 && t <= earliest){
-              earliest = t;
-              surface = 'floor';
-              nx = 0; ny = -1;
-            }
-          } else if(py > floorPlane && surface === null){
-            earliest = 0;
-            surface = 'floor';
-            nx = 0; ny = -1;
-          }
-
-          if(vy < 0){
-            const t = (ceilingPlane - py) / vy;
-            if(t >= 0 && t <= earliest){
-              earliest = t;
-              surface = 'ceiling';
-              nx = 0; ny = 1;
-            }
-          } else if(py < ceilingPlane && surface === null){
-            earliest = 0;
-            surface = 'ceiling';
-            nx = 0; ny = 1;
-          }
-
-          if(vx < 0){
-            const t = (leftPlane - px) / vx;
-            if(t >= 0 && t <= earliest){
-              earliest = t;
-              surface = 'leftWall';
-              nx = 1; ny = 0;
-            }
-          } else if(px < leftPlane && surface === null){
-            earliest = 0;
-            surface = 'leftWall';
-            nx = 1; ny = 0;
-          }
-
-          if(vx > 0){
-            const t = (rightPlane - px) / vx;
-            if(t >= 0 && t <= earliest){
-              earliest = t;
-              surface = 'rightWall';
-              nx = -1; ny = 0;
-            }
-          } else if(px > rightPlane && surface === null){
-            earliest = 0;
-            surface = 'rightWall';
-            nx = -1; ny = 0;
-          }
-
-          if(surface){
-            px += vx * earliest;
-            py += vy * earliest;
-            remaining = Math.max(remaining - earliest, 0);
-
-            if(surface === 'floor'){
-              const bounce = bounceVelocity(vx, vy, nx, ny, keepAlive ? FLOOR_BOUNCE_RESTITUTION : FLOOR_DROP_RESTITUTION, FLOOR_TANGENT_KEEP);
-              vx = bounce.vx;
-              vy = bounce.vy;
-              if(keepAlive && vy > -BALL_MIN_BOUNCE){
-                vy = -BALL_MIN_BOUNCE;
-              }
-              if(keepAlive && Math.abs(vx) < FLOOR_RANDOM_SPIN * 0.5){
-                vx += (Math.random() * 2 - 1) * FLOOR_RANDOM_SPIN;
-              }
-              this.collisions.floor = true;
-              this.collisions.floorSide = px < NET_X ? 'left' : 'right';
-            } else if(surface === 'leftWall' || surface === 'rightWall'){
-              const bounce = bounceVelocity(vx, vy, nx, ny, WALL_RESTITUTION, WALL_TANGENT_KEEP);
-              vx = bounce.vx;
-              vy = bounce.vy;
-              this.collisions.wall = surface;
-            } else if(surface === 'ceiling'){
-              const bounce = bounceVelocity(vx, vy, nx, ny, CEILING_RESTITUTION, CEILING_TANGENT_KEEP);
-              vx = bounce.vx;
-              vy = bounce.vy;
-              this.collisions.ceiling = true;
-            }
-
-            px += nx * 0.01;
-            py += ny * 0.01;
-
-            if(earliest <= 1e-5){
-              remaining = 0;
-              break;
-            }
-          } else {
-            px += vx * remaining;
-            py += vy * remaining;
-            remaining = 0;
-          }
-        }
-
-        this.x = px;
-        this.y = py;
-        this.vx = vx;
-        this.vy = vy;
-
-        const speed = Math.hypot(this.vx, this.vy);
-        if(speed > BALL_MAX_SPEED){
-          const scale = BALL_MAX_SPEED / speed;
-          this.vx *= scale;
-          this.vy *= scale;
-        }
-      }
-      draw(context){
-        const gradient = context.createRadialGradient(this.x - 6, this.y - 6, 6, this.x, this.y, BALL_RADIUS + 4);
-        gradient.addColorStop(0, '#f8fafc');
-        gradient.addColorStop(0.5, '#cbd5f5');
-        gradient.addColorStop(1, '#1e293b');
-        context.fillStyle = gradient;
-        context.beginPath();
-        context.arc(this.x, this.y, BALL_RADIUS, 0, Math.PI * 2);
-        context.fill();
-
-        context.strokeStyle = 'rgba(148,163,209,0.55)';
-        context.lineWidth = 4;
-        context.beginPath();
-        context.arc(this.x, this.y, BALL_RADIUS * 0.7, Math.PI * 0.15, Math.PI * 1.15);
-        context.stroke();
-      }
-    }
-
-    class GameEnv{
-      constructor(){
-        this.left = new Player('left', 7);
-        this.right = new Player('right', 10);
-        this.ball = new Ball();
-        this.serveSide = 'left';
-        this.events = {};
-        this.ball.reset(this.serveSide, this.left, this.right);
-      }
-      reset(nextServe){
-        this.left.reset();
-        this.right.reset();
-        this.serveSide = nextServe ?? (Math.random() < 0.5 ? 'left' : 'right');
-        this.ball.reset(this.serveSide, this.left, this.right);
-        this.left.touches = 0;
-        this.right.touches = 0;
-      }
-      step(leftActionIdx, rightActionIdx, keepBallAlive = false){
-        this.events = {
-          leftTouch:false,
-          rightTouch:false,
-          netHit:false,
-          floorSide:null,
-          floorBounce:null,
-          rallyTime:DT
-        };
-
-        const leftAction = ACTIONS[leftActionIdx];
-        const rightAction = ACTIONS[rightActionIdx];
-
-        this.left.applyAction(leftAction);
-        this.right.applyAction(rightAction);
-        this.left.integrate();
-        this.right.integrate();
-
-        this.ball.step(keepBallAlive);
-
-        if(this.resolvePlayerBall(this.left)){
-          this.events.leftTouch = true;
-        }
-        if(this.resolvePlayerBall(this.right)){
-          this.events.rightTouch = true;
-        }
-        const netHit = this.resolveNet();
-        if(netHit){
-          this.events.netHit = netHit;
-        }
-
-        if(this.ball.collisions.floor){
-          if(keepBallAlive){
-            this.events.floorBounce = this.ball.collisions.floorSide;
-          } else {
-            this.events.floorSide = this.ball.collisions.floorSide;
-          }
-        }
-
-        const done = !keepBallAlive && Boolean(this.events.floorSide);
-        return {done};
-      }
-      resolvePlayerBall(player){
-        const anchorY = player.y - PLAYER_BODY_RADIUS * 0.15;
-        const dx = this.ball.x - player.x;
-        const dy = this.ball.y - anchorY;
-        const distSq = dx*dx + dy*dy;
-
-        const bodyRadius = PLAYER_BODY_RADIUS;
-        const armStart = PLAYER_BODY_RADIUS * 0.7;
-        const lateral = Math.abs(dx);
-        let hitRadius = bodyRadius;
-        if(PLAYER_REACH > armStart){
-          const reachSpan = PLAYER_REACH - armStart;
-          const reachMix = clamp((lateral - armStart) / reachSpan, 0, 1);
-          hitRadius = lerp(bodyRadius, PLAYER_REACH, reachMix);
-        }
-        const minDist = hitRadius + BALL_RADIUS;
-        if(distSq > minDist * minDist){
-          return false;
-        }
-        const dist = Math.sqrt(distSq) || 1;
-        const nx = dx / dist;
-        const ny = dy / dist;
-        this.ball.x = player.x + nx * (minDist + 2);
-        this.ball.y = anchorY + ny * (minDist + 2);
-
-        const relativeVX = this.ball.vx - player.vx;
-        const relativeVY = this.ball.vy - player.vy;
-        const incoming = relativeVX * nx + relativeVY * ny;
-        const impactEnergy = Math.max(-incoming, 0);
-        const baseImpulse = PLAYER_CONTACT_BASE + impactEnergy * 1.1 + Math.random() * PLAYER_CONTACT_RANDOM;
-        const targetVX = nx * baseImpulse;
-        const targetVY = ny * baseImpulse;
-
-        this.ball.vx = lerp(this.ball.vx, targetVX, PLAYER_CONTACT_RESPONSE) + player.vx * 0.22;
-        this.ball.vy = lerp(this.ball.vy, targetVY, PLAYER_CONTACT_RESPONSE) + player.vy * 0.18;
-
-        const tx = -ny;
-        const ty = nx;
-        const tangential = (player.vx * tx + player.vy * ty) * PLAYER_TANGENT_TRANSFER;
-        this.ball.vx += tx * tangential;
-        this.ball.vy += ty * tangential;
-
-        const speed = Math.hypot(this.ball.vx, this.ball.vy);
-        if(speed > BALL_MAX_SPEED){
-          const scale = BALL_MAX_SPEED / speed;
-          this.ball.vx *= scale;
-          this.ball.vy *= scale;
-        }
-        if(this.ball.vy > -BALL_MIN_BOUNCE){
-          this.ball.vy = -BALL_MIN_BOUNCE;
-        }
-
-        this.ball.lastTouchSide = player.side;
-        this.ball.lastTouchedBy = player;
-        player.touches++;
-        return true;
-      }
-      resolveNet(){
-        const netTop = FLOOR_Y - NET_HEIGHT;
-        const netLeft = NET_X - NET_WIDTH/2;
-        const netRight = NET_X + NET_WIDTH/2;
-        let hitSide = null;
-
-        const closestX = clamp(this.ball.x, netLeft, netRight);
-        const closestY = clamp(this.ball.y, netTop, FLOOR_Y);
-        const dx = this.ball.x - closestX;
-        const dy = this.ball.y - closestY;
-        const distSq = dx * dx + dy * dy;
-
-        if(distSq < BALL_RADIUS * BALL_RADIUS){
-          let nx = dx;
-          let ny = dy;
-          let dist = Math.sqrt(distSq);
-          if(dist === 0){
-            if(Math.abs(this.ball.prevY - netTop) < Math.abs(this.ball.prevX - NET_X)){
-              nx = 0;
-              ny = -1;
-            } else {
-              nx = this.ball.x < NET_X ? -1 : 1;
-              ny = 0;
-            }
-            dist = 1;
-          }
-          nx /= dist;
-          ny /= dist;
-
-          const depth = BALL_RADIUS - dist;
-          this.ball.x += nx * (depth + 0.6);
-          this.ball.y += ny * (depth + 0.6);
-
-          const hittingTop = Math.abs(ny) >= Math.abs(nx);
-          const restitution = hittingTop ? NET_TOP_RESTITUTION : NET_SIDE_RESTITUTION;
-          const tangentKeep = hittingTop ? NET_TOP_TANGENT_KEEP : NET_SIDE_TANGENT_KEEP;
-          const bounce = bounceVelocity(this.ball.vx, this.ball.vy, nx, ny, restitution, tangentKeep);
-          this.ball.vx = bounce.vx;
-          this.ball.vy = bounce.vy;
-
-          if(hittingTop){
-            const push = this.ball.lastTouchSide === 'left' ? -1 : this.ball.lastTouchSide === 'right' ? 1 : (this.ball.x < NET_X ? -1 : 1);
-            this.ball.vx += push * NET_TOP_PUSH;
-            if(this.ball.vy > -BALL_MIN_BOUNCE){
-              this.ball.vy = -BALL_MIN_BOUNCE;
-            }
-          } else {
-            const push = nx > 0 ? 1 : -1;
-            this.ball.vx += push * NET_SIDE_PUSH;
-          }
-
-          const speed = Math.hypot(this.ball.vx, this.ball.vy);
-          if(speed > BALL_MAX_SPEED){
-            const scale = BALL_MAX_SPEED / speed;
-            this.ball.vx *= scale;
-            this.ball.vy *= scale;
-          }
-
-          this.ball.collisions.net = true;
-          this.ball.collisions.netSide = this.ball.lastTouchSide || (this.ball.x < NET_X ? 'left' : 'right');
-          hitSide = this.ball.collisions.netSide;
-        }
-        return hitSide;
-      }
-    }
-
-    function randomWeight(scale){
-      return (Math.random() * 2 - 1) * scale;
-    }
-
-    function zeroMatrix(rows, cols){
-      const matrix = new Array(rows);
-      for(let r=0;r<rows;r++){
-        matrix[r] = new Float32Array(cols);
-      }
-      return matrix;
-    }
-
-    class DenseNetwork{
-      constructor(inputSize, hiddenSize, outputSize, learningRate){
-        this.inputSize = inputSize;
-        this.hiddenSize = hiddenSize;
-        this.outputSize = outputSize;
-        this.learningRate = learningRate;
-        this.W1 = zeroMatrix(hiddenSize, inputSize);
-        this.b1 = new Float32Array(hiddenSize);
-        this.W2 = zeroMatrix(outputSize, hiddenSize);
-        this.b2 = new Float32Array(outputSize);
-        const scale1 = Math.sqrt(2 / (inputSize + hiddenSize));
-        const scale2 = Math.sqrt(2 / (hiddenSize + outputSize));
-        for(let i=0;i<hiddenSize;i++){
-          for(let j=0;j<inputSize;j++){
-            this.W1[i][j] = randomWeight(scale1);
-          }
-        }
-        for(let k=0;k<outputSize;k++){
-          for(let i=0;i<hiddenSize;i++){
-            this.W2[k][i] = randomWeight(scale2);
-          }
-        }
-      }
-      forward(input){
-        const hiddenRaw = new Float32Array(this.hiddenSize);
-        const hidden = new Float32Array(this.hiddenSize);
-        for(let i=0;i<this.hiddenSize;i++){
-          let sum = this.b1[i];
-          const row = this.W1[i];
-          for(let j=0;j<this.inputSize;j++){
-            sum += row[j] * input[j];
-          }
-          hiddenRaw[i] = sum;
-          hidden[i] = sum > 0 ? sum : 0;
-        }
-        const output = new Float32Array(this.outputSize);
-        for(let k=0;k<this.outputSize;k++){
-          let sum = this.b2[k];
-          const row = this.W2[k];
-          for(let i=0;i<this.hiddenSize;i++){
-            sum += row[i] * hidden[i];
-          }
-          output[k] = sum;
-        }
-        return {output, hidden, hiddenRaw, input};
-      }
-      predict(input){
-        return this.forward(input).output;
-      }
-      train(batch){
-        if(batch.length === 0) return;
-        const gradW1 = zeroMatrix(this.hiddenSize, this.inputSize);
-        const gradB1 = new Float32Array(this.hiddenSize);
-        const gradW2 = zeroMatrix(this.outputSize, this.hiddenSize);
-        const gradB2 = new Float32Array(this.outputSize);
-
-        for(const sample of batch){
-          const {cache, target} = sample;
-          const {output, hidden, hiddenRaw, input} = cache;
-          const gradOut = new Float32Array(this.outputSize);
-          for(let k=0;k<this.outputSize;k++){
-            gradOut[k] = output[k] - target[k];
-            gradB2[k] += gradOut[k];
-            const row = gradW2[k];
-            for(let i=0;i<this.hiddenSize;i++){
-              row[i] += gradOut[k] * hidden[i];
-            }
-          }
-          const gradHidden = new Float32Array(this.hiddenSize);
-          for(let i=0;i<this.hiddenSize;i++){
+    predict(inputArray) {
+        // Input -> Hidden
+        let hidden = new Float32Array(this.hiddenNodes);
+        for (let i = 0; i < this.hiddenNodes; i++) {
             let sum = 0;
-            for(let k=0;k<this.outputSize;k++){
-              sum += gradOut[k] * this.W2[k][i];
+            for (let j = 0; j < this.inputNodes; j++) {
+                sum += inputArray[j] * this.weightsIH[i * this.inputNodes + j];
             }
-            gradHidden[i] = hiddenRaw[i] > 0 ? sum : 0;
-            gradB1[i] += gradHidden[i];
-            const row = gradW1[i];
-            for(let j=0;j<this.inputSize;j++){
-              row[j] += gradHidden[i] * input[j];
+            hidden[i] = relu(sum + this.biasH[i]);
+        }
+
+        // Hidden -> Output
+        let output = new Float32Array(this.outputNodes);
+        for (let i = 0; i < this.outputNodes; i++) {
+            let sum = 0;
+            for (let j = 0; j < this.hiddenNodes; j++) {
+                sum += hidden[i] * this.weightsHO[i * this.hiddenNodes + j];
             }
-          }
+            output[i] = sum + this.biasO[i]; // Ingen aktivering på sista lagret för Q-värden (Linear)
         }
-
-        const scale = this.learningRate / batch.length;
-        for(let i=0;i<this.hiddenSize;i++){
-          this.b1[i] -= gradB1[i] * scale;
-          const row = this.W1[i];
-          for(let j=0;j<this.inputSize;j++){
-            row[j] -= gradW1[i][j] * scale;
-          }
-        }
-        for(let k=0;k<this.outputSize;k++){
-          this.b2[k] -= gradB2[k] * scale;
-          const row = this.W2[k];
-          for(let i=0;i<this.hiddenSize;i++){
-            row[i] -= gradW2[k][i] * scale;
-          }
-        }
-      }
-      copyFrom(other){
-        for(let i=0;i<this.hiddenSize;i++){
-          this.b1[i] = other.b1[i];
-          for(let j=0;j<this.inputSize;j++){
-            this.W1[i][j] = other.W1[i][j];
-          }
-        }
-        for(let k=0;k<this.outputSize;k++){
-          this.b2[k] = other.b2[k];
-          for(let i=0;i<this.hiddenSize;i++){
-            this.W2[k][i] = other.W2[k][i];
-          }
-        }
-      }
+        return output;
     }
 
-    class ReplayBuffer{
-      constructor(size){
-        this.size = size;
-        this.buffer = [];
-        this.index = 0;
-      }
-      push(sample){
-        if(this.buffer.length < this.size){
-          this.buffer.push(sample);
-        } else {
-          this.buffer[this.index] = sample;
-        }
-        this.index = (this.index + 1) % this.size;
-      }
-      sample(batchSize){
-        const result = [];
-        for(let i=0;i<batchSize;i++){
-          const idx = Math.floor(Math.random() * this.buffer.length);
-          result.push(this.buffer[idx]);
-        }
-        return result;
-      }
-      get length(){
-        return this.buffer.length;
-      }
-      clear(){
-        this.buffer.length = 0;
-        this.index = 0;
-      }
-    }
-
-    class DoubleDQNAgent{
-      constructor(side){
-        this.side = side;
-        this.inputSize = 10;
-        this.actions = ACTIONS.length;
-        this.gamma = 0.98;
-        this.epsilon = 0.40;
-        this.baseEpsilon = this.epsilon;
-        this.epsilonDecay = 0.995;
-        this.minEpsilon = 0.05;
-        this.learningRate = 0.0015;
-        this.batchSize = 64;
-        this.targetSync = 480;
-        this.replay = new ReplayBuffer(6000);
-        this.online = new DenseNetwork(this.inputSize, 64, this.actions, this.learningRate);
-        this.target = new DenseNetwork(this.inputSize, 64, this.actions, this.learningRate);
-        this.target.copyFrom(this.online);
-        this.stepCounter = 0;
-        this.episodes = 0;
-        this.totalReward = 0;
-      }
-      setParams({learningRate, gamma, epsilon, epsilonDecay, batchSize, targetSync}){
-        if(learningRate !== undefined){
-          this.learningRate = learningRate;
-          this.online.learningRate = learningRate;
-          this.target.learningRate = learningRate;
-        }
-        if(gamma !== undefined) this.gamma = gamma;
-        if(epsilon !== undefined){
-          this.epsilon = epsilon;
-          this.baseEpsilon = epsilon;
-        }
-        if(epsilonDecay !== undefined) this.epsilonDecay = epsilonDecay;
-        if(batchSize !== undefined) this.batchSize = Math.max(4, Math.floor(batchSize));
-        if(targetSync !== undefined) this.targetSync = Math.max(20, Math.floor(targetSync));
-      }
-      stateVector(env){
-        const mirror = this.side === 'left';
-        const player = mirror ? env.left : env.right;
-        const ball = env.ball;
-        const playerX = mirror ? FIELD_WIDTH - player.x : player.x;
-        const playerVX = mirror ? -player.vx : player.vx;
-        const ballX = mirror ? FIELD_WIDTH - ball.x : ball.x;
-        const ballVX = mirror ? -ball.vx : ball.vx;
-        const dx = (ballX - playerX) / FIELD_WIDTH;
-        const dy = (ball.y - player.y) / FLOOR_Y;
-        const norm = (value, scale) => clamp(value / scale, -1, 1);
-        return new Float32Array([
-          (playerX / FIELD_WIDTH) * 2 - 1,
-          (player.y / FLOOR_Y) * 2 - 1,
-          norm(playerVX, PLAYER_MAX_SPEED),
-          norm(player.vy, PLAYER_JUMP),
-          (ballX / FIELD_WIDTH) * 2 - 1,
-          (ball.y / FLOOR_Y) * 2 - 1,
-          norm(ballVX, BALL_MAX_SPEED),
-          norm(ball.vy, BALL_MAX_SPEED),
-          clamp(dx, -1, 1),
-          clamp(dy, -1, 1)
-        ]);
-      }
-      act(state, training){
-        if(training && Math.random() < this.epsilon){
-          return Math.floor(Math.random() * this.actions);
-        }
-        const values = this.online.predict(state);
-        let best = 0;
-        let bestVal = values[0];
-        for(let i=1;i<values.length;i++){
-          if(values[i] > bestVal){
-            bestVal = values[i];
-            best = i;
-          }
-        }
-        return best;
-      }
-      remember(sample){
-        this.replay.push(sample);
-      }
-      train(){
-        if(this.replay.length < this.batchSize) return;
-        const batchSamples = this.replay.sample(this.batchSize);
-        const batch = [];
-        for(const sample of batchSamples){
-          const cache = this.online.forward(sample.state);
-          const targetBase = cache.output;
-          const updated = new Float32Array(targetBase);
-          let targetValue = sample.reward;
-          if(!sample.done){
-            const nextOnline = this.online.predict(sample.nextState);
-            let best = 0;
-            let bestVal = nextOnline[0];
-            for(let i=1;i<nextOnline.length;i++){
-              if(nextOnline[i] > bestVal){
-                bestVal = nextOnline[i];
-                best = i;
-              }
+    // Enkel Backpropagation (Stokastisk Gradient Descent)
+    train(inputs, targets) {
+        // Feedforward (samma som predict men vi sparar hidden states)
+        let hidden = new Float32Array(this.hiddenNodes);
+        for (let i = 0; i < this.hiddenNodes; i++) {
+            let sum = 0;
+            for (let j = 0; j < this.inputNodes; j++) {
+                sum += inputs[j] * this.weightsIH[i * this.inputNodes + j];
             }
-            const nextTarget = this.target.predict(sample.nextState);
-            targetValue += this.gamma * nextTarget[best];
-          }
-          updated[sample.action] = targetValue;
-          batch.push({cache, target: updated});
+            hidden[i] = relu(sum + this.biasH[i]);
         }
-        this.online.train(batch);
-        this.stepCounter++;
-        if(this.stepCounter % this.targetSync === 0){
-          this.target.copyFrom(this.online);
+
+        let outputs = new Float32Array(this.outputNodes);
+        for (let i = 0; i < this.outputNodes; i++) {
+            let sum = 0;
+            for (let j = 0; j < this.hiddenNodes; j++) {
+                sum += hidden[j] * this.weightsHO[i * this.hiddenNodes + j];
+            }
+            outputs[i] = sum + this.biasO[i];
         }
-      }
-      endEpisode(totalReward){
-        this.episodes++;
-        this.totalReward += totalReward;
-        this.epsilon = Math.max(this.minEpsilon, this.epsilon * this.epsilonDecay);
-      }
-      reset(){
-        this.replay.clear();
-        this.online = new DenseNetwork(this.inputSize, 64, this.actions, this.learningRate);
-        this.target = new DenseNetwork(this.inputSize, 64, this.actions, this.learningRate);
-        this.target.copyFrom(this.online);
-        this.stepCounter = 0;
-        this.episodes = 0;
-        this.totalReward = 0;
-        this.epsilon = this.baseEpsilon;
-      }
+
+        // Beräkna output errors
+        let outputErrors = new Float32Array(this.outputNodes);
+        for (let i = 0; i < this.outputNodes; i++) {
+            outputErrors[i] = targets[i] - outputs[i];
+        }
+
+        // Beräkna hidden gradients
+        let hiddenErrors = new Float32Array(this.hiddenNodes);
+        for (let i = 0; i < this.hiddenNodes; i++) {
+            let sum = 0;
+            for (let j = 0; j < this.outputNodes; j++) {
+                sum += outputErrors[j] * this.weightsHO[j * this.hiddenNodes + i];
+            }
+            hiddenErrors[i] = sum;
+        }
+
+        // Uppdatera Output Weights
+        for (let i = 0; i < this.outputNodes; i++) {
+            for (let j = 0; j < this.hiddenNodes; j++) {
+                this.weightsHO[i * this.hiddenNodes + j] += LEARNING_RATE * outputErrors[i] * hidden[j];
+            }
+            this.biasO[i] += LEARNING_RATE * outputErrors[i];
+        }
+
+        // Uppdatera Hidden Weights
+        for (let i = 0; i < this.hiddenNodes; i++) {
+            let gradient = dRelu(hidden[i]) * hiddenErrors[i];
+            for (let j = 0; j < this.inputNodes; j++) {
+                this.weightsIH[i * this.inputNodes + j] += LEARNING_RATE * gradient * inputs[j];
+            }
+            this.biasH[i] += LEARNING_RATE * gradient;
+        }
+    }
+}
+
+class Agent {
+    constructor(isLeft) {
+        this.brain = new NeuralNetwork(6, 16, 3); // Input: 6 (pos, ball), Hidden: 16, Output: 3 (Vänster, Höger, Hopp)
+        this.memory = [];
+        this.epsilon = 1.0; // Utforskning (100% random i början)
+        this.epsilonDecay = 0.9995;
+        this.epsilonMin = 0.05;
+        this.isLeft = isLeft;
     }
 
-    const env = new GameEnv();
-    const leftAgent = new DoubleDQNAgent('left');
-    const rightAgent = new DoubleDQNAgent('right');
-
-    let training = false;
-    let episodes = 0;
-    let rallyDurationSeconds = 30;
-    let maxSteps = Math.round(rallyDurationSeconds / DT);
-    let endlessTraining = false;
-    let stepCount = 0;
-    let episodeLeftReward = 0;
-    let episodeRightReward = 0;
-    const rewardHistory = [];
-
-    const insightsEls = {
-      gravity: document.getElementById('lbGravitySetting'),
-      rallyClock: document.getElementById('lbRallyClock'),
-      lastWinner: document.getElementById('lbLastWinner'),
-      longest: document.getElementById('lbLongestRally'),
-      average: document.getElementById('lbAverageRally'),
-      touches: document.getElementById('lbRallyTouches')
-    };
-
-    function finalizeRally(outcome){
-      lastLeftTouches = env.left.touches;
-      lastRightTouches = env.right.touches;
-      if(rallySeconds > 0){
-        totalRallySeconds += rallySeconds;
-        rallyCount++;
-        if(rallySeconds > longestRallySeconds){
-          longestRallySeconds = rallySeconds;
-        }
-      }
-      if(outcome === 'left'){
-        lastPointWinner = 'Left team';
-      } else if(outcome === 'right'){
-        lastPointWinner = 'Right team';
-      } else if(outcome === 'training'){
-        lastPointWinner = 'Training block';
-      } else {
-        lastPointWinner = 'Timeout';
-      }
-      rallySeconds = 0;
-    }
-
-    function shapeRewards(){
-      const {events} = env;
-      let leftReward = 0.002;
-      let rightReward = 0.002;
-
-      if(events.leftTouch){
-        leftReward += 0.45;
-        rightReward -= 0.05;
-      }
-      if(events.rightTouch){
-        rightReward += 0.45;
-        leftReward -= 0.05;
-      }
-      if(events.netHit){
-        if(events.netHit === 'left'){
-          leftReward -= 0.35;
-          rightReward += 0.08;
+    act(state) {
+        // Epsilon-Greedy Strategy
+        if (Math.random() < this.epsilon) {
+            return Math.floor(Math.random() * 3); // 0, 1, 2
         } else {
-          rightReward -= 0.35;
-          leftReward += 0.08;
+            let outputs = this.brain.predict(state);
+            // Hitta index för högsta värdet (argmax)
+            let maxIndex = 0;
+            if (outputs[1] > outputs[0]) maxIndex = 1;
+            if (outputs[2] > outputs[maxIndex]) maxIndex = 2;
+            return maxIndex;
         }
-      }
-      if(env.ball.lastTouchSide === 'left' && env.ball.x > NET_X){
-        leftReward += 0.12;
-      }
-      if(env.ball.lastTouchSide === 'right' && env.ball.x < NET_X){
-        rightReward += 0.12;
-      }
+    }
 
-      if(events.floorBounce){
-        if(events.floorBounce === 'left'){
-          leftReward -= 0.32;
-          rightReward += 0.08;
-        } else {
-          rightReward -= 0.32;
-          leftReward += 0.08;
+    remember(state, action, reward, nextState, done) {
+        if (this.memory.length > MEMORY_SIZE) this.memory.shift();
+        this.memory.push({state, action, reward, nextState, done});
+    }
+
+    replay() {
+        if (this.memory.length < BATCH_SIZE) return;
+        
+        // Träna på en slumpmässig batch av minnen
+        for (let i = 0; i < BATCH_SIZE; i++) {
+            let idx = Math.floor(Math.random() * this.memory.length);
+            let mem = this.memory[idx];
+            
+            let target = mem.reward;
+            if (!mem.done) {
+                let nextQ = this.brain.predict(mem.nextState);
+                let maxNextQ = Math.max(...nextQ);
+                target = mem.reward + DISCOUNT_FACTOR * maxNextQ;
+            }
+
+            let currentQs = this.brain.predict(mem.state);
+            // Vi vill bara ändra Q-värdet för den aktion vi tog, mot target
+            let targets = Float32Array.from(currentQs);
+            targets[mem.action] = target;
+
+            this.brain.train(mem.state, targets);
         }
-      }
 
-      if(events.floorSide){
-        if(events.floorSide === 'left'){
-          leftReward -= 2.5;
-          rightReward += 2.5;
-        } else {
-          rightReward -= 2.5;
-          leftReward += 2.5;
+        if (this.epsilon > this.epsilonMin) {
+            this.epsilon *= this.epsilonDecay;
         }
-      }
-
-      return {leftReward, rightReward};
     }
+}
 
-    function simulateStep(){
-      const leftState = leftAgent.stateVector(env);
-      const rightState = rightAgent.stateVector(env);
-      const leftAction = leftAgent.act(leftState, training);
-      const rightAction = rightAgent.act(rightState, training);
+/* --- SPELMOTOR --- */
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
 
-      const envLeftAction = mapActionIndex('left', leftAction);
-      const envRightAction = mapActionIndex('right', rightAction);
-      const {done} = env.step(envLeftAction, envRightAction, endlessTraining);
-      const {leftReward, rightReward} = shapeRewards();
+const GRAVITY = 0.5;
+const JUMP_FORCE = -12;
+const SPEED = 5;
+const NET_H = 180;
+const NET_X = 400;
 
-      rallySeconds += DT;
+let episodes = 0;
+let p1Score = 0;
+let p2Score = 0;
 
-      const nextLeftState = leftAgent.stateVector(env);
-      const nextRightState = rightAgent.stateVector(env);
+// Fysikobjekt
+const p1 = { x: 200, y: 450, vx: 0, vy: 0, r: 40, color: '#FF5722', grounded: false };
+const p2 = { x: 600, y: 450, vx: 0, vy: 0, r: 40, color: '#4CAF50', grounded: false };
+const ball = { x: 200, y: 200, vx: 0, vy: 0, r: 15 };
 
-      if(training){
-        leftAgent.remember({state:leftState, action:leftAction, reward:leftReward, nextState:nextLeftState, done});
-        rightAgent.remember({state:rightState, action:rightAction, reward:rightReward, nextState:nextRightState, done});
-        leftAgent.train();
-        rightAgent.train();
-      }
+// AI Agenter
+let agent1 = new Agent(true);
+let agent2 = new Agent(false);
 
-      episodeLeftReward += leftReward;
-      episodeRightReward += rightReward;
-      stepCount++;
+// Tillståndshanterare
+let currentStateP1, currentStateP2;
+let lastActionP1 = 0, lastActionP2 = 0;
 
-      const reachedStepLimit = stepCount >= maxSteps;
-      const reachedGenerationLimit = endlessTraining && rallySeconds >= rallyDurationSeconds;
-      const shouldFinalize = (!endlessTraining && (done || reachedStepLimit)) || (endlessTraining && reachedGenerationLimit);
-
-      if(shouldFinalize){
-        let outcome;
-        if(endlessTraining){
-          outcome = 'training';
-        } else if(done){
-          outcome = env.events.floorSide === 'left' ? 'right' : 'left';
-        } else {
-          outcome = 'timeout';
-        }
-        finalizeRally(outcome);
-        episodes++;
-        leftAgent.endEpisode(episodeLeftReward);
-        rightAgent.endEpisode(episodeRightReward);
-        rewardHistory.push({left:episodeLeftReward, right:episodeRightReward});
-        if(rewardHistory.length > 24) rewardHistory.shift();
-        let serveSide = null;
-        if(env.ball.lastTouchSide === 'left'){
-          serveSide = 'right';
-        } else if(env.ball.lastTouchSide === 'right'){
-          serveSide = 'left';
-        } else if(env.events.floorSide){
-          serveSide = env.events.floorSide === 'left' ? 'right' : 'left';
-        } else {
-          serveSide = Math.random() < 0.5 ? 'left' : 'right';
-        }
-        env.reset(serveSide);
-        stepCount = 0;
-        episodeLeftReward = 0;
-        episodeRightReward = 0;
-        updateStats();
-        renderChart();
-        updateInsights();
-      }
+function resetBall(winner) {
+    ball.x = winner === 1 ? 200 : 600;
+    ball.y = 100;
+    ball.vx = 0;
+    ball.vy = 0;
+    p1.x = 200; p1.y = 450; p1.vx = 0; p1.vy = 0;
+    p2.x = 600; p2.y = 450; p2.vx = 0; p2.vy = 0;
+    episodes++;
+    
+    // UI Uppdatering
+    if (!document.getElementById('fastForward').checked) {
+        document.getElementById('episodeCount').innerText = `Episod: ${episodes}`;
+        document.getElementById('scoreP1').innerText = `Poäng: ${p1Score}`;
+        document.getElementById('scoreP2').innerText = `Poäng: ${p2Score}`;
+        document.getElementById('epsilonP1').innerText = `Utforskning: ${(agent1.epsilon*100).toFixed(1)}%`;
+        document.getElementById('epsilonP2').innerText = `Utforskning: ${(agent2.epsilon*100).toFixed(1)}%`;
     }
+}
 
-    function drawEnvironment(){
-      ctx.clearRect(0, 0, FIELD_WIDTH, FIELD_HEIGHT);
-      const grd = ctx.createLinearGradient(0, 0, 0, FIELD_HEIGHT);
-      grd.addColorStop(0, '#0b1433');
-      grd.addColorStop(0.6, '#13204d');
-      grd.addColorStop(1, '#0f172a');
-      ctx.fillStyle = grd;
-      ctx.fillRect(0, 0, FIELD_WIDTH, FIELD_HEIGHT);
-
-      ctx.fillStyle = '#0f172a';
-      ctx.fillRect(0, FLOOR_Y, FIELD_WIDTH, FIELD_HEIGHT - FLOOR_Y);
-      ctx.strokeStyle = 'rgba(148,163,209,0.4)';
-      ctx.lineWidth = 4;
-      ctx.strokeRect(60, FLOOR_Y - 6, FIELD_WIDTH - 120, 8);
-
-      const netTop = FLOOR_Y - NET_HEIGHT;
-      ctx.fillStyle = 'rgba(226,232,240,0.92)';
-      ctx.fillRect(NET_X - NET_WIDTH/2, netTop, NET_WIDTH, NET_HEIGHT);
-      ctx.strokeStyle = 'rgba(15,23,61,0.45)';
-      ctx.lineWidth = 3;
-      ctx.strokeRect(NET_X - NET_WIDTH/2, netTop, NET_WIDTH, NET_HEIGHT);
-
-      ctx.strokeStyle = 'rgba(148,163,209,0.25)';
-      ctx.lineWidth = 1;
-      for(let i=1;i<6;i++){
-        const y = netTop + (NET_HEIGHT / 6) * i;
-        ctx.beginPath();
-        ctx.moveTo(NET_X - NET_WIDTH/2, y);
-        ctx.lineTo(NET_X + NET_WIDTH/2, y);
-        ctx.stroke();
-      }
-    }
-
-    function drawScene(){
-      drawEnvironment();
-      env.left.draw(ctx);
-      env.right.draw(ctx);
-      env.ball.draw(ctx);
-    }
-
-    function renderChart(){
-      const chart = document.getElementById('rewardChart');
-      chart.innerHTML = '';
-      if(rewardHistory.length === 0){
-        chart.classList.add('is-empty');
-        return;
-      }
-      chart.classList.remove('is-empty');
-      const maxReward = Math.max(...rewardHistory.map(entry => Math.max(Math.abs(entry.left), Math.abs(entry.right), 0.1)));
-      rewardHistory.forEach((entry, index)=>{
-        const leftBar = document.createElement('div');
-        leftBar.className = 'fitness-bar';
-        leftBar.style.height = `${clamp(Math.abs(entry.left) / (maxReward || 1), 0, 1) * 100}%`;
-        leftBar.title = `Episode ${episodes - rewardHistory.length + index + 1} – Left reward ${entry.left.toFixed(2)}`;
-        leftBar.innerHTML = `<span>L${episodes - rewardHistory.length + index + 1}</span><small>${entry.left.toFixed(1)}</small>`;
-        chart.appendChild(leftBar);
-
-        const rightBar = document.createElement('div');
-        rightBar.className = 'fitness-bar fitness-bar--emerald';
-        rightBar.style.height = `${clamp(Math.abs(entry.right) / (maxReward || 1), 0, 1) * 100}%`;
-        rightBar.title = `Episode ${episodes - rewardHistory.length + index + 1} – Right reward ${entry.right.toFixed(2)}`;
-        rightBar.innerHTML = `<span>R${episodes - rewardHistory.length + index + 1}</span><small>${entry.right.toFixed(1)}</small>`;
-        chart.appendChild(rightBar);
-      });
-    }
-
-    function updateStats(){
-      document.getElementById('lbEpisodes').textContent = episodes.toString();
-      const leftAvg = leftAgent.episodes ? leftAgent.totalReward / leftAgent.episodes : 0;
-      const rightAvg = rightAgent.episodes ? rightAgent.totalReward / rightAgent.episodes : 0;
-      document.getElementById('lbLeftReward').textContent = leftAvg.toFixed(2);
-      document.getElementById('lbRightReward').textContent = rightAvg.toFixed(2);
-      document.getElementById('lbLeftEpsilon').textContent = leftAgent.epsilon.toFixed(2);
-      document.getElementById('lbRightEpsilon').textContent = rightAgent.epsilon.toFixed(2);
-    }
-
-    function updateInsights(){
-      if(insightsEls.gravity){
-        insightsEls.gravity.textContent = `${Math.round(GRAVITY)} px/s²`;
-      }
-      if(insightsEls.rallyClock){
-        insightsEls.rallyClock.textContent = `${rallySeconds.toFixed(2)} s`;
-      }
-      if(insightsEls.lastWinner){
-        insightsEls.lastWinner.textContent = lastPointWinner;
-      }
-      if(insightsEls.longest){
-        insightsEls.longest.textContent = `${longestRallySeconds.toFixed(2)} s`;
-      }
-      if(insightsEls.average){
-        const avg = rallyCount ? totalRallySeconds / rallyCount : 0;
-        insightsEls.average.textContent = `${avg.toFixed(2)} s`;
-      }
-      if(insightsEls.touches){
-        const liveLeft = env.left ? env.left.touches : 0;
-        const liveRight = env.right ? env.right.touches : 0;
-        insightsEls.touches.textContent = `L:${liveLeft} / R:${liveRight}`;
-        insightsEls.touches.title = `Last rally L:${lastLeftTouches} / R:${lastRightTouches}`;
-      }
-    }
-
-    const simSpeedInput = document.getElementById('slSimSpeed');
-    let simSpeed = simSpeedInput ? parseInt(simSpeedInput.value, 10) : 1;
-
-    const endlessCheckbox = document.getElementById('cbEndlessRally');
-    if(endlessCheckbox){
-      endlessTraining = endlessCheckbox.checked;
-      endlessCheckbox.addEventListener('change', () => {
-        endlessTraining = endlessCheckbox.checked;
-        rallySeconds = 0;
-        stepCount = 0;
-        updateInsights();
-      });
-    }
-
-    const controlBindings = [
-      ['slDqnLearningRate','lbDqnLearningRate', value => {
-        const lr = parseFloat(value);
-        leftAgent.setParams({learningRate: lr});
-        rightAgent.setParams({learningRate: lr});
-      }],
-      ['slDqnGamma','lbDqnGamma', value => {
-        const gamma = parseFloat(value);
-        leftAgent.setParams({gamma});
-        rightAgent.setParams({gamma});
-      }],
-      ['slDqnEpsilon','lbDqnEpsilon', value => {
-        const epsilon = parseFloat(value);
-        leftAgent.setParams({epsilon});
-        rightAgent.setParams({epsilon});
-      }],
-      ['slDqnEpsilonDecay','lbDqnEpsilonDecay', value => {
-        const decay = parseFloat(value);
-        leftAgent.setParams({epsilonDecay: decay});
-        rightAgent.setParams({epsilonDecay: decay});
-      }],
-      ['slTargetSync','lbTargetSync', value => {
-        const steps = Math.max(20, parseInt(value, 10));
-        leftAgent.setParams({targetSync: steps});
-        rightAgent.setParams({targetSync: steps});
-      }],
-      ['slBatchSize','lbBatchSize', value => {
-        const batch = Math.max(4, parseInt(value, 10));
-        leftAgent.setParams({batchSize: batch});
-        rightAgent.setParams({batchSize: batch});
-      }],
-      ['slJumpHeight','lbJumpHeight', value => { PLAYER_JUMP = parseFloat(value); }],
-      ['slArmReach','lbArmReach', value => {
-        PLAYER_REACH = parseFloat(value);
-        if(!training){
-          env.ball.reset(env.serveSide, env.left, env.right);
-        }
-      }],
-      ['slGravity','lbGravity', value => { GRAVITY = parseFloat(value); }],
-      ['slGenerationSeconds','lbGenerationSeconds', value => {
-        rallyDurationSeconds = parseInt(value, 10);
-        maxSteps = Math.max(60, Math.round(rallyDurationSeconds / DT));
-      }],
-      ['slSimSpeed','lbSimSpeed', value => { simSpeed = parseInt(value, 10); }]
+function getState(p, opponent, b) {
+    // Normalisera värden mellan -1 och 1 för neurala nätverket
+    return [
+        (p.x - NET_X) / 400, // Relativ position till nät
+        (p.y) / 450,
+        (p.vx) / 10,
+        (p.vy) / 15,
+        (b.x - p.x) / 800, // Bollens position relativt mig
+        (b.y - p.y) / 450
     ];
+}
 
-    controlBindings.forEach(([inputId, labelId, handler]) => {
-      const input = document.getElementById(inputId);
-      const label = document.getElementById(labelId);
-      if(!input || !label) return;
-      const update = () => {
-        if(inputId === 'slSimSpeed'){
-          label.textContent = `${input.value}×`;
-        } else if(inputId === 'slGenerationSeconds'){
-          label.textContent = `${parseInt(input.value, 10)} s`;
-        } else if(inputId === 'slJumpHeight' || inputId === 'slArmReach'){
-          label.textContent = `${Math.round(parseFloat(input.value))} px`;
-        } else if(inputId === 'slGravity'){
-          label.textContent = `${Math.round(parseFloat(input.value))} px/s²`;
+function updatePhysics() {
+    /* --- SPELARE 1 --- */
+    currentStateP1 = getState(p1, p2, ball);
+    lastActionP1 = agent1.act(currentStateP1);
+
+    // Utför Action (0: Stilla, 1: Vänster, 2: Höger, Hoppa om möjligt)
+    if (lastActionP1 === 1) p1.vx = -SPEED;
+    else if (lastActionP1 === 2) p1.vx = SPEED;
+    else p1.vx = 0;
+    
+    // Hoppa alltid om AI väljer "Hopp" (action 0 kan vara hoppa också i vissa tolkningar, men låt oss säga att action 0 är "inget/hopp")
+    // För enkelhetens skull i RL: 0=Vänster, 1=Höger, 2=Hopp
+    // Låt oss mappa om:
+    if (lastActionP1 === 0) p1.vx = -SPEED; 
+    if (lastActionP1 === 1) p1.vx = SPEED;
+    if (lastActionP1 === 2 && p1.grounded) { p1.vy = JUMP_FORCE; p1.grounded = false; }
+
+    /* --- SPELARE 2 --- */
+    currentStateP2 = getState(p2, p1, ball);
+    lastActionP2 = agent2.act(currentStateP2);
+    
+    if (lastActionP2 === 0) p2.vx = -SPEED; 
+    if (lastActionP2 === 1) p2.vx = SPEED;
+    if (lastActionP2 === 2 && p2.grounded) { p2.vy = JUMP_FORCE; p2.grounded = false; }
+
+    // Applicera fysik på spelare
+    applyPlayerPhysics(p1);
+    applyPlayerPhysics(p2);
+
+    // Begränsa spelare till sin planhalva
+    if (p1.x > NET_X - p1.r) p1.x = NET_X - p1.r;
+    if (p1.x < p1.r) p1.x = p1.r;
+    if (p2.x < NET_X + p2.r) p2.x = NET_X + p2.r;
+    if (p2.x > 800 - p2.r) p2.x = 800 - p2.r;
+
+    /* --- BOLLFYSIK --- */
+    ball.x += ball.vx;
+    ball.y += ball.vy;
+    ball.vy += GRAVITY * 0.8;
+
+    // Kollision Spelare-Boll
+    let r1 = checkCollision(p1, ball);
+    let r2 = checkCollision(p2, ball);
+
+    // Väggstuds
+    if (ball.x < ball.r) { ball.x = ball.r; ball.vx *= -0.8; }
+    if (ball.x > 800 - ball.r) { ball.x = 800 - ball.r; ball.vx *= -0.8; }
+    if (ball.y < ball.r) { ball.y = ball.r; ball.vy *= -0.8; }
+
+    // Nätkollision
+    if (ball.x > NET_X - ball.r && ball.x < NET_X + ball.r && ball.y > 450 - NET_H) {
+        // Studsa bort
+        if (ball.y < 450 - NET_H + 10) {
+            ball.vy *= -0.8; ball.y = 450 - NET_H - ball.r; // Toppstuds
         } else {
-          const step = Math.abs(parseFloat(input.step || '1'));
-          let decimals = 0;
-          if(step && step < 1){
-            if(step < 0.001){
-              decimals = 4;
-            } else if(step < 0.01){
-              decimals = 3;
-            } else if(step < 0.1){
-              decimals = 2;
-            } else {
-              decimals = 1;
-            }
-          }
-          label.textContent = parseFloat(input.value).toFixed(decimals);
+            ball.vx *= -0.8; // Sidostuds
+            if (ball.x < NET_X) ball.x = NET_X - ball.r - 2;
+            else ball.x = NET_X + ball.r + 2;
         }
-        handler(input.value);
-        updateStats();
-        updateInsights();
-      };
-      input.addEventListener('input', update);
-      update();
-    });
-
-    document.getElementById('btnToggleTraining').addEventListener('click', () => {
-      training = !training;
-      document.getElementById('btnToggleTraining').textContent = training ? 'Pause training' : 'Start training';
-    });
-
-    document.getElementById('btnReset').addEventListener('click', () => {
-      training = false;
-      document.getElementById('btnToggleTraining').textContent = 'Start training';
-      leftAgent.reset();
-      rightAgent.reset();
-      episodes = 0;
-      rewardHistory.length = 0;
-      env.reset('left');
-      stepCount = 0;
-      episodeLeftReward = 0;
-      episodeRightReward = 0;
-      rallySeconds = 0;
-      totalRallySeconds = 0;
-      rallyCount = 0;
-      longestRallySeconds = 0;
-      lastPointWinner = '—';
-      lastLeftTouches = 0;
-      lastRightTouches = 0;
-      updateStats();
-      renderChart();
-      updateInsights();
-    });
-
-    updateStats();
-    renderChart();
-
-    updateInsights();
-
-    function loop(){
-      requestAnimationFrame(loop);
-      for(let i=0;i<simSpeed;i++){
-        if(training){
-          simulateStep();
-        }
-      }
-      drawScene();
-      updateInsights();
     }
 
-    loop();
-  </script>
+    /* --- BELÖNING & TRÄNING --- */
+    // Standardbelöning för att överleva (liten)
+    let reward1 = 0.01; 
+    let reward2 = 0.01;
+    let done = false;
+
+    // Belöning för att nudda boll
+    if (r1) reward1 += 0.5;
+    if (r2) reward2 += 0.5;
+
+    // Straff för att gå för långt från bollen (Shaping)
+    reward1 -= Math.abs(ball.x - p1.x) * 0.0001;
+    reward2 -= Math.abs(ball.x - p2.x) * 0.0001;
+
+    // Poäng / Game Over
+    if (ball.y + ball.r > 450) {
+        done = true;
+        if (ball.x < NET_X) {
+            // P1 tappade bollen
+            reward1 = -1;
+            reward2 = 1; // P2 vann
+            p2Score++;
+            resetBall(1);
+        } else {
+            // P2 tappade bollen
+            reward1 = 1; // P1 vann
+            reward2 = -1;
+            p1Score++;
+            resetBall(2);
+        }
+    }
+
+    // Träna Agenterna
+    let nextStateP1 = getState(p1, p2, ball);
+    let nextStateP2 = getState(p2, p1, ball);
+
+    agent1.remember(currentStateP1, lastActionP1, reward1, nextStateP1, done);
+    agent2.remember(currentStateP2, lastActionP2, reward2, nextStateP2, done);
+
+    agent1.replay();
+    agent2.replay();
+}
+
+function applyPlayerPhysics(p) {
+    p.vy += GRAVITY;
+    p.x += p.vx;
+    p.y += p.vy;
+    
+    // Golv
+    if (p.y > 450 - p.r) {
+        p.y = 450 - p.r;
+        p.vy = 0;
+        p.grounded = true;
+    }
+}
+
+function checkCollision(p, b) {
+    let dx = b.x - p.x;
+    let dy = b.y - p.y;
+    let dist = Math.sqrt(dx*dx + dy*dy);
+
+    if (dist < p.r + b.r) {
+        // Vektorlogik för studs
+        let angle = Math.atan2(dy, dx);
+        let sin = Math.sin(angle);
+        let cos = Math.cos(angle);
+
+        // Flytta ut boll
+        let overlap = (p.r + b.r) - dist;
+        b.x += cos * overlap;
+        b.y += sin * overlap;
+
+        // Enkel momentumöverföring (Smash-känsla)
+        b.vx = cos * 14 + p.vx * 0.5;
+        b.vy = sin * 14 + p.vy * 0.5 - 2; // Extra lyft
+        
+        // Maxhastighet
+        let s = Math.sqrt(b.vx*b.vx + b.vy*b.vy);
+        if(s > 18) {
+            b.vx = (b.vx/s)*18;
+            b.vy = (b.vy/s)*18;
+        }
+        return true; // Träff
+    }
+    return false;
+}
+
+/* --- RENDERING --- */
+function draw() {
+    // Rensa
+    ctx.fillStyle = '#222';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Bakgrund (Himmel/Golv)
+    ctx.fillStyle = '#4fc3f7';
+    ctx.fillRect(0, 0, 800, 350);
+    ctx.fillStyle = '#e0e0e0';
+    ctx.fillRect(0, 350, 800, 100);
+
+    // Nät
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(NET_X - 2, 450 - NET_H, 4, NET_H);
+
+    // Spelare 1
+    drawSlime(p1, agent1);
+    // Spelare 2
+    drawSlime(p2, agent2);
+
+    // Boll
+    ctx.beginPath();
+    ctx.arc(ball.x, ball.y, ball.r, 0, Math.PI*2);
+    ctx.fillStyle = 'white';
+    ctx.fill();
+    ctx.strokeStyle = 'black';
+    ctx.stroke();
+}
+
+function drawSlime(p, agent) {
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.r, Math.PI, 0);
+    ctx.fillStyle = p.color;
+    ctx.fill();
+    ctx.stroke();
+    
+    // Ögon
+    let eyeOff = p === p1 ? 12 : -12;
+    ctx.fillStyle = 'white';
+    ctx.beginPath();
+    ctx.arc(p.x + eyeOff, p.y - 20, 10, 0, Math.PI*2);
+    ctx.fill();
+    
+    // Pupill (Tittar på bollen)
+    let dx = ball.x - (p.x + eyeOff);
+    let dy = ball.y - (p.y - 20);
+    let angle = Math.atan2(dy, dx);
+    ctx.fillStyle = 'black';
+    ctx.beginPath();
+    ctx.arc(p.x + eyeOff + Math.cos(angle)*4, p.y - 20 + Math.sin(angle)*4, 4, 0, Math.PI*2);
+    ctx.fill();
+
+    // Visa "Tanke" (Linje till bollen om de ser den)
+    ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+    ctx.beginPath();
+    ctx.moveTo(p.x, p.y - 20);
+    ctx.lineTo(ball.x, ball.y);
+    ctx.stroke();
+}
+
+// Huvudloop
+function loop() {
+    const fastForward = document.getElementById('fastForward').checked;
+    
+    // Om snabbspolning är på, kör vi fysikloopen många gånger per frame
+    const loops = fastForward ? 100 : 1;
+
+    for(let i=0; i<loops; i++) {
+        updatePhysics();
+    }
+
+    if (!fastForward) {
+        draw();
+    }
+
+    requestAnimationFrame(loop);
+}
+
+function resetAI() {
+    agent1 = new Agent(true);
+    agent2 = new Agent(false);
+    episodes = 0;
+    p1Score = 0;
+    p2Score = 0;
+    resetBall();
+}
+
+// Starta
+resetBall();
+loop();
+
+</script>
 </body>
 </html>
