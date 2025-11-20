@@ -163,6 +163,20 @@
     .music-attr{opacity:.72}
     .sr-only{position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0}
 
+    .chip-line{display:flex; flex-wrap:wrap; gap:8px; margin-top:12px}
+    .chip-line .chip{display:inline-flex; align-items:center; gap:6px; padding:8px 12px; border-radius:14px; border:1px solid rgba(148,163,209,.35); background:rgba(12,18,44,.65); box-shadow:0 8px 18px rgba(15,23,61,.25); font-size:12px; font-weight:700; letter-spacing:.03em; color:var(--ink)}
+    .chip .dot{width:10px; height:10px; border-radius:50%; box-shadow:0 0 12px currentColor}
+    .chip-line .chip.heat{border-color:rgba(59,130,246,.45); background:linear-gradient(120deg, rgba(56,189,248,.16), rgba(99,102,241,.18))}
+    .chip-line .chip.low{opacity:.7; filter:saturate(.75)}
+
+    .holo-feed{margin-top:12px; border:1px solid rgba(148,163,209,.28); border-radius:14px; background:rgba(8,12,32,.68); box-shadow:inset 0 0 18px rgba(59,130,246,.12); padding:12px 14px; display:grid; gap:8px}
+    .feed-item{display:grid; grid-template-columns:auto 1fr; gap:8px; align-items:center; font-size:12px; color:var(--ink)}
+    .feed-pill{display:inline-flex; align-items:center; justify-content:center; padding:4px 8px; border-radius:10px; border:1px solid rgba(148,163,209,.35); background:rgba(12,18,44,.82); font-weight:700; letter-spacing:.05em}
+    .feed-item strong{color:var(--ink)}
+    .feed-item .tone-good{color:#22d3ee}
+    .feed-item .tone-warn{color:#facc15}
+    .feed-item .tone-bad{color:#f87171}
+
     body.performance-mode{background:radial-gradient(circle at 50% 18%, rgba(59,130,246,.22) 0%, rgba(15,23,42,.9) 55%, #030513 100%);}
     body.performance-mode .brand, body.performance-mode .nav-links{display:none}
     body.performance-mode .main-nav{background:transparent; border:none; box-shadow:none; padding:20px 28px; justify-content:flex-end}
@@ -328,6 +342,8 @@
         </div>
       </section>
       <div class="layout-readout" id="layoutReadout">Drag handles are off. Enable them in Layout lab to reposition targets and the nest.</div>
+      <div class="chip-line" id="chipLine" aria-label="Ticket heat"></div>
+      <div class="holo-feed" id="eventFeed" aria-live="polite" aria-label="Live agent feed"></div>
       <section class="brain-viz brain-viz--hidden" aria-live="polite" aria-label="Best performing neural network">
         <div class="brain-head">
           <div>
@@ -644,6 +660,10 @@ const categories = [
   { id:'problem', label:'Problem', color:'#3b82f6', zone:{ x: W*0.82, y: H*0.35, r: 60 } }
 ];
 
+const pickupByType = Object.fromEntries(categories.map(c=> [c.id,0]));
+const deliveredByType = Object.fromEntries(categories.map(c=> [c.id,0]));
+const liveFeed = [];
+
 const nest = { x: W*0.5, y: H*0.12, r: 64 };
 
 const defaultLayout = {
@@ -880,7 +900,8 @@ class Ticket {
 class SortingAgent {
   constructor(genome){
     this.genome = genome;
-    this.color = '#a5b4fc';
+    this.hue = Math.floor(Math.random()*220 + 80);
+    this.color = `hsl(${this.hue},72%,74%)`;
     this.reset();
   }
   reset(){
@@ -894,6 +915,9 @@ class SortingAgent {
     this.fitness = 0;
     this.tail = Array.from({length: Math.max(4, Math.floor(params.tailLen/6))}, ()=>({x:this.x, y:this.y}));
     this.tailTimer = 0;
+    this.pickupFlash = 0;
+    this.deliveryFlash = 0;
+    this.lastTicketType = null;
   }
   think(tickets, obstacles, teammates){
     let target = null;
@@ -993,6 +1017,8 @@ class SortingAgent {
       while(this.tail.length > params.tailLen){ this.tail.shift(); }
       this.tailTimer = 0;
     }
+    this.pickupFlash = Math.max(0, this.pickupFlash - dt*0.8);
+    this.deliveryFlash = Math.max(0, this.deliveryFlash - dt*0.9);
   }
 }
 
@@ -1029,6 +1055,35 @@ function hitLayoutTarget(pos){
 
 function clampLayoutPosition(val, min=24, max=W-24){
   return Math.min(max, Math.max(min, val));
+}
+
+function pushFeed(label, message, tone='tone-good'){
+  liveFeed.unshift({label, message, tone, ts: performance.now()});
+  while(liveFeed.length > 8) liveFeed.pop();
+  renderFeed();
+}
+
+function renderFeed(){
+  const box = Q('eventFeed');
+  if(!box) return;
+  if(!liveFeed.length){
+    box.innerHTML = '<div class="feed-item"><span class="feed-pill">Calm</span><span class="tone-good">Waiting for the first pickup…</span></div>';
+    return;
+  }
+  box.innerHTML = liveFeed.map(evt=>
+    `<div class="feed-item"><span class="feed-pill">${evt.label}</span><span class="${evt.tone}">${evt.message}</span></div>`
+  ).join('');
+}
+
+function renderChips(ticketCounts){
+  const chipLine = Q('chipLine');
+  if(!chipLine) return;
+  chipLine.innerHTML = categories.map(cat=>{
+    const open = ticketCounts[cat.id] ?? 0;
+    const delivered = deliveredByType[cat.id] ?? 0;
+    const classList = open > 2 ? 'chip heat' : open === 0 ? 'chip low' : 'chip';
+    return `<span class="${classList}" style="border-color:${cat.color}66"><span class="dot" style="background:${cat.color}"></span>${cat.label}: ${open} open • ${delivered} delivered</span>`;
+  }).join('');
 }
 
 canvas.addEventListener('mousemove', (e)=>{
@@ -1163,6 +1218,10 @@ function resetGeneration(){
   stepCounter = 0;
   refreshAutoObstacles();
   for(let i=0;i<Math.min(params.maxTickets, 10); i++) spawnTicket();
+  Object.keys(pickupByType).forEach(k=> pickupByType[k] = 0);
+  Object.keys(deliveredByType).forEach(k=> deliveredByType[k] = 0);
+  liveFeed.length = 0;
+  renderFeed();
 }
 
 function deliver(agent, zoneCat){
@@ -1170,9 +1229,13 @@ function deliver(agent, zoneCat){
   if(agent.carrying === zoneCat.id){
     agent.fitness += params.correctReward;
     correctSorted++;
+    deliveredByType[zoneCat.id] = (deliveredByType[zoneCat.id]||0)+1;
+    agent.deliveryFlash = 1.1;
+    pushFeed(zoneCat.label, `Delivered in ${agent.carryTime.toFixed(1)}s — fitness +${params.correctReward.toFixed(2)}`, 'tone-good');
   } else {
     agent.fitness -= params.wrongPenalty;
     wrongSorted++;
+    pushFeed('Oops', `Misrouted ${agent.carrying} to ${zoneCat.label} — penalty ${params.wrongPenalty.toFixed(1)}`, 'tone-bad');
   }
   agent.carrying = null;
   agent.carryTime = 0;
@@ -1191,6 +1254,11 @@ function tryPickup(agent){
     const t = tickets.splice(targetIndex,1)[0];
     agent.carrying = t.type;
     agent.carryTime = 0;
+    agent.pickupFlash = 1.2;
+    agent.lastTicketType = t.type;
+    pickupByType[t.type] = (pickupByType[t.type]||0)+1;
+    const cat = categories.find(c=> c.id===t.type);
+    pushFeed('Pickup', `${cat?.label || 'Ticket'} locked — sprint to ${cat?.label || 'zone'}`, 'tone-warn');
   }
 }
 
@@ -1249,8 +1317,18 @@ function drawObstacle(ob){
 
 function drawAgent(agent, highlight=false){
   const size = 10 * params.agentScale;
-  const tailColor = agent.carrying ? '#facc15' : '#8b5cf6';
+  const tailColor = agent.carrying ? '#facc15' : agent.color;
   ctx.save();
+  if(agent.pickupFlash > 0 || agent.deliveryFlash > 0){
+    const halo = ctx.createRadialGradient(agent.x, agent.y, 2, agent.x, agent.y, 80 * (1+agent.deliveryFlash));
+    const alpha = Math.min(0.8, (agent.pickupFlash + agent.deliveryFlash)*0.6);
+    halo.addColorStop(0, `rgba(56,189,248,${alpha})`);
+    halo.addColorStop(1, `rgba(15,23,42,0)`);
+    ctx.fillStyle = halo;
+    ctx.beginPath();
+    ctx.arc(agent.x, agent.y, 80 * (1+agent.deliveryFlash*0.6), 0, Math.PI*2);
+    ctx.fill();
+  }
   ctx.lineWidth = 3;
   ctx.strokeStyle = 'rgba(56,189,248,0.4)';
   ctx.beginPath();
@@ -1292,6 +1370,10 @@ function drawAgent(agent, highlight=false){
     ctx.beginPath();
     ctx.rect(-6,-6,12,12);
     ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#facc15';
+    ctx.font = '9px Inter, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(agent.carrying[0].toUpperCase(), 0, 3);
     ctx.restore();
   }
   ctx.restore();
@@ -1338,6 +1420,10 @@ function draw(){
   ctx.fillStyle = '#050516';
   ctx.fillRect(0,0,W,H);
 
+  const ticketCounts = categories.reduce((acc,c)=>{acc[c.id]=0; return acc;},{});
+  for(const t of tickets){ ticketCounts[t.type] = (ticketCounts[t.type]||0)+1; }
+  renderChips(ticketCounts);
+
   if(layoutState.showGrid){
     ctx.save();
     ctx.strokeStyle = 'rgba(148,163,209,0.18)';
@@ -1352,9 +1438,9 @@ function draw(){
   }
 
   // Nest
-  const nestGrad = ctx.createRadialGradient(nest.x, nest.y, nest.r*0.1, nest.x, nest.y, nest.r);
-  nestGrad.addColorStop(0,'rgba(248,250,252,0.22)');
-  nestGrad.addColorStop(1,'rgba(59,130,246,0.08)');
+  const nestGrad = ctx.createRadialGradient(nest.x, nest.y, nest.r*0.1, nest.x, nest.y, nest.r + correctSorted*2);
+  nestGrad.addColorStop(0,'rgba(248,250,252,0.32)');
+  nestGrad.addColorStop(1,'rgba(59,130,246,0.12)');
   ctx.fillStyle = nestGrad;
   ctx.beginPath();
   ctx.arc(nest.x, nest.y, nest.r, 0, Math.PI*2);
@@ -1368,23 +1454,55 @@ function draw(){
   ctx.fillText('Nest', nest.x, nest.y+4);
 
   categories.forEach(cat=>{
-    ctx.fillStyle = `${cat.color}30`;
+    const open = ticketCounts[cat.id] || 0;
+    ctx.fillStyle = `${cat.color}${open>0 ? '38' : '24'}`;
     ctx.beginPath();
     ctx.arc(cat.zone.x, cat.zone.y, cat.zone.r, 0, Math.PI*2);
     ctx.fill();
     ctx.strokeStyle = cat.color;
-    ctx.lineWidth = 3;
+    ctx.lineWidth = 3 + open;
     ctx.stroke();
     ctx.fillStyle = '#e2e8f0';
     ctx.font = '14px Inter, sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText(cat.label, cat.zone.x, cat.zone.y+4);
+    ctx.fillText(`${cat.label} (${open} waiting)`, cat.zone.x, cat.zone.y+4);
   });
 
   manualObstacles.forEach(drawObstacle);
   tickets.forEach(drawTicket);
 
   let bestAgent = agents.reduce((p,c)=> c.fitness > (p?.fitness ?? -Infinity) ? c : p, null);
+  if(bestAgent){
+    const target = tickets.reduce((p,c)=>{
+      const d = Math.hypot(c.x-bestAgent.x, c.y-bestAgent.y);
+      return !p || d < p.d ? {t:c, d} : p;
+    }, null);
+    if(target){
+      ctx.save();
+      ctx.strokeStyle = '#38bdf8aa';
+      ctx.setLineDash([8,6]);
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(bestAgent.x, bestAgent.y);
+      ctx.lineTo(target.t.x, target.t.y);
+      ctx.stroke();
+      ctx.restore();
+    }
+    if(bestAgent.carrying){
+      const zone = categories.find(c=> c.id===bestAgent.carrying)?.zone;
+      if(zone){
+        ctx.save();
+        ctx.strokeStyle = '#facc15aa';
+        ctx.setLineDash([4,10]);
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.moveTo(bestAgent.x, bestAgent.y);
+        ctx.lineTo(zone.x, zone.y);
+        ctx.stroke();
+        ctx.restore();
+      }
+    }
+  }
   agents.forEach(agent=>{
     drawAgent(agent, bestAgent === agent);
   });
@@ -1437,21 +1555,24 @@ function updateStats(){
   }
   const brainSub = Q('brain-subtitle');
   if(brainSub){
-    brainSub.textContent = 'Agents learn to carry each ticket type to its matching zone using simple NEAT evolution.';
+    brainSub.textContent = 'Neon hints pulse harder when more tickets pile up — follow the cyan beams to see the leader think.';
   }
   const brainTeam = Q('brain-team');
   if(brainTeam){
-    brainTeam.textContent = `Best fitness this run: ${population.bestFitness.toFixed(2)}`;
+    const avg = agents.reduce((s,a)=> s+a.fitness,0)/Math.max(1, agents.length);
+    brainTeam.textContent = `Best fitness this run: ${population.bestFitness.toFixed(2)} • Avg ${avg.toFixed(2)}`;
   }
   const brainBadge = Q('brain-badge');
   if(brainBadge){
-    brainBadge.textContent = '⇄';
+    const hottest = Object.entries(pickupByType).sort((a,b)=>b[1]-a[1])[0];
+    brainBadge.textContent = hottest ? hottest[0][0].toUpperCase() : '⇄';
   }
   const brainGen = Q('brain-generation');
   if(brainGen){
     brainGen.textContent = `Generation ${population.generation}`;
   }
   updateLayoutReadout();
+  renderFeed();
 }
 
 function updateLayoutReadout(){
@@ -1460,7 +1581,8 @@ function updateLayoutReadout(){
   const cats = categories.map(c=> `${c.label}: ${c.zone.x.toFixed(0)}, ${c.zone.y.toFixed(0)} (r${c.zone.r})`).join(' • ');
   box.innerHTML = `<strong>Layout</strong> — ${cats} • Nest ${nest.x.toFixed(0)}, ${nest.y.toFixed(0)} (r${nest.r})<br>`+
     `Handles ${layoutState.dragEnabled ? 'on' : 'off'}, grid ${layoutState.showGrid ? 'on' : 'off'} @ ${layoutState.gridSize}px, `+
-    `scatter ${params.ticketScatter}px, snap ${layoutState.snap ? 'on' : 'off'}.`;
+    `scatter ${params.ticketScatter}px, snap ${layoutState.snap ? 'on' : 'off'}.<br>`+
+    `<span style="opacity:.85">Delivery streak: ${Object.entries(deliveredByType).map(([k,v])=> `${k[0].toUpperCase()}:${v}`).join(' • ')} • Pickups ${Object.values(pickupByType).reduce((s,v)=>s+v,0)}</span>`;
 }
 
 bindRange('slTickets','lbTickets',(v)=>v);
