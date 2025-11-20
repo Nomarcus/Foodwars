@@ -498,6 +498,43 @@
       display: grid;
       gap: 12px;
     }
+    .chart-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+    .muted {
+      color: var(--muted);
+    }
+    .signal-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 12px;
+      width: 100%;
+    }
+    .signal-card {
+      background: rgba(9, 12, 31, 0.75);
+      border: 1px solid rgba(148, 163, 209, 0.24);
+      border-radius: 14px;
+      padding: 12px 14px;
+      display: grid;
+      gap: 2px;
+    }
+    .signal-card .label {
+      font-size: 0.82rem;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: rgba(148, 163, 209, 0.9);
+    }
+    .signal-card .value {
+      font-size: 1.2rem;
+      font-weight: 600;
+    }
+    .signal-card small {
+      color: var(--muted);
+    }
     canvas {
       width: 100%;
       height: 220px;
@@ -648,6 +685,38 @@
             <h4 style="margin:0;">Accuracy over time</h4>
             <canvas id="accuracyChart" width="520" height="220"></canvas>
           </article>
+          <article class="chart-panel">
+            <div class="chart-header">
+              <div>
+                <h4 style="margin:0;">Learning signals</h4>
+                <p class="muted" style="margin:6px 0 0;">Watch the loss curve flatten while the active ticket confidence stabilises.</p>
+              </div>
+              <div class="signal-grid">
+                <div class="signal-card">
+                  <span class="label">Learning rate</span>
+                  <span class="value" id="learningRateValue">0.70</span>
+                  <small>Step size used for every update.</small>
+                </div>
+                <div class="signal-card">
+                  <span class="label">Latest error</span>
+                  <span class="value" id="lastErrorValue">0.000</span>
+                  <small>Positive means we under-called an incident.</small>
+                </div>
+                <div class="signal-card">
+                  <span class="label">Gradient strength</span>
+                  <span class="value" id="lastGradientValue">0.000</span>
+                  <small>How sensitive the model was at that point.</small>
+                </div>
+                <div class="signal-card">
+                  <span class="label">Weight push</span>
+                  <span class="value" id="updateDirection">Awaiting run</span>
+                  <small>Shows whether sliders moved up or down.</small>
+                </div>
+              </div>
+            </div>
+            <canvas id="learningChart" width="520" height="220"></canvas>
+            <p class="muted" style="margin:0;">Loss is plotted in orange; the blue line tracks the model’s confidence for the current ticket as training progresses.</p>
+          </article>
           <article class="panel" style="gap:16px;">
             <h4>Learning journal</h4>
             <p>Every step logs the ticket, the prediction, and whether the update pushed weights upward or downward.</p>
@@ -718,6 +787,12 @@
       const resetButton = document.getElementById("resetButton");
       const accuracyChart = document.getElementById("accuracyChart");
       const chartCtx = accuracyChart.getContext("2d");
+      const learningChart = document.getElementById("learningChart");
+      const learningCtx = learningChart.getContext("2d");
+      const learningRateValue = document.getElementById("learningRateValue");
+      const lastErrorValue = document.getElementById("lastErrorValue");
+      const lastGradientValue = document.getElementById("lastGradientValue");
+      const updateDirection = document.getElementById("updateDirection");
 
       const featureRefs = {};
       featureKeys.forEach((key) => {
@@ -801,6 +876,9 @@
       let loopId = null;
       const learningRate = 0.7;
       const accuracyHistory = [];
+      const lossHistory = [];
+      const confidenceHistory = [];
+      const historyLimit = 60;
 
       function sigmoid(x) {
         return 1 / (1 + Math.exp(-x));
@@ -821,7 +899,7 @@
         featureKeys.forEach((key, idx) => {
           weights[key] += learningRate * error * gradient * doc.normalised[idx];
         });
-        return error;
+        return { error, gradient };
       }
 
       function updateWeightCards() {
@@ -892,7 +970,7 @@
         };
       }
 
-      function drawChart() {
+      function drawAccuracyChart() {
         const width = accuracyChart.width;
         const height = accuracyChart.height;
         chartCtx.clearRect(0, 0, width, height);
@@ -925,6 +1003,54 @@
           }
         });
         chartCtx.stroke();
+      }
+
+      function drawLearningChart() {
+        const width = learningChart.width;
+        const height = learningChart.height;
+        learningCtx.clearRect(0, 0, width, height);
+        learningCtx.fillStyle = "rgba(7, 10, 28, 0.95)";
+        learningCtx.fillRect(0, 0, width, height);
+        learningCtx.strokeStyle = "rgba(148, 163, 209, 0.25)";
+        learningCtx.lineWidth = 1;
+        learningCtx.beginPath();
+        learningCtx.moveTo(40, 20);
+        learningCtx.lineTo(40, height - 30);
+        learningCtx.lineTo(width - 10, height - 30);
+        learningCtx.stroke();
+        learningCtx.font = "12px Inter, sans-serif";
+        learningCtx.fillStyle = "rgba(148, 163, 209, 0.78)";
+        learningCtx.fillText("Loss", 4, 28);
+        learningCtx.fillText("0", 20, height - 32);
+        if (lossHistory.length === 0) {
+          return;
+        }
+        const maxLoss = Math.max(...lossHistory, 0.0001);
+        learningCtx.strokeStyle = "rgba(249, 115, 22, 0.9)";
+        learningCtx.lineWidth = 2;
+        learningCtx.beginPath();
+        lossHistory.forEach((loss, idx) => {
+          const x = 40 + ((width - 60) * idx) / Math.max(1, lossHistory.length - 1);
+          const y = height - 30 - (loss / (maxLoss * 1.1)) * (height - 60);
+          if (idx === 0) {
+            learningCtx.moveTo(x, y);
+          } else {
+            learningCtx.lineTo(x, y);
+          }
+        });
+        learningCtx.stroke();
+        learningCtx.strokeStyle = "rgba(56, 189, 248, 0.9)";
+        learningCtx.beginPath();
+        confidenceHistory.forEach((confidence, idx) => {
+          const x = 40 + ((width - 60) * idx) / Math.max(1, confidenceHistory.length - 1);
+          const y = height - 30 - confidence * (height - 60);
+          if (idx === 0) {
+            learningCtx.moveTo(x, y);
+          } else {
+            learningCtx.lineTo(x, y);
+          }
+        });
+        learningCtx.stroke();
       }
 
       function addLogEntry({ iteration, doc, probability, error }) {
@@ -963,19 +1089,32 @@
         const doc = documents[indexPointer];
         const probability = predict(doc);
         focusOnDocument(indexPointer);
-        const error = updateWeights(doc, probability);
+        const { error, gradient } = updateWeights(doc, probability);
         iteration += 1;
         updateDocumentCards(indexPointer);
         updateWeightCards();
         const metrics = computeMetrics();
         accuracyHistory.push(metrics.accuracy);
-        if (accuracyHistory.length > 60) {
+        lossHistory.push(metrics.loss);
+        confidenceHistory.push(probability);
+        if (accuracyHistory.length > historyLimit) {
           accuracyHistory.shift();
+        }
+        if (lossHistory.length > historyLimit) {
+          lossHistory.shift();
+        }
+        if (confidenceHistory.length > historyLimit) {
+          confidenceHistory.shift();
         }
         iterationCount.textContent = iteration;
         accuracyValue.textContent = `${Math.round(metrics.accuracy * 100)}%`;
         lossValue.textContent = metrics.loss.toFixed(3);
-        drawChart();
+        learningRateValue.textContent = learningRate.toFixed(2);
+        lastErrorValue.textContent = error.toFixed(3);
+        lastGradientValue.textContent = gradient.toFixed(3);
+        updateDirection.textContent = error >= 0 ? "Pushing weights up" : "Sliding weights down";
+        drawAccuracyChart();
+        drawLearningChart();
         addLogEntry({ iteration, doc, probability, error });
         statusText.textContent = "The AI is learning from the tickets.";
         updateTimeline(indexPointer);
@@ -994,12 +1133,19 @@
           weights[key] = 0;
         });
         accuracyHistory.length = 0;
+        lossHistory.length = 0;
+        confidenceHistory.length = 0;
         updateWeightCards();
         iterationCount.textContent = "0";
         accuracyValue.textContent = "0%";
         lossValue.textContent = "0.000";
         logContainer.innerHTML = "";
-        drawChart();
+        learningRateValue.textContent = learningRate.toFixed(2);
+        lastErrorValue.textContent = "0.000";
+        lastGradientValue.textContent = "0.000";
+        updateDirection.textContent = "Awaiting run";
+        drawAccuracyChart();
+        drawLearningChart();
         decisionIndicator.style.left = "50%";
         decisionIndicator.textContent = "50%";
         decisionNote.textContent = "The model hasn’t read anything yet, so it sits in the middle.";
