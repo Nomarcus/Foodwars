@@ -466,6 +466,9 @@
             <div class="label">Ticket (max)</div>
             <input id="slTickets" type="range" min="2" max="1000" value="32"><div class="val" id="lbTickets">32</div>
 
+            <div class="label">Population</div>
+            <input id="slPopulation" type="range" min="5" max="180" value="30"><div class="val" id="lbPopulation">30</div>
+
             <div class="label" id="ticketPlacementLabel">Ticket placement</div>
             <div class="ticket-placement-options" role="group" aria-labelledby="ticketPlacementLabel">
               <label class="ticket-placement-option">
@@ -578,20 +581,37 @@ const categories = [
   { id:'problem', label:'Problem', color:'#3b82f6', zone:{ x: W*0.82, y: H*0.35, r: 60 } }
 ];
 
+const nest = { x: W*0.5, y: H*0.12, r: 64 };
+
 const params = {
   maxTickets: 32,
   spawnMs: 900,
   simSpeed: 1,
-  generationMs: 45000,
+  tailLen: 24,
+  agentScale: 1,
+  agentCollisions: false,
+  topHighlight: true,
+  maxObstacles: 0,
+  generationSteps: 2800,
   populationSize: 30,
-  mutationRate: 0.1,
-  elitism: 0.2,
   accel: 90,
   maxSpeed: 110,
   turnRate: 4.2,
   idlePenalty: 0.0004,
   wrongPenalty: 1.0,
   correctReward: 1.0,
+};
+
+const learn = {
+  hidden: 16,
+  mut: 0.16,
+  elite: 0.20,
+  mutStrengthW: 0.20,
+  mutStrengthB: 0.20,
+  crossoverBias: 0.50,
+  tournamentFactor: 2.0,
+  fresh: 0,
+  auto: true,
 };
 
 function bindRange(sliderId, labelId, fmt=(v)=>v){
@@ -601,6 +621,7 @@ function bindRange(sliderId, labelId, fmt=(v)=>v){
   const apply = ()=>{
     label.textContent = fmt(+slider.value);
     readParams();
+    readLearnParams();
   };
   slider.addEventListener('input', apply);
   apply();
@@ -610,53 +631,121 @@ function readParams(){
   const ticketSlider = Q('slTickets');
   const spawnSlider = Q('slSpawn');
   const speedSlider = Q('slSimSpeed');
+  const tailSlider = Q('slTail');
+  const scaleSlider = Q('slAgentScale');
+  const popSlider = Q('slPopulation');
+  const collideToggle = Q('chkAgentCollisions');
+  const topToggle = Q('chkTopHighlight');
+  const obstSlider = Q('slObst');
   params.maxTickets = ticketSlider ? +ticketSlider.value : params.maxTickets;
   params.spawnMs = spawnSlider ? +spawnSlider.value : params.spawnMs;
   params.simSpeed = speedSlider ? (+speedSlider.value / 100) : params.simSpeed;
+  params.tailLen = tailSlider ? +tailSlider.value : params.tailLen;
+  params.agentScale = scaleSlider ? (+scaleSlider.value / 100) : params.agentScale;
+  params.populationSize = popSlider ? +popSlider.value : params.populationSize;
+  params.agentCollisions = collideToggle ? collideToggle.checked : params.agentCollisions;
+  params.topHighlight = topToggle ? topToggle.checked : params.topHighlight;
+  params.maxObstacles = obstSlider ? +obstSlider.value : params.maxObstacles;
+  refreshAutoObstacles();
 }
+
+function readLearnParams(){
+  const stepSlider = Q('slGenSteps');
+  const hiddenSlider = Q('slHidden');
+  const mutSlider = Q('slMut');
+  const eliteSlider = Q('slElite');
+  const mutW = Q('slMutStrengthW');
+  const mutB = Q('slMutStrengthB');
+  const cross = Q('slCrossover');
+  const tour = Q('slTournament');
+  const fresh = Q('slFresh');
+  const auto = Q('chkAuto');
+  learn.hidden = hiddenSlider ? +hiddenSlider.value : learn.hidden;
+  learn.mut = mutSlider ? (+mutSlider.value/100) : learn.mut;
+  learn.elite = eliteSlider ? (+eliteSlider.value/100) : learn.elite;
+  learn.mutStrengthW = mutW ? (+mutW.value/100) : learn.mutStrengthW;
+  learn.mutStrengthB = mutB ? (+mutB.value/100) : learn.mutStrengthB;
+  learn.crossoverBias = cross ? (+cross.value/100) : learn.crossoverBias;
+  learn.tournamentFactor = tour ? (+tour.value/10) : learn.tournamentFactor;
+  learn.fresh = fresh ? (+fresh.value/100) : learn.fresh;
+  learn.auto = auto ? auto.checked : learn.auto;
+  params.generationSteps = stepSlider ? +stepSlider.value : params.generationSteps;
+}
+
+function bindToggle(toggleId, labelId, onText='on', offText='off'){
+  const el = Q(toggleId);
+  const label = Q(labelId);
+  if(!el || !label) return;
+  const apply = ()=>{
+    label.textContent = el.checked ? onText : offText;
+    readParams();
+    readLearnParams();
+  };
+  el.addEventListener('change', apply);
+  apply();
+}
+
+function readTicketPlacements(){
+  const boxes = document.querySelectorAll('input[name="ticketPlacement"]');
+  const active = Array.from(boxes).filter(b=>b.checked).map(b=>b.value);
+  return active.length ? active : ['random'];
+}
+
+const INPUT_COUNT = 24;
+const OUTPUT_COUNT = 2;
 
 class Genome {
   constructor(){
-    this.inputSize = 16;
-    this.hiddenSize = 18;
-    this.outputSize = 2; // turn, thrust
-    const total = (this.inputSize * this.hiddenSize) + (this.hiddenSize * this.outputSize);
-    this.weights = Array.from({length: total}, () => Math.random()*2 - 1);
+    this.inputSize = INPUT_COUNT;
+    this.hiddenSize = learn.hidden;
+    this.outputSize = OUTPUT_COUNT; // turn, thrust
+    this.weights1 = Array.from({length: this.inputSize * this.hiddenSize}, () => Math.random()*2 - 1);
+    this.weights2 = Array.from({length: this.hiddenSize * this.outputSize}, () => Math.random()*2 - 1);
+    this.biasH = Array.from({length:this.hiddenSize}, ()=> Math.random()*0.4-0.2);
+    this.biasO = Array.from({length:this.outputSize}, ()=> Math.random()*0.4-0.2);
     this.fitness = 0;
   }
   activate(inputs){
-    const hidden = [];
+    const hidden = new Array(this.hiddenSize);
     let w = 0;
     for(let h=0; h<this.hiddenSize; h++){
-      let sum = 0;
-      for(let i=0; i<this.inputSize; i++) sum += inputs[i] * this.weights[w++];
-      hidden.push(Math.tanh(sum));
+      let sum = this.biasH[h];
+      for(let i=0; i<this.inputSize; i++) sum += inputs[i] * this.weights1[w++];
+      hidden[h] = Math.tanh(sum);
     }
     const outputs = [];
+    w = 0;
     for(let o=0; o<this.outputSize; o++){
-      let sum = 0;
-      for(let h=0; h<this.hiddenSize; h++) sum += hidden[h] * this.weights[w++];
+      let sum = this.biasO[o];
+      for(let h=0; h<this.hiddenSize; h++) sum += hidden[h] * this.weights2[w++];
       outputs.push(Math.tanh(sum));
     }
     return outputs;
   }
   mutate(rate){
-    for(let i=0;i<this.weights.length;i++){
-      if(Math.random() < rate){
-        if(Math.random() < 0.12){
-          this.weights[i] = Math.random()*2 - 1;
-        } else {
-          this.weights[i] += (Math.random()-0.5)*0.6;
-          this.weights[i] = Math.max(-2, Math.min(2, this.weights[i]));
+    const mutateArray = (arr, strength)=>{
+      for(let i=0;i<arr.length;i++){
+        if(Math.random() < rate){
+          if(Math.random() < learn.mut*0.5){
+            arr[i] = Math.random()*2 - 1;
+          } else {
+            arr[i] += (Math.random()-0.5) * strength * 2;
+            arr[i] = Math.max(-2.5, Math.min(2.5, arr[i]));
+          }
         }
       }
-    }
+    };
+    mutateArray(this.weights1, learn.mutStrengthW);
+    mutateArray(this.weights2, learn.mutStrengthW);
+    mutateArray(this.biasH, learn.mutStrengthB);
+    mutateArray(this.biasO, learn.mutStrengthB);
   }
   crossover(other){
     const child = new Genome();
-    for(let i=0;i<this.weights.length;i++){
-      child.weights[i] = Math.random() < 0.5 ? this.weights[i] : other.weights[i];
-    }
+    for(let i=0;i<this.weights1.length;i++) child.weights1[i] = Math.random() < learn.crossoverBias ? this.weights1[i] : other.weights1[i];
+    for(let i=0;i<this.weights2.length;i++) child.weights2[i] = Math.random() < learn.crossoverBias ? this.weights2[i] : other.weights2[i];
+    for(let i=0;i<this.biasH.length;i++) child.biasH[i] = Math.random() < learn.crossoverBias ? this.biasH[i] : other.biasH[i];
+    for(let i=0;i<this.biasO.length;i++) child.biasO[i] = Math.random() < learn.crossoverBias ? this.biasO[i] : other.biasO[i];
     return child;
   }
 }
@@ -670,26 +759,31 @@ class Population {
   evolve(){
     this.genomes.sort((a,b)=> b.fitness - a.fitness);
     this.bestFitness = Math.max(this.bestFitness, this.genomes[0].fitness);
-    const eliteCount = Math.max(1, Math.floor(this.genomes.length * params.elitism));
-    const next = this.genomes.slice(0, eliteCount);
-    while(next.length < this.genomes.length){
+    const eliteCount = Math.max(1, Math.floor(this.genomes.length * learn.elite));
+    const freshCount = Math.max(0, Math.floor(this.genomes.length * learn.fresh));
+    const next = this.genomes.slice(0, eliteCount).map(g=>g);
+    const target = this.genomes.length;
+    while(next.length < target - freshCount){
       const p1 = this.selectParent();
       const p2 = this.selectParent();
       const child = p1.crossover(p2);
-      child.mutate(params.mutationRate);
+      child.mutate(learn.mut);
       next.push(child);
     }
-    this.genomes = next;
+    while(next.length < target){
+      next.push(new Genome());
+    }
+    this.genomes = next.slice(0, target);
     this.generation++;
   }
   selectParent(){
-    const total = this.genomes.reduce((s,g)=> s + Math.max(0.0001, g.fitness+2), 0);
-    let r = Math.random()*total;
-    for(const g of this.genomes){
-      r -= Math.max(0.0001, g.fitness+2);
-      if(r <= 0) return g;
+    const k = Math.max(2, Math.floor(learn.tournamentFactor));
+    let best = null;
+    for(let i=0;i<k;i++){
+      const contender = this.genomes[Math.floor(Math.random()*this.genomes.length)];
+      if(!best || contender.fitness > best.fitness) best = contender;
     }
-    return this.genomes[0];
+    return best || this.genomes[0];
   }
 }
 
@@ -704,19 +798,22 @@ class Ticket {
 class SortingAgent {
   constructor(genome){
     this.genome = genome;
+    this.color = '#a5b4fc';
     this.reset();
   }
   reset(){
-    this.x = Math.random()*W*0.6 + W*0.2;
-    this.y = Math.random()*H*0.6 + H*0.2;
+    this.x = nest.x + (Math.random()*2-1) * nest.r * 0.45;
+    this.y = nest.y + (Math.random()*2-1) * nest.r * 0.35;
     this.vx = 0;
     this.vy = 0;
-    this.angle = Math.random()*Math.PI*2;
+    this.angle = Math.PI/2 + (Math.random()*0.6 - 0.3);
     this.carrying = null;
     this.carryTime = 0;
     this.fitness = 0;
+    this.tail = Array.from({length: Math.max(4, Math.floor(params.tailLen/6))}, ()=>({x:this.x, y:this.y}));
+    this.tailTimer = 0;
   }
-  think(tickets){
+  think(tickets, obstacles, teammates){
     let target = null;
     let distToTicket = Infinity;
     for(const t of tickets){
@@ -744,20 +841,59 @@ class SortingAgent {
     }
     const carryingFlags = categories.map(cat=> this.carrying === cat.id ? 1 : 0);
     inputs.push(...carryingFlags);
+
+    // Separation / avoidance
+    let sepX = 0, sepY = 0;
+    for(const mate of teammates){
+      if(mate === this) continue;
+      const dx = this.x - mate.x;
+      const dy = this.y - mate.y;
+      const d2 = dx*dx + dy*dy;
+      if(d2 < 1) continue;
+      if(d2 < 900){
+        const inv = 1/Math.sqrt(d2);
+        sepX += dx * inv;
+        sepY += dy * inv;
+      }
+    }
+    const obs = obstacleForce(this, obstacles);
     inputs.push(this.vx/params.maxSpeed);
     inputs.push(this.vy/params.maxSpeed);
+    inputs.push(sepX*0.01);
+    inputs.push(sepY*0.01);
+    inputs.push(obs.x);
+    inputs.push(obs.y);
+    inputs.push((nest.x - this.x)/W);
+    inputs.push((nest.y - this.y)/H);
+    inputs.push(Math.min(1, this.carryTime/8));
+    inputs.push(Math.min(1, tickets.length / Math.max(1, params.maxTickets)));
     return this.genome.activate(inputs);
   }
-  update(dt, tickets){
-    const [turn, thrustRaw] = this.think(tickets);
+  update(dt, tickets, obstacles, teammates){
+    const [turn, thrustRaw] = this.think(tickets, obstacles, teammates);
     const thrust = (thrustRaw+1)/2;
     this.angle += turn * params.turnRate * dt;
-    this.vx += Math.cos(this.angle) * thrust * params.accel * dt;
-    this.vy += Math.sin(this.angle) * thrust * params.accel * dt;
+    this.vx += (Math.cos(this.angle) * thrust * params.accel + 18*obstacleForce(this, obstacles).x) * dt;
+    this.vy += (Math.sin(this.angle) * thrust * params.accel + 18*obstacleForce(this, obstacles).y) * dt;
     const speed = Math.hypot(this.vx, this.vy);
     if(speed > params.maxSpeed){
       const scale = params.maxSpeed / speed;
       this.vx *= scale; this.vy *= scale;
+    }
+    // Soft collision separation
+    if(params.agentCollisions){
+      for(const mate of teammates){
+        if(mate === this) continue;
+        const dx = this.x - mate.x;
+        const dy = this.y - mate.y;
+        const dist = Math.hypot(dx, dy);
+        const minD = 10 * params.agentScale;
+        if(dist > 0 && dist < minD){
+          const push = (minD - dist) * 0.6;
+          this.vx += (dx/dist) * push;
+          this.vy += (dy/dist) * push;
+        }
+      }
     }
     this.x += this.vx * dt;
     this.y += this.vy * dt;
@@ -767,6 +903,13 @@ class SortingAgent {
     if(this.carrying){
       this.carryTime += dt;
       this.fitness -= params.idlePenalty * dt;
+    }
+
+    this.tailTimer += dt;
+    if(this.tailTimer > 0.01){
+      this.tail.push({x:this.x, y:this.y});
+      while(this.tail.length > params.tailLen){ this.tail.shift(); }
+      this.tailTimer = 0;
     }
   }
 }
@@ -779,13 +922,89 @@ let generationTimer = 0;
 let correctSorted = 0;
 let wrongSorted = 0;
 let bestFitness = 0;
+let manualObstacles = [];
+let currentTool = 'select';
+let drawingState = null;
+let stepCounter = 0;
+
+const canvasRect = ()=> canvas.getBoundingClientRect();
+function pointerPos(evt){
+  const r = canvasRect();
+  const scaleX = canvas.width / r.width;
+  const scaleY = canvas.height / r.height;
+  return { x:(evt.clientX - r.left)*scaleX, y:(evt.clientY - r.top)*scaleY };
+}
+
+function setTool(tool){
+  currentTool = tool;
+  document.querySelectorAll('.tool-btn').forEach(btn=>{
+    const active = btn.dataset.tool === tool;
+    btn.classList.toggle('active', active);
+    btn.setAttribute('aria-pressed', active);
+  });
+}
+
+function obstacleForce(agent, obstacles){
+  let fx = 0, fy = 0;
+  for(const ob of obstacles){
+    let dx = 0, dy = 0, dist = 0;
+    if(ob.type === 'circle'){
+      dx = agent.x - ob.x; dy = agent.y - ob.y; dist = Math.hypot(dx, dy) - ob.r;
+    } else if(ob.type === 'rect'){
+      const cx = Math.min(Math.max(agent.x, ob.x), ob.x+ob.w);
+      const cy = Math.min(Math.max(agent.y, ob.y), ob.y+ob.h);
+      dx = agent.x - cx; dy = agent.y - cy; dist = Math.hypot(dx, dy) - 6;
+    } else if(ob.type === 'line'){
+      const vx = ob.x2 - ob.x1; const vy = ob.y2 - ob.y1;
+      const len2 = vx*vx + vy*vy || 1;
+      const t = Math.max(0, Math.min(1, ((agent.x - ob.x1)*vx + (agent.y - ob.y1)*vy)/len2));
+      const cx = ob.x1 + t*vx; const cy = ob.y1 + t*vy;
+      dx = agent.x - cx; dy = agent.y - cy; dist = Math.hypot(dx, dy) - 8;
+    } else if(ob.type === 'half'){
+      dx = agent.x - ob.x; dy = agent.y - ob.y; const ang = Math.atan2(dy, dx);
+      const diff = Math.abs(((ang - ob.angle + Math.PI) % (Math.PI*2)) - Math.PI);
+      if(diff < Math.PI/2){
+        dist = Math.hypot(dx, dy) - ob.r;
+      } else {
+        continue;
+      }
+    }
+    if(dist < 28){
+      const inv = Math.max(0.0001, (28 - dist))/28;
+      const mag = inv*inv;
+      fx += (dx||0) * mag * 0.04;
+      fy += (dy||0) * mag * 0.04;
+    }
+  }
+  return {x:fx, y:fy};
+}
+
+function refreshAutoObstacles(){
+  manualObstacles = manualObstacles.filter(o=>!o.auto);
+  for(let i=manualObstacles.length; i<params.maxObstacles; i++){
+    manualObstacles.push({
+      type:'circle',
+      x: Math.random()*W*0.8 + W*0.1,
+      y: Math.random()*H*0.7 + H*0.2,
+      r: 24 + Math.random()*30,
+      auto:true
+    });
+  }
+}
 
 function spawnTicket(){
   if(tickets.length >= params.maxTickets) return;
   const type = categories[Math.floor(Math.random()*categories.length)].id;
-  const padding = 22;
-  const x = Math.random() * (W - padding*2) + padding;
-  const y = Math.random() * (H - padding*2) + padding;
+  const spots = readTicketPlacements();
+  const pick = spots[Math.floor(Math.random()*spots.length)];
+  const padding = 40;
+  let x = Math.random() * (W - padding*2) + padding;
+  let y = Math.random() * (H - padding*2) + padding;
+  if(pick === 'center'){ x = W*0.5 + (Math.random()*2-1)*80; y = H*0.5 + (Math.random()*2-1)*60; }
+  if(pick === 'nw'){ x = padding + Math.random()*W*0.28; y = padding + Math.random()*H*0.28; }
+  if(pick === 'ne'){ x = W*0.72 + Math.random()*W*0.28 - padding; y = padding + Math.random()*H*0.28; }
+  if(pick === 'sw'){ x = padding + Math.random()*W*0.28; y = H*0.72 + Math.random()*H*0.2 - padding; }
+  if(pick === 'se'){ x = W*0.72 + Math.random()*W*0.28 - padding; y = H*0.72 + Math.random()*H*0.2 - padding; }
   tickets.push(new Ticket(type, x, y));
 }
 
@@ -797,6 +1016,8 @@ function resetGeneration(){
   correctSorted = 0;
   wrongSorted = 0;
   bestFitness = population.bestFitness;
+  stepCounter = 0;
+  refreshAutoObstacles();
   for(let i=0;i<Math.min(params.maxTickets, 10); i++) spawnTicket();
 }
 
@@ -829,15 +1050,122 @@ function tryPickup(agent){
   }
 }
 
+function drawTicket(t){
+  const cat = categories.find(c=>c.id===t.type);
+  const color = cat?.color || '#e2e8f0';
+  ctx.save();
+  ctx.translate(t.x, t.y);
+  ctx.rotate(-0.1);
+  ctx.fillStyle = 'rgba(15,23,42,0.9)';
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(-9,-12);
+  ctx.lineTo(9,-12);
+  ctx.lineTo(12,-8);
+  ctx.lineTo(12,12);
+  ctx.lineTo(-9,12);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(9,-12);
+  ctx.lineTo(9,-6);
+  ctx.lineTo(12,-8);
+  ctx.closePath();
+  ctx.fillStyle = color;
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = '#e2e8f0';
+  ctx.font = '10px Inter, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText(cat?.label?.[0] || '?', 0, 3);
+  ctx.restore();
+}
+
+function drawObstacle(ob){
+  ctx.save();
+  ctx.globalAlpha = 0.85;
+  ctx.strokeStyle = 'rgba(148,163,209,0.75)';
+  ctx.fillStyle = 'rgba(56,189,248,0.12)';
+  ctx.lineWidth = 2;
+  if(ob.type === 'circle'){
+    ctx.beginPath(); ctx.arc(ob.x, ob.y, ob.r, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+  } else if(ob.type === 'rect'){
+    ctx.beginPath(); ctx.rect(ob.x, ob.y, ob.w, ob.h); ctx.fill(); ctx.stroke();
+  } else if(ob.type === 'line'){
+    ctx.beginPath(); ctx.moveTo(ob.x1, ob.y1); ctx.lineTo(ob.x2, ob.y2); ctx.stroke();
+  } else if(ob.type === 'half'){
+    ctx.beginPath();
+    ctx.arc(ob.x, ob.y, ob.r, ob.angle - Math.PI/2, ob.angle + Math.PI/2);
+    ctx.fill(); ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function drawAgent(agent, highlight=false){
+  const size = 10 * params.agentScale;
+  const tailColor = agent.carrying ? '#facc15' : '#8b5cf6';
+  ctx.save();
+  ctx.lineWidth = 3;
+  ctx.strokeStyle = 'rgba(56,189,248,0.4)';
+  ctx.beginPath();
+  const tail = agent.tail;
+  if(tail && tail.length){
+    ctx.moveTo(tail[0].x, tail[0].y);
+    for(let i=1;i<tail.length;i++) ctx.lineTo(tail[i].x, tail[i].y);
+    const grad = ctx.createLinearGradient(tail[0].x, tail[0].y, agent.x, agent.y);
+    grad.addColorStop(0,'rgba(56,189,248,0.1)');
+    grad.addColorStop(1,`${tailColor}55`);
+    ctx.strokeStyle = grad;
+    ctx.lineWidth = params.agentScale * 3;
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  ctx.save();
+  ctx.translate(agent.x, agent.y);
+  ctx.rotate(agent.angle);
+  const bodyColor = agent.carrying ? '#facc15' : '#c4d4ff';
+  ctx.fillStyle = bodyColor;
+  ctx.strokeStyle = highlight && params.topHighlight ? '#f472b6' : '#0f172a';
+  ctx.lineWidth = highlight ? 2.5 : 1.5;
+  ctx.beginPath();
+  ctx.moveTo(size,0);
+  ctx.lineTo(-size*0.8, size*0.7);
+  ctx.lineTo(-size*0.8, -size*0.7);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+
+  if(agent.carrying){
+    ctx.save();
+    ctx.translate(size*0.2,0);
+    ctx.rotate(0.25);
+    ctx.fillStyle = '#0f172a';
+    ctx.strokeStyle = '#facc15';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.rect(-6,-6,12,12);
+    ctx.fill(); ctx.stroke();
+    ctx.restore();
+  }
+  ctx.restore();
+}
+
 function update(dt){
+  if(population.genomes.length !== params.populationSize){
+    population = new Population(params.populationSize);
+    resetGeneration();
+  }
+
   spawnTimer += dt*1000;
-  generationTimer += dt*1000;
   if(spawnTimer >= params.spawnMs){
     spawnTicket();
     spawnTimer = 0;
   }
   for(const agent of agents){
-    agent.update(dt, tickets);
+    agent.update(dt, tickets, manualObstacles, agents);
     tryPickup(agent);
     for(const cat of categories){
       const zone = cat.zone;
@@ -848,12 +1176,16 @@ function update(dt){
     }
     agent.fitness -= 0.0002*dt;
   }
-  if(generationTimer >= params.generationMs){
+  stepCounter += dt*60;
+  if(stepCounter >= params.generationSteps){
     for(let i=0;i<population.genomes.length;i++){
       population.genomes[i].fitness = agents[i].fitness;
     }
-    population.evolve();
-    resetGeneration();
+    if(learn.auto){
+      population.evolve();
+      resetGeneration();
+    }
+    stepCounter = 0;
   }
 }
 
@@ -861,6 +1193,23 @@ function draw(){
   ctx.clearRect(0,0,W,H);
   ctx.fillStyle = '#050516';
   ctx.fillRect(0,0,W,H);
+
+  // Nest
+  const nestGrad = ctx.createRadialGradient(nest.x, nest.y, nest.r*0.1, nest.x, nest.y, nest.r);
+  nestGrad.addColorStop(0,'rgba(248,250,252,0.22)');
+  nestGrad.addColorStop(1,'rgba(59,130,246,0.08)');
+  ctx.fillStyle = nestGrad;
+  ctx.beginPath();
+  ctx.arc(nest.x, nest.y, nest.r, 0, Math.PI*2);
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(125,211,252,0.6)';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  ctx.fillStyle = '#e2e8f0';
+  ctx.font = '13px Inter, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('Nest', nest.x, nest.y+4);
+
   categories.forEach(cat=>{
     ctx.fillStyle = `${cat.color}30`;
     ctx.beginPath();
@@ -874,24 +1223,13 @@ function draw(){
     ctx.textAlign = 'center';
     ctx.fillText(cat.label, cat.zone.x, cat.zone.y+4);
   });
-  tickets.forEach(t=>{
-    ctx.fillStyle = categories.find(c=>c.id===t.type)?.color || '#fff';
-    ctx.beginPath();
-    ctx.arc(t.x, t.y, 6, 0, Math.PI*2);
-    ctx.fill();
-  });
+
+  manualObstacles.forEach(drawObstacle);
+  tickets.forEach(drawTicket);
+
+  let bestAgent = agents.reduce((p,c)=> c.fitness > (p?.fitness ?? -Infinity) ? c : p, null);
   agents.forEach(agent=>{
-    ctx.save();
-    ctx.translate(agent.x, agent.y);
-    ctx.rotate(agent.angle);
-    ctx.fillStyle = agent.carrying ? '#facc15' : '#a5b4fc';
-    ctx.beginPath();
-    ctx.moveTo(10,0);
-    ctx.lineTo(-10,6);
-    ctx.lineTo(-10,-6);
-    ctx.closePath();
-    ctx.fill();
-    ctx.restore();
+    drawAgent(agent, bestAgent === agent);
   });
 }
 
@@ -936,11 +1274,178 @@ function updateStats(){
 }
 
 bindRange('slTickets','lbTickets',(v)=>v);
+bindRange('slPopulation','lbPopulation',(v)=>v);
 bindRange('slSpawn','lbSpawn',(v)=>v);
 bindRange('slSimSpeed','lbSimSpeed',(v)=> (v/100).toFixed(2)+'×');
+bindRange('slTail','lbTail',(v)=>v);
+bindRange('slAgentScale','lbAgentScale',(v)=> (v/100).toFixed(2)+'×');
+bindRange('slObst','lbObst',(v)=>v);
+bindRange('slGenSteps','lbGenSteps',(v)=>v);
+bindRange('slHidden','lbHidden',(v)=> `${v} neurons`);
+bindRange('slMut','lbMut',(v)=> `${v}%`);
+bindRange('slElite','lbElite',(v)=> `${v}%`);
+bindRange('slMutStrengthW','lbMutStrengthW',(v)=> (v/100).toFixed(2));
+bindRange('slMutStrengthB','lbMutStrengthB',(v)=> (v/100).toFixed(2));
+bindRange('slCrossover','lbCrossover',(v)=> `${v}% A`);
+bindRange('slTournament','lbTournament',(v)=> `×${(v/10).toFixed(1)}`);
+bindRange('slFresh','lbFresh',(v)=> `${v}%`);
+bindToggle('chkAuto','lbAuto');
+bindToggle('chkAgentCollisions','lbAgentCollisions');
+bindToggle('chkTopHighlight','lbTopHighlight');
+
+document.querySelectorAll('.ticket-placement-option input').forEach(box=>{
+  box.addEventListener('change', ()=>{
+    box.parentElement.classList.toggle('active', box.checked);
+  });
+  box.parentElement.classList.toggle('active', box.checked);
+});
+
 readParams();
+readLearnParams();
+refreshAutoObstacles();
 resetGeneration();
 requestAnimationFrame(loop);
+
+// Toolbox setup
+document.querySelectorAll('.tool-btn').forEach(btn=>{
+  btn.addEventListener('click', ()=> setTool(btn.dataset.tool));
+});
+setTool(currentTool);
+
+function addObstacleFromDrag(start, end){
+  const dx = end.x - start.x;
+  const dy = end.y - start.y;
+  const dist = Math.hypot(dx, dy) || 1;
+  if(currentTool === 'circle'){
+    manualObstacles.push({type:'circle', x:start.x, y:start.y, r: Math.max(12, dist)});
+  } else if(currentTool === 'rect'){
+    manualObstacles.push({type:'rect', x:Math.min(start.x,end.x), y:Math.min(start.y,end.y), w:Math.abs(dx), h:Math.abs(dy)});
+  } else if(currentTool === 'line'){
+    manualObstacles.push({type:'line', x1:start.x, y1:start.y, x2:end.x, y2:end.y});
+  } else if(currentTool === 'half'){
+    manualObstacles.push({type:'half', x:start.x, y:start.y, r:Math.max(16, dist), angle:Math.atan2(dy, dx)});
+  }
+}
+
+canvas.addEventListener('mousedown', (e)=>{
+  if(currentTool === 'select') return;
+  const pos = pointerPos(e);
+  drawingState = { start: pos };
+});
+canvas.addEventListener('mouseup', (e)=>{
+  if(!drawingState || currentTool === 'select') return;
+  const pos = pointerPos(e);
+  addObstacleFromDrag(drawingState.start, pos);
+  drawingState = null;
+});
+
+const btnUndo = Q('btnUndoManual');
+if(btnUndo){
+  btnUndo.addEventListener('click', ()=>{
+    manualObstacles.pop();
+  });
+}
+const btnClear = Q('btnClearManual');
+if(btnClear){
+  btnClear.addEventListener('click', ()=>{
+    manualObstacles = manualObstacles.filter(o=>o.auto);
+  });
+}
+
+const btnSaveObstacles = Q('btnSaveObstacles');
+if(btnSaveObstacles){
+  btnSaveObstacles.addEventListener('click', ()=>{
+    const blob = new Blob([JSON.stringify(manualObstacles)], {type:'application/json'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'obstacles.json';
+    a.click();
+    URL.revokeObjectURL(url);
+  });
+}
+const btnLoadObstacles = Q('btnLoadObstacles');
+const inputLoadObstacles = Q('inputLoadObstacles');
+if(btnLoadObstacles && inputLoadObstacles){
+  btnLoadObstacles.addEventListener('click', ()=> inputLoadObstacles.click());
+  inputLoadObstacles.addEventListener('change', (e)=>{
+    const file = e.target.files?.[0];
+    if(!file) return;
+    const reader = new FileReader();
+    reader.onload = ()=>{
+      try{ manualObstacles = JSON.parse(reader.result); }
+      catch(err){ console.error(err); }
+    };
+    reader.readAsText(file);
+  });
+}
+
+const btnNextGen = Q('btnNextGen');
+if(btnNextGen){
+  btnNextGen.addEventListener('click', ()=>{
+    for(let i=0;i<population.genomes.length;i++) population.genomes[i].fitness = agents[i].fitness;
+    population.evolve();
+    resetGeneration();
+  });
+}
+
+const btnResetTraining = Q('btnResetTraining');
+if(btnResetTraining){
+  btnResetTraining.addEventListener('click', ()=>{
+    population = new Population(params.populationSize);
+    population.generation = 1;
+    population.bestFitness = 0;
+    resetGeneration();
+  });
+}
+
+const btnSaveTraining = Q('btnSaveTraining');
+if(btnSaveTraining){
+  btnSaveTraining.addEventListener('click', ()=>{
+    const data = {
+      generation: population.generation,
+      params:{...params, learn:{...learn}},
+      genomes: population.genomes
+    };
+    const blob = new Blob([JSON.stringify(data)], {type:'application/json'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'data-sorting-training.json';
+    a.click();
+    URL.revokeObjectURL(url);
+  });
+}
+
+const btnLoadTraining = Q('btnLoadTraining');
+const inputLoadTraining = Q('inputLoadTraining');
+if(btnLoadTraining && inputLoadTraining){
+  btnLoadTraining.addEventListener('click', ()=> inputLoadTraining.click());
+  inputLoadTraining.addEventListener('change', (e)=>{
+    const file = e.target.files?.[0];
+    if(!file) return;
+    const reader = new FileReader();
+    reader.onload = ()=>{
+      try{
+        const data = JSON.parse(reader.result);
+        if(Array.isArray(data.genomes)){
+          population = new Population(data.genomes.length);
+          population.genomes = data.genomes.map(g=> Object.assign(new Genome(), g));
+          population.generation = data.generation || 1;
+          population.bestFitness = 0;
+          resetGeneration();
+        }
+      }catch(err){ console.error(err); }
+    };
+    reader.readAsText(file);
+  });
+}
+
+const btnReset = Q('btnReset');
+if(btnReset){
+  btnReset.addEventListener('click', ()=>{
+    refreshAutoObstacles();
+    resetGeneration();
+  });
+}
 
 </script>
 </body>
