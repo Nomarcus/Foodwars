@@ -1338,7 +1338,10 @@ function drawAgent(agent, highlight=false){
     for(let i=1;i<tail.length;i++) ctx.lineTo(tail[i].x, tail[i].y);
     const grad = ctx.createLinearGradient(tail[0].x, tail[0].y, agent.x, agent.y);
     grad.addColorStop(0,'rgba(56,189,248,0.1)');
-    grad.addColorStop(1,`${tailColor}55`);
+    const tailStopColor = tailColor.startsWith('hsl')
+      ? tailColor.replace('hsl','hsla').replace(')',',0.33)')
+      : `${tailColor}55`;
+    grad.addColorStop(1, tailStopColor);
     ctx.strokeStyle = grad;
     ctx.lineWidth = params.agentScale * 3;
     ctx.stroke();
