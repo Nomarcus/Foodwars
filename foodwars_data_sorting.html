@@ -116,6 +116,18 @@
     .tool-btn{padding:10px 12px; border-radius:12px; border:1px solid rgba(59,130,246,.28); background:rgba(18,27,66,.6); color:var(--ink); font-size:13px; font-weight:600; letter-spacing:.02em; cursor:pointer; transition:transform .2s ease, box-shadow .2s ease, filter .2s ease, border-color .2s ease}
     .tool-btn:hover{filter:brightness(1.05); transform:translateY(-1px); box-shadow:0 12px 26px rgba(59,130,246,.22)}
     .tool-btn.active{border-color:rgba(45,212,191,.65); background:linear-gradient(120deg, rgba(45,212,191,.24), rgba(59,130,246,.24)); box-shadow:0 14px 28px rgba(45,212,191,.24)}
+    .control-chips{display:flex; flex-wrap:wrap; gap:8px; grid-column:2 / span 2}
+    .chip-btn{padding:8px 12px; border-radius:10px; border:1px solid rgba(148,163,209,.35); background:rgba(12,18,44,.65); color:var(--ink); font-size:12px; font-weight:700; letter-spacing:.05em; cursor:pointer; transition:transform .18s ease, box-shadow .2s ease, filter .2s ease}
+    .chip-btn:hover{filter:brightness(1.07); transform:translateY(-1px); box-shadow:0 12px 20px rgba(56,189,248,.18)}
+    .chip-btn.chip-btn--ghost{border-style:dashed; color:var(--muted)}
+    .chip-btn.chip-btn--hot{border-color:rgba(244,114,182,.65); box-shadow:0 12px 26px rgba(244,114,182,.18)}
+    .dual-input{display:grid; grid-template-columns:1fr auto; gap:10px; grid-column:2 / span 2}
+    .dual-input input[type=number]{width:120px; padding:9px 10px; border-radius:10px; border:1px solid var(--silver); background:rgba(12,18,44,.7); color:var(--ink); font-weight:700; letter-spacing:.03em}
+    .layout-readout{margin:10px 0 4px; font-size:12px; line-height:1.6; color:var(--muted); background:rgba(11,16,44,.65); border:1px dashed rgba(148,163,209,.35); padding:12px 14px; border-radius:12px}
+    .layout-readout strong{color:var(--ink)}
+    .layout-hint{font-size:11px; color:var(--muted); grid-column:1 / span 3; line-height:1.5; background:rgba(8,12,32,.65); border:1px solid rgba(148,163,209,.28); padding:10px 12px; border-radius:12px}
+    .layout-mini-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:10px; grid-column:1 / span 3}
+    .layout-mini-grid .val{text-align:left}
     .sub{font-weight:800; font-size:14px; opacity:.9; margin:10px 0 8px; letter-spacing:.05em; color:var(--ink)}
     .team-roster{display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:12px}
     .team-card{position:relative; display:flex; flex-direction:column; gap:6px; padding:14px 16px; border-radius:14px; border:1px solid var(--silver); background:rgba(12,18,44,.72); box-shadow:0 10px 24px rgba(5,9,28,.4); transition:transform .2s ease, box-shadow .2s ease, border-color .2s ease}
@@ -315,6 +327,7 @@
           <span class="stat-value" id="stat-top">0</span>
         </div>
       </section>
+      <div class="layout-readout" id="layoutReadout">Drag handles are off. Enable them in Layout lab to reposition targets and the nest.</div>
       <section class="brain-viz brain-viz--hidden" aria-live="polite" aria-label="Best performing neural network">
         <div class="brain-head">
           <div>
@@ -469,6 +482,21 @@
             <div class="label">Population</div>
             <input id="slPopulation" type="range" min="5" max="180" value="30"><div class="val" id="lbPopulation">30</div>
 
+            <div class="label">Population presets</div>
+            <div class="control-chips">
+              <button class="chip-btn" data-pop="20">Sprint (20)</button>
+              <button class="chip-btn" data-pop="60">Balanced (60)</button>
+              <button class="chip-btn chip-btn--hot" data-pop="120">Swarm (120)</button>
+            </div>
+
+            <div class="label">Population exact</div>
+            <div class="dual-input">
+              <input id="numPopulation" type="number" min="5" max="240" value="30" step="1">
+              <button class="chip-btn chip-btn--ghost" id="btnPopApply">Apply</button>
+            </div>
+
+            <div class="layout-hint">Tip: set a small sprint population to test a layout tweak, then jump to a swarm to stress test the strategy.</div>
+
             <div class="label" id="ticketPlacementLabel">Ticket placement</div>
             <div class="ticket-placement-options" role="group" aria-labelledby="ticketPlacementLabel">
               <label class="ticket-placement-option">
@@ -547,6 +575,41 @@
               <option value="open">Open Field</option>
               <option value="lab">Labyrinth</option>
             </select><div class="val" id="lbNavPreset">Open Field</div>
+
+            <div class="layout-hint">Layout lab controls — drag the three category targets or the nest while this mode is enabled to sculpt the arena.</div>
+            <div class="layout-mini-grid">
+              <div>
+                <div class="label">Drag targets + nest</div>
+                <div class="val"><label><input id="chkLayoutDrag" type="checkbox" checked> Drag enabled</label></div>
+              </div>
+              <div>
+                <div class="label">Snap to grid</div>
+                <div class="val"><label><input id="chkLayoutSnap" type="checkbox"> Off</label></div>
+              </div>
+              <div>
+                <div class="label">Grid size</div>
+                <input id="slGridSize" type="range" min="20" max="140" value="60" step="5"><div class="val" id="lbGridSize">60 px</div>
+              </div>
+              <div>
+                <div class="label">Nest radius</div>
+                <input id="slNestR" type="range" min="30" max="140" value="64"><div class="val" id="lbNestR">64</div>
+              </div>
+              <div>
+                <div class="label">Target radius</div>
+                <input id="slTargetR" type="range" min="30" max="140" value="60"><div class="val" id="lbTargetR">60</div>
+              </div>
+              <div>
+                <div class="label">Ticket scatter</div>
+                <input id="slScatter" type="range" min="20" max="240" value="40"><div class="val" id="lbScatter">40</div>
+              </div>
+            </div>
+
+            <div class="control-chips" style="grid-column:1 / span 3">
+              <button class="chip-btn" id="btnLayoutReset">Reset layout</button>
+              <button class="chip-btn" id="btnLayoutRandom">Randomize</button>
+              <button class="chip-btn chip-btn--hot" id="btnLayoutFan">Fan-out arc</button>
+              <button class="chip-btn chip-btn--ghost" id="btnToggleGrid">Grid overlay</button>
+            </div>
           </div>
           <button id="btnReset" class="btn">Restart</button>
         </div>
@@ -583,6 +646,19 @@ const categories = [
 
 const nest = { x: W*0.5, y: H*0.12, r: 64 };
 
+const defaultLayout = {
+  nest: {...nest},
+  categories: categories.map(c=> ({...c, zone:{...c.zone}}))
+};
+
+const layoutState = {
+  dragEnabled: true,
+  snap: false,
+  gridSize: 60,
+  showGrid: false,
+  active: null
+};
+
 const params = {
   maxTickets: 32,
   spawnMs: 900,
@@ -594,6 +670,7 @@ const params = {
   maxObstacles: 0,
   generationSteps: 2800,
   populationSize: 30,
+  ticketScatter: 40,
   accel: 90,
   maxSpeed: 110,
   turnRate: 4.2,
@@ -634,18 +711,23 @@ function readParams(){
   const tailSlider = Q('slTail');
   const scaleSlider = Q('slAgentScale');
   const popSlider = Q('slPopulation');
+  const popInput = Q('numPopulation');
   const collideToggle = Q('chkAgentCollisions');
   const topToggle = Q('chkTopHighlight');
   const obstSlider = Q('slObst');
+  const scatterSlider = Q('slScatter');
   params.maxTickets = ticketSlider ? +ticketSlider.value : params.maxTickets;
   params.spawnMs = spawnSlider ? +spawnSlider.value : params.spawnMs;
   params.simSpeed = speedSlider ? (+speedSlider.value / 100) : params.simSpeed;
   params.tailLen = tailSlider ? +tailSlider.value : params.tailLen;
   params.agentScale = scaleSlider ? (+scaleSlider.value / 100) : params.agentScale;
-  params.populationSize = popSlider ? +popSlider.value : params.populationSize;
+  const popVal = popSlider ? +popSlider.value : params.populationSize;
+  params.populationSize = popVal;
+  if(popInput && popInput.value !== String(popVal)) popInput.value = popVal;
   params.agentCollisions = collideToggle ? collideToggle.checked : params.agentCollisions;
   params.topHighlight = topToggle ? topToggle.checked : params.topHighlight;
   params.maxObstacles = obstSlider ? +obstSlider.value : params.maxObstacles;
+  params.ticketScatter = scatterSlider ? +scatterSlider.value : params.ticketScatter;
   refreshAutoObstacles();
 }
 
@@ -935,6 +1017,29 @@ function pointerPos(evt){
   return { x:(evt.clientX - r.left)*scaleX, y:(evt.clientY - r.top)*scaleY };
 }
 
+function hitLayoutTarget(pos){
+  for(const cat of categories){
+    const d = Math.hypot(pos.x - cat.zone.x, pos.y - cat.zone.y);
+    if(d < Math.max(18, cat.zone.r*0.22)+6) return {type:'category', ref:cat.zone};
+  }
+  const dNest = Math.hypot(pos.x - nest.x, pos.y - nest.y);
+  if(dNest < Math.max(18, nest.r*0.22)+6) return {type:'nest', ref:nest};
+  return null;
+}
+
+function clampLayoutPosition(val, min=24, max=W-24){
+  return Math.min(max, Math.max(min, val));
+}
+
+canvas.addEventListener('mousemove', (e)=>{
+  if(!layoutState.active) return;
+  const pos = pointerPos(e);
+  const snap = layoutState.snap ? layoutState.gridSize : 1;
+  layoutState.active.target.x = clampLayoutPosition(Math.round((pos.x - layoutState.active.offsetX)/snap)*snap);
+  layoutState.active.target.y = clampLayoutPosition(Math.round((pos.y - layoutState.active.offsetY)/snap)*snap, 24, H-24);
+  updateLayoutReadout();
+});
+
 function setTool(tool){
   currentTool = tool;
   document.querySelectorAll('.tool-btn').forEach(btn=>{
@@ -992,12 +1097,50 @@ function refreshAutoObstacles(){
   }
 }
 
+function resetLayout(){
+  Object.assign(nest, {...defaultLayout.nest});
+  categories.forEach((c,i)=> Object.assign(c.zone, {...defaultLayout.categories[i].zone}));
+  updateLayoutReadout();
+}
+
+function randomizeLayout(){
+  const margin = 90;
+  categories.forEach(cat=>{
+    cat.zone.x = Math.random()*(W - margin*2)+margin;
+    cat.zone.y = Math.random()*(H - margin*2)+margin;
+  });
+  nest.x = W/2 + (Math.random()*2-1)*80;
+  nest.y = H*0.15 + Math.random()*90;
+  updateLayoutReadout();
+}
+
+function fanLayout(){
+  const radius = Math.min(W,H)*0.32;
+  const centerX = W/2;
+  const centerY = H*0.45;
+  categories.forEach((cat, i)=>{
+    const ang = (-0.9 + i*0.9) * Math.PI;
+    cat.zone.x = centerX + Math.cos(ang)*radius;
+    cat.zone.y = centerY + Math.sin(ang)*radius;
+  });
+  nest.x = centerX;
+  nest.y = H*0.18;
+  updateLayoutReadout();
+}
+
+function applyLayoutRadii(){
+  const targetSlider = Q('slTargetR');
+  if(targetSlider) categories.forEach(cat=> cat.zone.r = +targetSlider.value);
+  const nestSlider = Q('slNestR');
+  if(nestSlider) nest.r = +nestSlider.value;
+}
+
 function spawnTicket(){
   if(tickets.length >= params.maxTickets) return;
   const type = categories[Math.floor(Math.random()*categories.length)].id;
   const spots = readTicketPlacements();
   const pick = spots[Math.floor(Math.random()*spots.length)];
-  const padding = 40;
+  const padding = Math.max(20, params.ticketScatter);
   let x = Math.random() * (W - padding*2) + padding;
   let y = Math.random() * (H - padding*2) + padding;
   if(pick === 'center'){ x = W*0.5 + (Math.random()*2-1)*80; y = H*0.5 + (Math.random()*2-1)*60; }
@@ -1009,6 +1152,7 @@ function spawnTicket(){
 }
 
 function resetGeneration(){
+  applyLayoutRadii();
   tickets = [];
   agents = population.genomes.map(g=> new SortingAgent(g));
   spawnTimer = 0;
@@ -1194,6 +1338,19 @@ function draw(){
   ctx.fillStyle = '#050516';
   ctx.fillRect(0,0,W,H);
 
+  if(layoutState.showGrid){
+    ctx.save();
+    ctx.strokeStyle = 'rgba(148,163,209,0.18)';
+    ctx.lineWidth = 1;
+    for(let x=0;x<=W;x+= layoutState.gridSize){
+      ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke();
+    }
+    for(let y=0;y<=H;y+= layoutState.gridSize){
+      ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke();
+    }
+    ctx.restore();
+  }
+
   // Nest
   const nestGrad = ctx.createRadialGradient(nest.x, nest.y, nest.r*0.1, nest.x, nest.y, nest.r);
   nestGrad.addColorStop(0,'rgba(248,250,252,0.22)');
@@ -1231,6 +1388,29 @@ function draw(){
   agents.forEach(agent=>{
     drawAgent(agent, bestAgent === agent);
   });
+
+  drawLayoutHandles();
+}
+
+function drawLayoutHandles(){
+  if(!layoutState.dragEnabled) return;
+  ctx.save();
+  ctx.lineWidth = 2;
+  for(const cat of categories){
+    ctx.strokeStyle = `${cat.color}aa`;
+    ctx.fillStyle = `${cat.color}26`;
+    ctx.beginPath(); ctx.arc(cat.zone.x, cat.zone.y, Math.max(18, cat.zone.r*0.22), 0, Math.PI*2); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#e2e8f0';
+    ctx.font = '11px Inter, sans-serif';
+    ctx.fillText(`${cat.label} (${cat.zone.x.toFixed(0)}, ${cat.zone.y.toFixed(0)})`, cat.zone.x, cat.zone.y - Math.max(18, cat.zone.r*0.22) - 6);
+  }
+  ctx.strokeStyle = 'rgba(59,130,246,0.9)';
+  ctx.fillStyle = 'rgba(59,130,246,0.2)';
+  ctx.beginPath(); ctx.arc(nest.x, nest.y, Math.max(18, nest.r*0.22), 0, Math.PI*2); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = '#e2e8f0';
+  ctx.font = '11px Inter, sans-serif';
+  ctx.fillText(`Nest (${nest.x.toFixed(0)}, ${nest.y.toFixed(0)})`, nest.x, nest.y - Math.max(18, nest.r*0.22) - 6);
+  ctx.restore();
 }
 
 let last = performance.now();
@@ -1271,6 +1451,16 @@ function updateStats(){
   if(brainGen){
     brainGen.textContent = `Generation ${population.generation}`;
   }
+  updateLayoutReadout();
+}
+
+function updateLayoutReadout(){
+  const box = Q('layoutReadout');
+  if(!box) return;
+  const cats = categories.map(c=> `${c.label}: ${c.zone.x.toFixed(0)}, ${c.zone.y.toFixed(0)} (r${c.zone.r})`).join(' • ');
+  box.innerHTML = `<strong>Layout</strong> — ${cats} • Nest ${nest.x.toFixed(0)}, ${nest.y.toFixed(0)} (r${nest.r})<br>`+
+    `Handles ${layoutState.dragEnabled ? 'on' : 'off'}, grid ${layoutState.showGrid ? 'on' : 'off'} @ ${layoutState.gridSize}px, `+
+    `scatter ${params.ticketScatter}px, snap ${layoutState.snap ? 'on' : 'off'}.`;
 }
 
 bindRange('slTickets','lbTickets',(v)=>v);
@@ -1280,6 +1470,10 @@ bindRange('slSimSpeed','lbSimSpeed',(v)=> (v/100).toFixed(2)+'×');
 bindRange('slTail','lbTail',(v)=>v);
 bindRange('slAgentScale','lbAgentScale',(v)=> (v/100).toFixed(2)+'×');
 bindRange('slObst','lbObst',(v)=>v);
+bindRange('slGridSize','lbGridSize',(v)=> `${v} px`);
+bindRange('slNestR','lbNestR',(v)=>v);
+bindRange('slTargetR','lbTargetR',(v)=>v);
+bindRange('slScatter','lbScatter',(v)=>v);
 bindRange('slGenSteps','lbGenSteps',(v)=>v);
 bindRange('slHidden','lbHidden',(v)=> `${v} neurons`);
 bindRange('slMut','lbMut',(v)=> `${v}%`);
@@ -1302,6 +1496,8 @@ document.querySelectorAll('.ticket-placement-option input').forEach(box=>{
 
 readParams();
 readLearnParams();
+applyLayoutRadii();
+updateLayoutReadout();
 refreshAutoObstacles();
 resetGeneration();
 requestAnimationFrame(loop);
@@ -1311,6 +1507,82 @@ document.querySelectorAll('.tool-btn').forEach(btn=>{
   btn.addEventListener('click', ()=> setTool(btn.dataset.tool));
 });
 setTool(currentTool);
+
+document.querySelectorAll('.chip-btn[data-pop]').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    const val = +btn.dataset.pop;
+    const popSlider = Q('slPopulation');
+    const popInput = Q('numPopulation');
+    if(popSlider){ popSlider.value = val; popSlider.dispatchEvent(new Event('input')); }
+    if(popInput) popInput.value = val;
+    updateLayoutReadout();
+  });
+});
+
+const popApply = Q('btnPopApply');
+if(popApply){
+  popApply.addEventListener('click', ()=>{
+    const popInput = Q('numPopulation');
+    const val = Math.max(+popInput.min, Math.min(+popInput.max, +popInput.value || params.populationSize));
+    const popSlider = Q('slPopulation');
+    if(popSlider){ popSlider.value = val; popSlider.dispatchEvent(new Event('input')); }
+  });
+}
+
+const popInputBox = Q('numPopulation');
+if(popInputBox){
+  popInputBox.addEventListener('change', ()=>{
+    const val = Math.max(+popInputBox.min, Math.min(+popInputBox.max, +popInputBox.value || params.populationSize));
+    const popSlider = Q('slPopulation');
+    if(popSlider){ popSlider.value = val; popSlider.dispatchEvent(new Event('input')); }
+  });
+}
+
+const chkLayoutDrag = Q('chkLayoutDrag');
+if(chkLayoutDrag){
+  chkLayoutDrag.addEventListener('change', ()=>{ layoutState.dragEnabled = chkLayoutDrag.checked; updateLayoutReadout(); });
+  layoutState.dragEnabled = chkLayoutDrag.checked;
+}
+
+const chkLayoutSnap = Q('chkLayoutSnap');
+if(chkLayoutSnap){
+  chkLayoutSnap.addEventListener('change', ()=>{ layoutState.snap = chkLayoutSnap.checked; updateLayoutReadout(); });
+}
+
+const btnToggleGrid = Q('btnToggleGrid');
+if(btnToggleGrid){
+  btnToggleGrid.addEventListener('click', ()=>{ layoutState.showGrid = !layoutState.showGrid; updateLayoutReadout(); });
+}
+
+const gridSizeSlider = Q('slGridSize');
+if(gridSizeSlider){
+  gridSizeSlider.addEventListener('input', ()=>{ layoutState.gridSize = +gridSizeSlider.value; Q('lbGridSize').textContent = `${gridSizeSlider.value} px`; updateLayoutReadout(); });
+  layoutState.gridSize = +gridSizeSlider.value;
+}
+
+const nestRSlider = Q('slNestR');
+if(nestRSlider){
+  nestRSlider.addEventListener('input', ()=>{ nest.r = +nestRSlider.value; Q('lbNestR').textContent = nestRSlider.value; updateLayoutReadout(); });
+}
+
+const targetRSlider = Q('slTargetR');
+if(targetRSlider){
+  targetRSlider.addEventListener('input', ()=>{ categories.forEach(cat=> cat.zone.r = +targetRSlider.value); Q('lbTargetR').textContent = targetRSlider.value; updateLayoutReadout(); });
+}
+
+const scatterSlider = Q('slScatter');
+if(scatterSlider){
+  scatterSlider.addEventListener('input', ()=>{ Q('lbScatter').textContent = scatterSlider.value; readParams(); updateLayoutReadout(); });
+}
+
+const btnLayoutReset = Q('btnLayoutReset');
+if(btnLayoutReset) btnLayoutReset.addEventListener('click', ()=>{ resetLayout(); applyLayoutRadii(); });
+
+const btnLayoutRandom = Q('btnLayoutRandom');
+if(btnLayoutRandom) btnLayoutRandom.addEventListener('click', ()=>{ randomizeLayout(); applyLayoutRadii(); });
+
+const btnLayoutFan = Q('btnLayoutFan');
+if(btnLayoutFan) btnLayoutFan.addEventListener('click', ()=>{ fanLayout(); applyLayoutRadii(); });
 
 function addObstacleFromDrag(start, end){
   const dx = end.x - start.x;
@@ -1328,11 +1600,19 @@ function addObstacleFromDrag(start, end){
 }
 
 canvas.addEventListener('mousedown', (e)=>{
-  if(currentTool === 'select') return;
   const pos = pointerPos(e);
+  if(layoutState.dragEnabled){
+    const hit = hitLayoutTarget(pos);
+    if(hit){
+      layoutState.active = { target: hit.ref, type: hit.type, offsetX: pos.x - hit.ref.x, offsetY: pos.y - hit.ref.y };
+      return;
+    }
+  }
+  if(currentTool === 'select') return;
   drawingState = { start: pos };
 });
 canvas.addEventListener('mouseup', (e)=>{
+  if(layoutState.active){ layoutState.active = null; return; }
   if(!drawingState || currentTool === 'select') return;
   const pos = pointerPos(e);
   addObstacleFromDrag(drawingState.start, pos);
