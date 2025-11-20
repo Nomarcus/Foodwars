@@ -1,0 +1,947 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Data Sorting – Ticket Routing with NEAT-lite</title>
+  <style>
+    :root {
+      --bg1:#050516;
+      --bg2:#161b3f;
+      --panel:rgba(18,24,56,.82);
+      --ink:#f1f5ff;
+      --muted:#a1a9d8;
+      --accent:#f472b6;
+      --accent-emerald:#2dd4bf;
+      --accent-cyan:#38bdf8;
+      --silver:rgba(222,231,255,.55);
+    }
+    *{box-sizing:border-box}
+    body{margin:0; min-height:100vh; display:flex; flex-direction:column; background:radial-gradient(circle at 45% 12%, rgba(87,51,183,.55) 0%, rgba(39,56,121,.85) 45%, var(--bg1) 100%); color:var(--ink); font-family:"Inter",system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;}
+
+    .main-nav{position:sticky; top:0; z-index:200; padding:22px 48px; display:flex; align-items:center; justify-content:space-between; background:linear-gradient(120deg, rgba(15,20,48,.92) 0%, rgba(10,14,34,.75) 60%, rgba(10,14,34,.35) 100%); backdrop-filter:blur(14px); border-bottom:1px solid var(--silver); box-shadow:0 22px 45px rgba(5,9,25,.55)}
+    .brand{display:flex; align-items:center; gap:12px; font-size:22px; font-weight:700; letter-spacing:.02em; color:var(--ink)}
+    .brand-dot{width:14px; height:14px; border-radius:50%; background:linear-gradient(135deg, var(--accent) 0%, #8b5cf6 100%); box-shadow:0 0 18px rgba(244,114,182,.6)}
+    .nav-links{display:flex; align-items:center; gap:12px}
+    .pill-link,.pill-button{display:inline-flex; align-items:center; justify-content:center; padding:10px 20px; border-radius:999px; border:1px solid rgba(45,212,191,.45); background:linear-gradient(120deg, rgba(45,212,191,.18), rgba(59,130,246,.18)); color:var(--ink); text-decoration:none; font-size:14px; font-weight:600; letter-spacing:.03em; transition:transform .2s ease, box-shadow .2s ease, filter .2s ease, border-color .2s ease; cursor:pointer; font-family:inherit}
+    .pill-link.secondary{border-color:rgba(139,92,246,.45); background:linear-gradient(120deg, rgba(139,92,246,.18), rgba(244,114,182,.18))}
+    .pill-link:hover,.pill-button:hover{transform:translateY(-1px); filter:brightness(1.05); box-shadow:0 16px 32px rgba(45,212,191,.25)}
+    .pill-link:focus-visible,.pill-button:focus-visible{outline:2px solid rgba(56,189,248,.65); outline-offset:3px}
+    .pill-button{background:linear-gradient(120deg, rgba(139,92,246,.22), rgba(56,189,248,.22)); border-color:rgba(56,189,248,.45)}
+    .pill-button.pill-button--active{border-color:rgba(244,114,182,.65); background:linear-gradient(120deg, rgba(244,114,182,.25), rgba(59,130,246,.25)); box-shadow:0 18px 40px rgba(244,114,182,.32)}
+
+    main{flex:1; display:flex; justify-content:center; align-items:flex-start; padding:40px 48px 64px}
+    .wrap{display:flex; align-items:flex-start; justify-content:center; gap:40px; width:100%; max-width:2000px}
+    .field-area{flex:1 1 auto; display:flex; flex-direction:column; align-items:stretch; gap:18px; min-width:0}
+    .playfield-frame{position:relative; padding:18px; border-radius:30px; background:rgba(4,8,26,.85); box-shadow:0 18px 36px rgba(9,14,36,.55); border:1px solid rgba(148,163,209,.22); transition:box-shadow .3s ease, transform .3s ease, background .3s ease, border-color .3s ease; width:100%; max-width:min(1100px, 100%)}
+    .playfield-frame::before{content:""; position:absolute; inset:-8px; border-radius:inherit; background:linear-gradient(135deg, rgba(56,189,248,.35), rgba(244,114,182,.32)); opacity:0; filter:blur(12px); transition:opacity .35s ease, filter .35s ease; z-index:0}
+    .playfield-frame canvas{position:relative; z-index:1; width:100%; height:auto; display:block}
+    canvas{border-radius:24px; background:#04091f; box-shadow:0 0 45px rgba(15,23,61,.65), inset 0 0 22px rgba(118,133,255,.12); cursor:crosshair; border:1px solid var(--silver);}
+    .stats-bar{display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:16px; padding:18px 22px; border-radius:18px; background:rgba(11,16,44,.78); border:1px solid var(--silver); box-shadow:0 18px 32px rgba(5,9,25,.45)}
+    .stat-card{display:flex; flex-direction:column; gap:6px; padding:6px 0}
+    .stat-label{font-size:12px; text-transform:uppercase; letter-spacing:.12em; color:var(--muted)}
+    .stat-value{font-size:26px; font-weight:700; letter-spacing:.02em; color:var(--ink)}
+
+    .brain-viz{padding:20px 24px; border-radius:22px; background:rgba(11,16,44,.82); border:1px solid var(--silver); box-shadow:0 18px 32px rgba(5,9,25,.4); display:flex; flex-direction:column; gap:14px}
+    .brain-viz.brain-viz--hidden{box-shadow:0 12px 24px rgba(5,9,25,.35)}
+    .brain-head{display:flex; align-items:flex-start; justify-content:space-between; gap:18px; flex-wrap:wrap}
+    .brain-title{font-size:16px; font-weight:600; letter-spacing:.03em}
+    .brain-sub{font-size:12px; color:var(--muted); margin-top:4px; max-width:420px}
+    .brain-controls{display:flex; align-items:center; flex-wrap:wrap; gap:10px; margin-top:12px}
+    .brain-select{padding:7px 16px; border-radius:999px; border:1px solid rgba(56,189,248,.35); background:rgba(12,20,46,.75); color:var(--ink); font-size:12px; font-weight:600; letter-spacing:.05em; text-transform:uppercase; cursor:pointer; appearance:none; position:relative; min-width:190px; box-shadow:inset 0 0 16px rgba(56,189,248,.12)}
+    .brain-select:focus-visible{outline:2px solid rgba(56,189,248,.65); outline-offset:3px}
+    .brain-toggle{padding:6px 14px; border-radius:999px; border:1px solid rgba(56,189,248,.45); background:rgba(15,23,61,.6); color:var(--ink); font-size:11px; font-weight:600; letter-spacing:.12em; text-transform:uppercase; cursor:pointer; transition:transform .18s ease, box-shadow .2s ease, filter .2s ease}
+    .brain-toggle:hover{filter:brightness(1.05); transform:translateY(-1px); box-shadow:0 12px 24px rgba(56,189,248,.25)}
+    .brain-toggle[aria-pressed="false"]{border-color:rgba(244,114,182,.45); background:rgba(24,16,38,.65); color:var(--muted)}
+    .brain-score{display:flex; flex-direction:column; align-items:flex-end; min-width:120px}
+    .brain-score-label{font-size:11px; text-transform:uppercase; letter-spacing:.12em; color:var(--muted)}
+    .brain-score-value{font-size:30px; font-weight:700; color:var(--ink)}
+    .brain-team{display:flex; align-items:center; gap:10px; font-size:13px; color:var(--muted); flex-wrap:wrap}
+    .brain-badge{display:inline-flex; align-items:center; justify-content:center; width:26px; height:26px; border-radius:50%; background:rgba(56,189,248,.3); color:#020617; font-size:15px; font-weight:700; box-shadow:0 0 18px rgba(56,189,248,.28)}
+    .brain-gen{margin-left:auto; font-size:11px; color:var(--muted); letter-spacing:.08em; text-transform:uppercase}
+    .brain-visual-wrap{display:flex; flex-wrap:wrap; gap:18px; align-items:stretch}
+    .brain-canvas-wrap{flex:1 1 360px; min-width:0; display:flex; flex-direction:column; gap:10px}
+    .brain-canvas{width:100%; height:220px; border-radius:18px; background:linear-gradient(135deg, rgba(15,23,61,.65), rgba(12,18,44,.92)); border:1px solid rgba(148,163,209,.28)}
+    .brain-paused{padding:12px 14px; border-radius:14px; border:1px dashed rgba(148,163,209,.4); background:rgba(15,23,61,.55); font-size:12px; line-height:1.6; color:var(--muted)}
+    .brain-legend{flex:0 1 240px; min-width:220px; align-self:stretch; border-radius:18px; border:1px solid rgba(148,163,209,.22); background:linear-gradient(135deg, rgba(10,18,46,.65), rgba(7,12,30,.82)); padding:16px 18px; display:flex; flex-direction:column; gap:14px; box-shadow:inset 0 0 18px rgba(59,130,246,.08)}
+    .brain-legend.brain-legend--under{flex:1 1 100%; min-width:0; width:100%; margin-top:4px}
+    .brain-legend-title{font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.08em; color:var(--muted)}
+    .brain-legend-list{list-style:none; margin:0; padding:0; display:grid; gap:10px}
+    .brain-legend-item{display:flex; align-items:center; gap:10px; font-size:12px; line-height:1.5; color:var(--ink)}
+    .brain-legend-dot{width:14px; height:14px; border-radius:50%; box-shadow:0 0 10px rgba(56,189,248,.45)}
+    .brain-legend-dot-pair{display:inline-flex; align-items:center; gap:6px}
+    .brain-legend-dot--target{background:linear-gradient(135deg, rgba(56,189,248,.9), rgba(96,165,250,.75))}
+    .brain-legend-dot--target-home{background:linear-gradient(135deg, rgba(251,191,36,.9), rgba(253,224,71,.75)); box-shadow:0 0 10px rgba(251,191,36,.45)}
+    .brain-legend-dot--gradient{background:linear-gradient(135deg, rgba(45,212,191,.9), rgba(16,185,129,.75)); box-shadow:0 0 10px rgba(45,212,191,.45)}
+    .brain-legend-dot--separation{background:linear-gradient(135deg, rgba(244,114,182,.9), rgba(251,191,188,.75)); box-shadow:0 0 10px rgba(244,114,182,.45)}
+    .brain-legend-dot--velocity{background:linear-gradient(135deg, rgba(167,139,250,.9), rgba(129,140,248,.75)); box-shadow:0 0 10px rgba(167,139,250,.45)}
+    .brain-legend-dot--obstacle{background:linear-gradient(135deg, rgba(248,113,113,.9), rgba(239,68,68,.75)); box-shadow:0 0 10px rgba(248,113,113,.45)}
+    .brain-legend-dot--boundary{background:linear-gradient(135deg, rgba(96,165,250,.9), rgba(59,130,246,.75)); box-shadow:0 0 10px rgba(96,165,250,.45)}
+    .brain-legend-note{font-size:11px; line-height:1.6; color:var(--muted); border-top:1px dashed rgba(148,163,209,.3); padding-top:10px}
+    .brain-guide{margin-top:16px; padding:18px 20px; border-radius:18px; border:1px solid var(--silver); background:rgba(11,16,44,.78); box-shadow:0 12px 28px rgba(5,9,25,.35);}
+    .brain-guide summary{cursor:pointer; font-weight:600; letter-spacing:.04em; text-transform:uppercase; font-size:12px; color:var(--muted); display:flex; align-items:center; justify-content:space-between; gap:12px}
+    .brain-guide summary::-webkit-details-marker{display:none}
+    .brain-guide summary::after{content:'▾'; font-size:12px; transition:transform .25s ease}
+    .brain-guide[open] summary::after{transform:rotate(-180deg)}
+    .brain-guide-body{margin-top:14px; display:grid; gap:16px}
+    .brain-guide-body p{margin:0; font-size:13px; color:var(--ink); line-height:1.7}
+    .brain-diagram{border-radius:16px; border:1px solid rgba(148,163,209,.28); background:linear-gradient(135deg, rgba(15,23,61,.55), rgba(12,18,44,.9)); padding:14px}
+    .brain-diagram svg{width:100%; height:auto}
+    .brain-diagram text{fill:rgba(226,232,255,0.82); font-family:"Inter",system-ui,-apple-system,sans-serif; font-size:12px; letter-spacing:.02em}
+    .brain-diagram .label{font-size:13px; font-weight:600}
+
+    .side{width:420px; flex:0 1 420px; display:flex; flex-direction:column; gap:20px}
+    .panel{background:var(--panel); border:1px solid var(--silver); padding:22px; border-radius:20px; backdrop-filter:blur(16px); box-shadow:0 18px 45px rgba(5,7,24,.55); position:relative}
+    .panel-head{display:flex; align-items:center; justify-content:space-between; gap:12px; cursor:pointer; user-select:none; padding-bottom:10px; margin-bottom:14px; border-bottom:1px dashed rgba(189,206,255,.28)}
+    .panel-head .h{margin:0; font-size:17px; letter-spacing:.03em}
+    .chev{font-weight:900; font-size:16px; opacity:.75; transition:transform .25s ease}
+    .panel-body{max-height:none; overflow:visible; transition:opacity .25s ease; opacity:1}
+    .panel.collapsed .panel-body{max-height:0; opacity:0; overflow:hidden; pointer-events:none}
+    .panel.collapsed .chev{transform:rotate(-90deg)}
+
+    .grid{display:grid; grid-template-columns: 1fr 1.3fr auto; gap:12px 12px; align-items:center}
+    .label{font-size:13px; color:var(--muted); letter-spacing:.02em}
+    .val{font-family:ui-monospace,Menlo,Consolas,monospace; font-size:12px; padding:4px 8px; border-radius:8px; background:rgba(10,16,46,.7); border:1px solid var(--silver); color:var(--accent-cyan); box-shadow:inset 0 0 12px rgba(56,189,248,.12)}
+    input[type=range]{width:100%; accent-color:var(--accent-cyan)}
+    .ticket-placement-options{grid-column:2 / span 2; display:flex; flex-wrap:wrap; gap:8px}
+    .ticket-placement-option{position:relative; display:inline-flex; align-items:center; gap:8px; padding:8px 12px; border-radius:12px; border:1px solid var(--silver); background:rgba(12,18,44,.65); color:var(--muted); font-size:12px; font-weight:600; letter-spacing:.03em; cursor:pointer; transition:filter .2s ease, transform .2s ease, box-shadow .2s ease, border-color .2s ease}
+    .ticket-placement-option:hover{filter:brightness(1.05); transform:translateY(-1px)}
+    .ticket-placement-option.active{border-color:rgba(56,189,248,.55); color:var(--ink); background:rgba(12,22,56,.9); box-shadow:0 10px 24px rgba(56,189,248,.18)}
+    .ticket-placement-option input{position:absolute; inset:0; opacity:0; pointer-events:none}
+    .btn{display:block; width:100%; padding:12px 14px; border-radius:12px; border:1px solid rgba(45,212,191,.45); background:linear-gradient(120deg, rgba(45,212,191,.18), rgba(59,130,246,.18)); color:var(--ink); cursor:pointer; text-align:center; margin-top:14px; font-weight:600; letter-spacing:.02em; transition:transform .2s ease, box-shadow .2s ease, filter .2s ease}
+    .btn:hover{filter:brightness(1.08); transform:translateY(-1px); box-shadow:0 20px 36px rgba(45,212,191,.28)}
+    .btn:disabled{opacity:.55; cursor:not-allowed; filter:saturate(.5); box-shadow:none}
+    .tool-hint{margin:0 0 14px; font-size:12px; line-height:1.6; color:var(--muted)}
+    .tool-buttons{display:grid; grid-template-columns:repeat(auto-fit,minmax(120px,1fr)); gap:10px}
+    .tool-btn{padding:10px 12px; border-radius:12px; border:1px solid rgba(59,130,246,.28); background:rgba(18,27,66,.6); color:var(--ink); font-size:13px; font-weight:600; letter-spacing:.02em; cursor:pointer; transition:transform .2s ease, box-shadow .2s ease, filter .2s ease, border-color .2s ease}
+    .tool-btn:hover{filter:brightness(1.05); transform:translateY(-1px); box-shadow:0 12px 26px rgba(59,130,246,.22)}
+    .tool-btn.active{border-color:rgba(45,212,191,.65); background:linear-gradient(120deg, rgba(45,212,191,.24), rgba(59,130,246,.24)); box-shadow:0 14px 28px rgba(45,212,191,.24)}
+    .sub{font-weight:800; font-size:14px; opacity:.9; margin:10px 0 8px; letter-spacing:.05em; color:var(--ink)}
+    .team-roster{display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:12px}
+    .team-card{position:relative; display:flex; flex-direction:column; gap:6px; padding:14px 16px; border-radius:14px; border:1px solid var(--silver); background:rgba(12,18,44,.72); box-shadow:0 10px 24px rgba(5,9,28,.4); transition:transform .2s ease, box-shadow .2s ease, border-color .2s ease}
+    .team-card:hover{transform:translateY(-2px); box-shadow:0 16px 32px rgba(5,9,28,.5)}
+    .team-card.active{border-color:rgba(45,212,191,.6); box-shadow:0 18px 36px rgba(45,212,191,.22)}
+    .team-card input[type=checkbox]{position:absolute; inset:0; opacity:0; cursor:pointer; border-radius:14px}
+    .team-card .team-header{display:flex; align-items:center; gap:10px}
+    .team-card .team-name{font-weight:600; letter-spacing:.02em}
+    .team-card .team-meta{font-size:12px; color:var(--muted)}
+    .team-score{font-size:12px; color:var(--ink); font-weight:600; margin-top:2px}
+    .team-score span{color:var(--muted); font-weight:500}
+    .team-badge{display:inline-flex; align-items:center; justify-content:center; width:28px; height:28px; border-radius:50%; font-size:16px; box-shadow:0 0 18px rgba(255,255,255,.2); color:#020617}
+    .team-configs{display:grid; gap:16px; margin-top:16px}
+    .team-config-card{border:1px solid var(--silver); border-radius:16px; background:rgba(12,18,44,.72); padding:18px 20px; box-shadow:0 12px 28px rgba(5,9,28,.45); display:grid; gap:14px; transition:filter .2s ease, border-color .2s ease}
+    .team-config-card.inactive{filter:saturate(.65) brightness(.85); border-color:rgba(148,163,209,.28)}
+    .team-config-header{display:flex; align-items:center; justify-content:space-between; gap:12px}
+    .team-config-title{display:flex; align-items:center; gap:10px; font-weight:600; letter-spacing:.02em}
+    .team-config-badge{display:inline-flex; align-items:center; justify-content:center; width:26px; height:26px; border-radius:50%; box-shadow:0 0 12px rgba(148,163,209,.28); font-size:15px}
+    .team-config-status{font-size:12px; color:var(--muted)}
+    .team-config-grid{display:grid; grid-template-columns: minmax(90px,0.9fr) 1fr auto; gap:10px 12px; align-items:center}
+    .team-config-grid .label{font-size:12px; text-transform:uppercase; letter-spacing:.08em}
+    .team-config-grid .val{min-width:56px; text-align:right}
+    .music-lead{font-size:13px; line-height:1.6; opacity:.85; margin:0 0 14px}
+    .music-select{display:flex; flex-direction:column; gap:6px}
+    .music-dropdown{width:100%; padding:10px 12px; border-radius:12px; border:1px solid var(--silver); background:rgba(12,18,44,.82); color:var(--ink); font-size:13px; font-family:inherit; letter-spacing:.01em; box-shadow:inset 0 0 12px rgba(118,133,255,.15)}
+    .music-controls{display:flex; align-items:center; gap:12px; margin-top:12px; flex-wrap:wrap}
+    .music-controls .btn{flex:0 0 auto; width:auto; padding:10px 18px; margin-top:0}
+    .music-volume{display:flex; flex:1; align-items:center; gap:10px; min-width:200px}
+    .music-volume .label{min-width:60px}
+    .music-volume input[type=range]{flex:1}
+    .music-meta{margin-top:14px; font-size:12px; line-height:1.6; background:rgba(11,16,44,.65); border:1px solid var(--silver); padding:12px 14px; border-radius:14px; box-shadow:inset 0 0 14px rgba(138,92,246,.12)}
+    .music-status{display:flex; align-items:center; gap:8px; font-size:12px; text-transform:uppercase; letter-spacing:.08em; opacity:.82; color:var(--accent-cyan)}
+    .music-attr{opacity:.72}
+    .sr-only{position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0}
+
+    body.performance-mode{background:radial-gradient(circle at 50% 18%, rgba(59,130,246,.22) 0%, rgba(15,23,42,.9) 55%, #030513 100%);}
+    body.performance-mode .brand, body.performance-mode .nav-links{display:none}
+    body.performance-mode .main-nav{background:transparent; border:none; box-shadow:none; padding:20px 28px; justify-content:flex-end}
+    body.performance-mode .main-nav::before{display:none}
+    body.performance-mode .wrap{max-width:none; justify-content:center}
+    body.performance-mode main{padding:40px 0 60px}
+    body.performance-mode .side, body.performance-mode .stats-bar, body.performance-mode .brain-viz, body.performance-mode .brain-guide{display:none !important}
+    body.performance-mode .field-area{align-items:center; gap:28px}
+    body.performance-mode .field-area > :not(.playfield-frame){display:none !important}
+    body.performance-mode .playfield-frame{max-width:min(1100px, 92vw); width:100%; padding:28px; border:1px solid rgba(148,163,209,.35); background:rgba(8,12,30,.82); box-shadow:0 0 40px rgba(56,189,248,.35), 0 0 140px rgba(244,114,182,.25)}
+    body.performance-mode .playfield-frame::before{opacity:1; filter:blur(22px)}
+    body.performance-mode canvas{width:100%; height:auto; box-shadow:0 0 55px rgba(56,189,248,.22), inset 0 0 28px rgba(148,163,209,.16); border:1px solid rgba(148,163,209,.45)}
+    body.performance-mode #btnPerformance{pointer-events:auto}
+
+    @media (max-width:1200px){
+      .wrap{flex-direction:column; align-items:center}
+      .field-area{width:100%}
+      .side{width:100%; max-width:720px}
+    }
+    @media (max-width:900px){
+      main{padding:32px 28px 56px}
+    }
+    @media (max-width:768px){
+      .main-nav{flex-direction:column; align-items:flex-start; gap:16px; padding:18px 24px}
+      .nav-links{flex-wrap:wrap}
+      main{padding:28px 20px 56px}
+      .wrap{gap:28px}
+      canvas{width:100%; height:auto}
+      .stats-bar{grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:12px; padding:16px 18px}
+      .stat-value{font-size:22px}
+      .side{max-width:100%}
+      .brain-canvas{height:200px}
+      .brain-visual-wrap{flex-direction:column}
+      .brain-legend{width:100%; min-width:0}
+    }
+  </style>
+</head>
+<body>
+  <header class="main-nav">
+    <div class="brand"><span class="brand-dot"></span>Data Sorting NEAT Lab</div>
+    <nav class="nav-links" aria-label="Primary navigation">
+      <a class="pill-link secondary" href="learn-neat.html">How NEAT works</a>
+      <a class="pill-link" href="index.html">← Start</a>
+    </nav>
+    <button type="button" id="btnPerformance" class="pill-button" aria-pressed="false" title="Focus on the playfield and boost frame rates">Performance</button>
+  </header>
+  <main>
+  <div class="wrap">
+    <!-- Left panel: Learning (NEAT) -->
+    <aside class="side" id="left-panel">
+      <div class="panel collapsed" id="panel-learn">
+        <div class="panel-head" role="button" tabindex="0" aria-expanded="false" aria-controls="panel-learn-body"><div class="h">Learning (NEAT-lite)</div><span class="chev">▾</span></div>
+        <div class="panel-body" id="panel-learn-body">
+          <div class="grid">
+            <div class="label" title="Number of simulation steps each generation runs before evaluating fitness.">Steps / gen</div>
+            <input id="slGenSteps" type="range" min="600" max="100000" value="2800" title="Number of simulation steps each generation runs before evaluating fitness."><div class="val" id="lbGenSteps">2800</div>
+
+            <div class="label" title="Hidden neurons connecting the sensory inputs to the outputs.">Hidden neurons</div>
+            <input id="slHidden" type="range" min="4" max="96" value="16" title="Hidden neurons connecting the sensory inputs to the outputs."><div class="val" id="lbHidden">16 neurons</div>
+
+            <div class="label" title="Percentage of offspring genomes that receive random mutations.">Mutation %</div>
+            <input id="slMut" type="range" min="1" max="80" value="16" title="Percentage of offspring genomes that receive random mutations."><div class="val" id="lbMut">16%</div>
+
+            <div class="label" title="Share of the best performers copied directly into the next generation.">Elite ratio</div>
+            <input id="slElite" type="range" min="1" max="100" value="20" title="Share of the best performers copied directly into the next generation."><div class="val" id="lbElite">20%</div>
+
+            <div class="label" title="Strength of the random adjustments applied to neural network connection weights.">Mutate weights</div>
+            <input id="slMutStrengthW" type="range" min="5" max="100" value="20" title="Strength of the random adjustments applied to neural network connection weights."><div class="val" id="lbMutStrengthW">0.20</div>
+
+            <div class="label" title="Strength of the random adjustments applied to neuron bias values.">Mutate biases</div>
+            <input id="slMutStrengthB" type="range" min="5" max="100" value="20" title="Strength of the random adjustments applied to neuron bias values."><div class="val" id="lbMutStrengthB">0.20</div>
+
+            <div class="label" title="Chance that crossover keeps genes from parent A versus parent B.">Crossover bias</div>
+            <input id="slCrossover" type="range" min="0" max="100" value="50" title="Chance that crossover keeps genes from parent A versus parent B."><div class="val" id="lbCrossover">50% A</div>
+
+            <div class="label" title="Number of contenders in the tournament pool when picking parents.">Selection pool</div>
+            <input id="slTournament" type="range" min="10" max="60" value="20" step="1" title="Number of contenders in the tournament pool when picking parents."><div class="val" id="lbTournament">×2.0</div>
+
+            <div class="label" title="Percentage of brand new genomes injected into each generation.">Fresh spawn %</div>
+            <input id="slFresh" type="range" min="0" max="40" value="0" title="Percentage of brand new genomes injected into each generation."><div class="val" id="lbFresh">0%</div>
+
+            <div class="label" title="Automatically advance once the current generation finishes simulating.">Auto next gen</div>
+            <input id="chkAuto" type="checkbox" checked title="Automatically advance once the current generation finishes simulating."><div class="val" id="lbAuto">on</div>
+          </div>
+          <button id="btnNextGen" class="btn">Advance generation now</button>
+          <button id="btnResetTraining" class="btn">Reset training</button>
+          <button id="btnSaveTraining" class="btn">Save training (.json)</button>
+          <button id="btnLoadTraining" class="btn">Load training…</button>
+          <input type="file" id="inputLoadTraining" accept="application/json" style="display:none">
+        </div>
+      </div>
+
+      <div class="panel collapsed" id="panel-toolbox">
+        <div class="panel-head" role="button" tabindex="0" aria-expanded="false" aria-controls="panel-toolbox-body"><div class="h">Obstacle toolbox</div><span class="chev">▾</span></div>
+        <div class="panel-body" id="panel-toolbox-body">
+          <p class="tool-hint">Choose a tool to draw glowing obstacles directly on the field.</p>
+          <div class="tool-buttons" role="group" aria-label="Obstacle drawing tools">
+            <button class="tool-btn active" data-tool="select" aria-pressed="true">Move</button>
+            <button class="tool-btn" data-tool="circle" aria-pressed="false">Circle</button>
+            <button class="tool-btn" data-tool="rect" aria-pressed="false">Rectangle</button>
+            <button class="tool-btn" data-tool="line" aria-pressed="false">Line</button>
+            <button class="tool-btn" data-tool="half" aria-pressed="false">Half circle</button>
+          </div>
+          <button id="btnUndoManual" class="btn" disabled>Undo last manual obstacle</button>
+          <button id="btnClearManual" class="btn">Clear manual obstacles</button>
+          <button id="btnGenerateLabyrinth" class="btn">Generate labyrinth</button>
+          <button id="btnSaveObstacles" class="btn">Save obstacles (.json)</button>
+          <button id="btnLoadObstacles" class="btn">Load obstacles…</button>
+          <input type="file" id="inputLoadObstacles" accept="application/json" style="display:none">
+        </div>
+      </div>
+
+      <div class="panel collapsed" id="panel-music">
+        <div class="panel-head" role="button" tabindex="0" aria-expanded="false" aria-controls="panel-music-body"><div class="h">Ambient Sound Lounge</div><span class="chev">▾</span></div>
+        <div class="panel-body" id="panel-music-body">
+          <p class="music-lead">Play MP3 files from your audio folder. Add your own tracks to the list!</p>
+          <div class="music-select">
+            <label class="label" for="selMusic">Curated playlist</label>
+            <select id="selMusic" class="music-dropdown"></select>
+          </div>
+          <div class="music-controls">
+            <button id="btnMusicToggle" class="btn">Play</button>
+            <div class="music-volume">
+              <span class="label">Volume</span>
+              <input id="slMusicVolume" type="range" min="0" max="100" value="55">
+              <span class="val" id="lbMusicVolume">55%</span>
+            </div>
+          </div>
+          <div class="music-meta">
+            <div class="music-status"><span id="lbMusicState">Paused</span></div>
+            <div id="lbMusicNow" class="music-attr">Choose a track to begin.</div>
+            <div id="lbMusicSource" class="music-attr">Royalty-free ambient selections streamed from Pixabay artists.</div>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Middle: playfield -->
+    <div class="field-area">
+      <div class="playfield-frame">
+        <canvas id="world" width="1100" height="640"></canvas>
+      </div>
+      <section class="stats-bar" aria-label="Simulation progress" aria-live="polite">
+        <div class="stat-card">
+          <span class="stat-label">Generation</span>
+          <span class="stat-value" id="stat-gen">1</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-label">Agents active</span>
+          <span class="stat-value" id="stat-teams">2</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-label">Tickets on field</span>
+          <span class="stat-value" id="stat-tickets">0</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-label">Sorting result</span>
+          <span class="stat-value" id="stat-deliveries">0</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-label">Top fitness</span>
+          <span class="stat-value" id="stat-top">0</span>
+        </div>
+      </section>
+      <section class="brain-viz brain-viz--hidden" aria-live="polite" aria-label="Best performing neural network">
+        <div class="brain-head">
+          <div>
+            <div class="brain-title">Neural Network Monitor</div>
+            <div class="brain-sub" id="brain-subtitle">The leading brain will appear here once a team starts scoring.</div>
+            <div class="brain-controls">
+              <label class="sr-only" for="brainTeamSelect">Choose the team to visualize</label>
+              <select id="brainTeamSelect" class="brain-select">
+                <option value="auto">Auto — top performer</option>
+              </select>
+              <button type="button" id="brainToggleBtn" class="brain-toggle" aria-pressed="false">
+                Show visualization
+              </button>
+            </div>
+          </div>
+          <div class="brain-score">
+            <span class="brain-score-label">Fitness</span>
+            <span class="brain-score-value" id="brain-fitness">—</span>
+          </div>
+        </div>
+        <div class="brain-team">
+          <span class="brain-badge" id="brain-badge">●</span>
+          <span id="brain-team">No leader yet</span>
+          <span class="brain-gen" id="brain-generation">Gen —</span>
+        </div>
+        <div class="brain-visual-wrap">
+          <div class="brain-canvas-wrap">
+            <canvas id="brainVizCanvas" class="brain-canvas" width="560" height="240" role="img" aria-label="Visualization of the current top neural network" hidden></canvas>
+            <div id="brainPausedNotice" class="brain-paused">
+              Visualization hidden to save performance. Toggle it back on anytime to resume live updates.
+            </div>
+          </div>
+          <aside class="brain-legend brain-legend--under" aria-label="Neural network legend">
+            <div class="brain-legend-section">
+              <div class="brain-legend-title">Inputs</div>
+              <ul class="brain-legend-list">
+                <li class="brain-legend-item"><span class="brain-legend-dot-pair" aria-hidden="true"><span class="brain-legend-dot brain-legend-dot--target"></span><span class="brain-legend-dot brain-legend-dot--target-home"></span></span><span>Ticket direction turns cyan — it glows amber while carrying an item to the right zone.</span></li>
+                <li class="brain-legend-item"><span class="brain-legend-dot brain-legend-dot--gradient" aria-hidden="true"></span><span>Trail gradient pointing toward a ticket or back to its destination.</span></li>
+                <li class="brain-legend-item"><span class="brain-legend-dot brain-legend-dot--separation" aria-hidden="true"></span><span>Repulsion from nearby teammates to prevent crowding.</span></li>
+                <li class="brain-legend-item"><span class="brain-legend-dot brain-legend-dot--obstacle" aria-hidden="true"></span><span>Obstacle avoidance pulse steering away from hazards.</span></li>
+                <li class="brain-legend-item"><span class="brain-legend-dot brain-legend-dot--boundary" aria-hidden="true"></span><span>Wall clearance hint nudging agents toward open space.</span></li>
+                <li class="brain-legend-item"><span class="brain-legend-dot brain-legend-dot--velocity" aria-hidden="true"></span><span>Blocker-only: predicted movement of the closest rival.</span></li>
+              </ul>
+            </div>
+            <div class="brain-legend-note">Toggle “Sensor overlay” in Global controls to paint these signals directly on the field.</div>
+            <div class="brain-legend-section">
+              <div class="brain-legend-title">Outputs</div>
+              <ul class="brain-legend-list">
+                <li class="brain-legend-item">Drive X / Drive Y — steering left &amp; right</li>
+                <li class="brain-legend-item">Speed + — accelerate</li>
+                <li class="brain-legend-item">Speed − — brake</li>
+              </ul>
+            </div>
+          </aside>
+        </div>
+      </section>
+      <details class="brain-guide" id="brainGuide">
+        <summary>Neural network visual guide</summary>
+        <div class="brain-guide-body">
+          <p>
+            This panel shows the brain of whichever agent is leading the sorting challenge right now. Circles on the left are the signals the
+            agents feel — ticket direction, teammate distance, obstacle pings and the round timer. The middle dots mix those signals,
+            and the four outputs on the right tell the agent how to turn and how fast to move.
+          </p>
+          <figure class="brain-diagram">
+            <svg viewBox="0 0 520 220" role="img" aria-labelledby="brain-diagram-title brain-diagram-desc">
+              <title id="brain-diagram-title">Neural network layers</title>
+              <desc id="brain-diagram-desc">Inputs flow to hidden neurons and then to four output commands.</desc>
+              <defs>
+                <linearGradient id="nodeInput" x1="0" x2="1" y1="0" y2="1">
+                  <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.6" />
+                  <stop offset="100%" stop-color="#38bdf8" stop-opacity="0.2" />
+                </linearGradient>
+                <linearGradient id="nodeHidden" x1="0" x2="1" y1="0" y2="1">
+                  <stop offset="0%" stop-color="#2dd4bf" stop-opacity="0.6" />
+                  <stop offset="100%" stop-color="#2dd4bf" stop-opacity="0.2" />
+                </linearGradient>
+                <linearGradient id="nodeOutput" x1="0" x2="1" y1="0" y2="1">
+                  <stop offset="0%" stop-color="#f472b6" stop-opacity="0.6" />
+                  <stop offset="100%" stop-color="#f472b6" stop-opacity="0.2" />
+                </linearGradient>
+              </defs>
+              <g stroke="rgba(148,163,209,0.35)" stroke-width="1.2">
+                <line x1="110" y1="40" x2="260" y2="40" />
+                <line x1="110" y1="40" x2="260" y2="100" />
+                <line x1="110" y1="40" x2="260" y2="160" />
+                <line x1="110" y1="100" x2="260" y2="40" />
+                <line x1="110" y1="100" x2="260" y2="100" />
+                <line x1="110" y1="100" x2="260" y2="160" />
+                <line x1="110" y1="160" x2="260" y2="40" />
+                <line x1="110" y1="160" x2="260" y2="100" />
+                <line x1="110" y1="160" x2="260" y2="160" />
+                <line x1="260" y1="40" x2="410" y2="40" />
+                <line x1="260" y1="40" x2="410" y2="90" />
+                <line x1="260" y1="40" x2="410" y2="140" />
+                <line x1="260" y1="40" x2="410" y2="190" />
+                <line x1="260" y1="100" x2="410" y2="40" />
+                <line x1="260" y1="100" x2="410" y2="90" />
+                <line x1="260" y1="100" x2="410" y2="140" />
+                <line x1="260" y1="100" x2="410" y2="190" />
+                <line x1="260" y1="160" x2="410" y2="40" />
+                <line x1="260" y1="160" x2="410" y2="90" />
+                <line x1="260" y1="160" x2="410" y2="140" />
+                <line x1="260" y1="160" x2="410" y2="190" />
+              </g>
+              <g fill="url(#nodeInput)">
+                <circle cx="110" cy="40" r="18"></circle>
+                <circle cx="110" cy="100" r="18"></circle>
+                <circle cx="110" cy="160" r="18"></circle>
+              </g>
+              <g fill="url(#nodeHidden)">
+                <circle cx="260" cy="40" r="16"></circle>
+                <circle cx="260" cy="100" r="16"></circle>
+                <circle cx="260" cy="160" r="16"></circle>
+              </g>
+              <g fill="url(#nodeOutput)">
+                <circle cx="410" cy="40" r="18"></circle>
+                <circle cx="410" cy="90" r="18"></circle>
+                <circle cx="410" cy="140" r="18"></circle>
+                <circle cx="410" cy="190" r="18"></circle>
+              </g>
+              <text class="label" x="110" y="200" text-anchor="middle">Inputs</text>
+              <text class="label" x="260" y="200" text-anchor="middle">Hidden layer</text>
+              <text class="label" x="410" y="200" text-anchor="middle">Outputs</text>
+              <text x="440" y="40" text-anchor="start" dominant-baseline="middle">Drive X</text>
+              <text x="440" y="90" text-anchor="start" dominant-baseline="middle">Drive Y</text>
+              <text x="440" y="140" text-anchor="start" dominant-baseline="middle">Speed +</text>
+              <text x="440" y="190" text-anchor="start" dominant-baseline="middle">Speed −</text>
+            </svg>
+          </figure>
+          <p>
+            Bright lines mean a strong signal. Cyan edges push movement in the same direction as the input, while magenta edges flip
+            the response. Watching the colours change makes it easier to spot why a team turns, speeds up or slows down.
+          </p>
+          <p>
+            The badge above the diagram lists which team owns the brain and which generation discovered it so you always know whose
+            strategy you are following.
+          </p>
+        </div>
+      </details>
+    </div>
+
+    <!-- Right panels: controls and teams -->
+    <aside class="side" id="right-panel">
+      <div class="panel collapsed" id="panel-global">
+        <div class="panel-head" role="button" tabindex="0" aria-expanded="false" aria-controls="panel-global-body"><div class="h">Global controls</div><span class="chev">▾</span></div>
+        <div class="panel-body" id="panel-global-body">
+          <div class="grid">
+            <div class="label">Ticket (max)</div>
+            <input id="slTickets" type="range" min="2" max="1000" value="32"><div class="val" id="lbTickets">32</div>
+
+            <div class="label" id="ticketPlacementLabel">Ticket placement</div>
+            <div class="ticket-placement-options" role="group" aria-labelledby="ticketPlacementLabel">
+              <label class="ticket-placement-option">
+                <input type="checkbox" name="ticketPlacement" value="sw">
+                <span aria-hidden="true">BL</span>
+                <span class="sr-only">Bottom left</span>
+              </label>
+              <label class="ticket-placement-option">
+                <input type="checkbox" name="ticketPlacement" value="se">
+                <span aria-hidden="true">BR</span>
+                <span class="sr-only">Bottom right</span>
+              </label>
+              <label class="ticket-placement-option">
+                <input type="checkbox" name="ticketPlacement" value="ne">
+                <span aria-hidden="true">TR</span>
+                <span class="sr-only">Top right</span>
+              </label>
+              <label class="ticket-placement-option">
+                <input type="checkbox" name="ticketPlacement" value="nw">
+                <span aria-hidden="true">TL</span>
+                <span class="sr-only">Top left</span>
+              </label>
+              <label class="ticket-placement-option">
+                <input type="checkbox" name="ticketPlacement" value="center">
+                <span aria-hidden="true">C</span>
+                <span class="sr-only">Center</span>
+              </label>
+              <label class="ticket-placement-option">
+                <input type="checkbox" name="ticketPlacement" value="random" checked>
+                <span aria-hidden="true">R</span>
+                <span class="sr-only">Random</span>
+              </label>
+            </div>
+
+            <div class="label">Spawn (ms)</div>
+            <input id="slSpawn" type="range" min="120" max="15000" value="900"><div class="val" id="lbSpawn">900</div>
+
+            <div class="label">Simulation speed</div>
+            <input id="slSimSpeed" type="range" min="10" max="600" value="100" step="5"><div class="val" id="lbSimSpeed">1.00×</div>
+
+            <div class="label">Obstacles</div>
+            <input id="slObst" type="range" min="0" max="40" value="0"><div class="val" id="lbObst">0</div>
+
+            <div class="label">Trail length</div>
+            <input id="slTail" type="range" min="4" max="1500" value="24"><div class="val" id="lbTail">24</div>
+
+            <div class="label">Snake size</div>
+            <input id="slAgentScale" type="range" min="50" max="150" value="100" step="5"><div class="val" id="lbAgentScale">1.00×</div>
+
+            <div class="label">Agent collisions</div>
+            <input id="chkAgentCollisions" type="checkbox"><div class="val" id="lbAgentCollisions">off</div>
+
+            <div class="label">Top performer glow</div>
+            <input id="chkTopHighlight" type="checkbox" checked><div class="val" id="lbTopHighlight">on</div>
+
+            <div class="label">Energy rings</div>
+            <input id="chkEnergyHalo" type="checkbox" checked><div class="val" id="lbEnergyHalo">on</div>
+
+            <div class="label">Energy empty speed</div>
+            <input id="slEnergyEmptySpeed" type="range" min="10" max="100" value="45" step="5"><div class="val" id="lbEnergyEmptySpeed">45%</div>
+
+            <div class="label">Energy capacity</div>
+            <input id="slEnergyCapacity" type="range" min="0" max="300" value="120" step="10"><div class="val" id="lbEnergyCapacity">120</div>
+
+            <div class="label">Awareness boost</div>
+            <input id="slAwarenessBoost" type="range" min="50" max="200" value="100" step="5"><div class="val" id="lbAwarenessBoost">100%</div>
+
+            <div class="label" title="Agents that run out of energy will be removed and penalized.">Energy exhaustion death</div>
+            <input id="chkEnergyDeath" type="checkbox"><div class="val" id="lbEnergyDeath">off</div>
+
+            <div class="label">Sensor overlay</div>
+            <input id="chkSensorRadar" type="checkbox"><div class="val" id="lbSensorRadar">off</div>
+
+            <div class="label">Navigation preset</div>
+            <select id="selNavPreset" class="music-dropdown">
+              <option value="open">Open Field</option>
+              <option value="lab">Labyrinth</option>
+            </select><div class="val" id="lbNavPreset">Open Field</div>
+          </div>
+          <button id="btnReset" class="btn">Restart</button>
+        </div>
+      </div>
+
+      <div class="panel collapsed" id="panel-teams">
+        <div class="panel-head" role="button" tabindex="0" aria-expanded="false" aria-controls="panel-teams-body"><div class="h">Team settings</div><span class="chev">▾</span></div>
+        <div class="panel-body" id="panel-teams-body">
+          <div class="sub">Teams</div>
+          <div class="team-roster" id="teamRoster"></div>
+          <div class="sub" style="margin-top:14px">Attributes per team</div>
+          <div class="team-configs" id="teamConfigs"></div>
+        </div>
+      </div>
+    </aside>
+  </div>
+  </main>
+
+
+<script>
+
+// Data Sorting variant of Foodwars
+const Q = (id)=>document.getElementById(id);
+const canvas = Q('world');
+const ctx = canvas.getContext('2d');
+const W = canvas.width;
+const H = canvas.height;
+
+const categories = [
+  { id:'incident', label:'Incident', color:'#ef4444', zone:{ x: W*0.18, y: H*0.25, r: 60 } },
+  { id:'service', label:'Service Request', color:'#22c55e', zone:{ x: W*0.5, y: H*0.75, r: 60 } },
+  { id:'problem', label:'Problem', color:'#3b82f6', zone:{ x: W*0.82, y: H*0.35, r: 60 } }
+];
+
+const params = {
+  maxTickets: 32,
+  spawnMs: 900,
+  simSpeed: 1,
+  generationMs: 45000,
+  populationSize: 30,
+  mutationRate: 0.1,
+  elitism: 0.2,
+  accel: 90,
+  maxSpeed: 110,
+  turnRate: 4.2,
+  idlePenalty: 0.0004,
+  wrongPenalty: 1.0,
+  correctReward: 1.0,
+};
+
+function bindRange(sliderId, labelId, fmt=(v)=>v){
+  const slider = Q(sliderId);
+  const label = Q(labelId);
+  if(!slider || !label) return;
+  const apply = ()=>{
+    label.textContent = fmt(+slider.value);
+    readParams();
+  };
+  slider.addEventListener('input', apply);
+  apply();
+}
+
+function readParams(){
+  const ticketSlider = Q('slTickets');
+  const spawnSlider = Q('slSpawn');
+  const speedSlider = Q('slSimSpeed');
+  params.maxTickets = ticketSlider ? +ticketSlider.value : params.maxTickets;
+  params.spawnMs = spawnSlider ? +spawnSlider.value : params.spawnMs;
+  params.simSpeed = speedSlider ? (+speedSlider.value / 100) : params.simSpeed;
+}
+
+class Genome {
+  constructor(){
+    this.inputSize = 16;
+    this.hiddenSize = 18;
+    this.outputSize = 2; // turn, thrust
+    const total = (this.inputSize * this.hiddenSize) + (this.hiddenSize * this.outputSize);
+    this.weights = Array.from({length: total}, () => Math.random()*2 - 1);
+    this.fitness = 0;
+  }
+  activate(inputs){
+    const hidden = [];
+    let w = 0;
+    for(let h=0; h<this.hiddenSize; h++){
+      let sum = 0;
+      for(let i=0; i<this.inputSize; i++) sum += inputs[i] * this.weights[w++];
+      hidden.push(Math.tanh(sum));
+    }
+    const outputs = [];
+    for(let o=0; o<this.outputSize; o++){
+      let sum = 0;
+      for(let h=0; h<this.hiddenSize; h++) sum += hidden[h] * this.weights[w++];
+      outputs.push(Math.tanh(sum));
+    }
+    return outputs;
+  }
+  mutate(rate){
+    for(let i=0;i<this.weights.length;i++){
+      if(Math.random() < rate){
+        if(Math.random() < 0.12){
+          this.weights[i] = Math.random()*2 - 1;
+        } else {
+          this.weights[i] += (Math.random()-0.5)*0.6;
+          this.weights[i] = Math.max(-2, Math.min(2, this.weights[i]));
+        }
+      }
+    }
+  }
+  crossover(other){
+    const child = new Genome();
+    for(let i=0;i<this.weights.length;i++){
+      child.weights[i] = Math.random() < 0.5 ? this.weights[i] : other.weights[i];
+    }
+    return child;
+  }
+}
+
+class Population {
+  constructor(size){
+    this.genomes = Array.from({length:size}, ()=> new Genome());
+    this.generation = 1;
+    this.bestFitness = 0;
+  }
+  evolve(){
+    this.genomes.sort((a,b)=> b.fitness - a.fitness);
+    this.bestFitness = Math.max(this.bestFitness, this.genomes[0].fitness);
+    const eliteCount = Math.max(1, Math.floor(this.genomes.length * params.elitism));
+    const next = this.genomes.slice(0, eliteCount);
+    while(next.length < this.genomes.length){
+      const p1 = this.selectParent();
+      const p2 = this.selectParent();
+      const child = p1.crossover(p2);
+      child.mutate(params.mutationRate);
+      next.push(child);
+    }
+    this.genomes = next;
+    this.generation++;
+  }
+  selectParent(){
+    const total = this.genomes.reduce((s,g)=> s + Math.max(0.0001, g.fitness+2), 0);
+    let r = Math.random()*total;
+    for(const g of this.genomes){
+      r -= Math.max(0.0001, g.fitness+2);
+      if(r <= 0) return g;
+    }
+    return this.genomes[0];
+  }
+}
+
+class Ticket {
+  constructor(type, x, y){
+    this.type = type;
+    this.x = x;
+    this.y = y;
+  }
+}
+
+class SortingAgent {
+  constructor(genome){
+    this.genome = genome;
+    this.reset();
+  }
+  reset(){
+    this.x = Math.random()*W*0.6 + W*0.2;
+    this.y = Math.random()*H*0.6 + H*0.2;
+    this.vx = 0;
+    this.vy = 0;
+    this.angle = Math.random()*Math.PI*2;
+    this.carrying = null;
+    this.carryTime = 0;
+    this.fitness = 0;
+  }
+  think(tickets){
+    let target = null;
+    let distToTicket = Infinity;
+    for(const t of tickets){
+      const dx = t.x - this.x;
+      const dy = t.y - this.y;
+      const d = Math.hypot(dx, dy);
+      if(d < distToTicket){
+        distToTicket = d;
+        target = t;
+      }
+    }
+    const inputs = [];
+    if(target){
+      inputs.push((target.x - this.x)/W);
+      inputs.push((target.y - this.y)/H);
+      const typeIndex = categories.findIndex(c=> c.id===target.type);
+      categories.forEach((cat, idx)=> inputs.push(idx===typeIndex ? 1 : 0));
+    } else {
+      inputs.push(0,0);
+      inputs.push(0,0,0);
+    }
+    for(const cat of categories){
+      inputs.push((cat.zone.x - this.x)/W);
+      inputs.push((cat.zone.y - this.y)/H);
+    }
+    const carryingFlags = categories.map(cat=> this.carrying === cat.id ? 1 : 0);
+    inputs.push(...carryingFlags);
+    inputs.push(this.vx/params.maxSpeed);
+    inputs.push(this.vy/params.maxSpeed);
+    return this.genome.activate(inputs);
+  }
+  update(dt, tickets){
+    const [turn, thrustRaw] = this.think(tickets);
+    const thrust = (thrustRaw+1)/2;
+    this.angle += turn * params.turnRate * dt;
+    this.vx += Math.cos(this.angle) * thrust * params.accel * dt;
+    this.vy += Math.sin(this.angle) * thrust * params.accel * dt;
+    const speed = Math.hypot(this.vx, this.vy);
+    if(speed > params.maxSpeed){
+      const scale = params.maxSpeed / speed;
+      this.vx *= scale; this.vy *= scale;
+    }
+    this.x += this.vx * dt;
+    this.y += this.vy * dt;
+    if(this.x < 6 || this.x > W-6){ this.vx *= -0.8; this.x = Math.max(6, Math.min(W-6, this.x)); }
+    if(this.y < 6 || this.y > H-6){ this.vy *= -0.8; this.y = Math.max(6, Math.min(H-6, this.y)); }
+
+    if(this.carrying){
+      this.carryTime += dt;
+      this.fitness -= params.idlePenalty * dt;
+    }
+  }
+}
+
+let population = new Population(params.populationSize);
+let agents = [];
+let tickets = [];
+let spawnTimer = 0;
+let generationTimer = 0;
+let correctSorted = 0;
+let wrongSorted = 0;
+let bestFitness = 0;
+
+function spawnTicket(){
+  if(tickets.length >= params.maxTickets) return;
+  const type = categories[Math.floor(Math.random()*categories.length)].id;
+  const padding = 22;
+  const x = Math.random() * (W - padding*2) + padding;
+  const y = Math.random() * (H - padding*2) + padding;
+  tickets.push(new Ticket(type, x, y));
+}
+
+function resetGeneration(){
+  tickets = [];
+  agents = population.genomes.map(g=> new SortingAgent(g));
+  spawnTimer = 0;
+  generationTimer = 0;
+  correctSorted = 0;
+  wrongSorted = 0;
+  bestFitness = population.bestFitness;
+  for(let i=0;i<Math.min(params.maxTickets, 10); i++) spawnTicket();
+}
+
+function deliver(agent, zoneCat){
+  if(!agent.carrying) return;
+  if(agent.carrying === zoneCat.id){
+    agent.fitness += params.correctReward;
+    correctSorted++;
+  } else {
+    agent.fitness -= params.wrongPenalty;
+    wrongSorted++;
+  }
+  agent.carrying = null;
+  agent.carryTime = 0;
+}
+
+function tryPickup(agent){
+  if(agent.carrying) return;
+  let targetIndex = -1;
+  let closest = 12;
+  for(let i=0;i<tickets.length;i++){
+    const t = tickets[i];
+    const d = Math.hypot(t.x-agent.x, t.y-agent.y);
+    if(d < closest){ closest = d; targetIndex = i; }
+  }
+  if(targetIndex >= 0){
+    const t = tickets.splice(targetIndex,1)[0];
+    agent.carrying = t.type;
+    agent.carryTime = 0;
+  }
+}
+
+function update(dt){
+  spawnTimer += dt*1000;
+  generationTimer += dt*1000;
+  if(spawnTimer >= params.spawnMs){
+    spawnTicket();
+    spawnTimer = 0;
+  }
+  for(const agent of agents){
+    agent.update(dt, tickets);
+    tryPickup(agent);
+    for(const cat of categories){
+      const zone = cat.zone;
+      const d = Math.hypot(zone.x - agent.x, zone.y - agent.y);
+      if(d < zone.r && agent.carrying){
+        deliver(agent, cat);
+      }
+    }
+    agent.fitness -= 0.0002*dt;
+  }
+  if(generationTimer >= params.generationMs){
+    for(let i=0;i<population.genomes.length;i++){
+      population.genomes[i].fitness = agents[i].fitness;
+    }
+    population.evolve();
+    resetGeneration();
+  }
+}
+
+function draw(){
+  ctx.clearRect(0,0,W,H);
+  ctx.fillStyle = '#050516';
+  ctx.fillRect(0,0,W,H);
+  categories.forEach(cat=>{
+    ctx.fillStyle = `${cat.color}30`;
+    ctx.beginPath();
+    ctx.arc(cat.zone.x, cat.zone.y, cat.zone.r, 0, Math.PI*2);
+    ctx.fill();
+    ctx.strokeStyle = cat.color;
+    ctx.lineWidth = 3;
+    ctx.stroke();
+    ctx.fillStyle = '#e2e8f0';
+    ctx.font = '14px Inter, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(cat.label, cat.zone.x, cat.zone.y+4);
+  });
+  tickets.forEach(t=>{
+    ctx.fillStyle = categories.find(c=>c.id===t.type)?.color || '#fff';
+    ctx.beginPath();
+    ctx.arc(t.x, t.y, 6, 0, Math.PI*2);
+    ctx.fill();
+  });
+  agents.forEach(agent=>{
+    ctx.save();
+    ctx.translate(agent.x, agent.y);
+    ctx.rotate(agent.angle);
+    ctx.fillStyle = agent.carrying ? '#facc15' : '#a5b4fc';
+    ctx.beginPath();
+    ctx.moveTo(10,0);
+    ctx.lineTo(-10,6);
+    ctx.lineTo(-10,-6);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  });
+}
+
+let last = performance.now();
+function loop(now){
+  const dt = Math.min(0.05, (now-last)/1000) * params.simSpeed;
+  last = now;
+  update(dt);
+  draw();
+  updateStats();
+  requestAnimationFrame(loop);
+}
+
+function updateStats(){
+  const stats = {
+    gen: population.generation,
+    teams: agents.length,
+    tickets: tickets.length,
+    deliveries: `${correctSorted} ✓ / ${wrongSorted} ✗`,
+    top: population.bestFitness.toFixed(2)
+  };
+  for(const [key,val] of Object.entries(stats)){
+    const el = Q(`stat-${key}`);
+    if(el) el.textContent = val;
+  }
+  const brainSub = Q('brain-subtitle');
+  if(brainSub){
+    brainSub.textContent = 'Agents learn to carry each ticket type to its matching zone using simple NEAT evolution.';
+  }
+  const brainTeam = Q('brain-team');
+  if(brainTeam){
+    brainTeam.textContent = `Best fitness this run: ${population.bestFitness.toFixed(2)}`;
+  }
+  const brainBadge = Q('brain-badge');
+  if(brainBadge){
+    brainBadge.textContent = '⇄';
+  }
+  const brainGen = Q('brain-generation');
+  if(brainGen){
+    brainGen.textContent = `Generation ${population.generation}`;
+  }
+}
+
+bindRange('slTickets','lbTickets',(v)=>v);
+bindRange('slSpawn','lbSpawn',(v)=>v);
+bindRange('slSimSpeed','lbSimSpeed',(v)=> (v/100).toFixed(2)+'×');
+readParams();
+resetGeneration();
+requestAnimationFrame(loop);
+
+</script>
+</body>
+</html>
