@@ -163,6 +163,15 @@
     .music-attr{opacity:.72}
     .sr-only{position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0}
 
+    .gen-history{margin-top:10px; padding:10px 12px; border-radius:12px; border:1px solid rgba(148,163,209,.28); background:rgba(8,12,32,.68); box-shadow:inset 0 0 12px rgba(59,130,246,.12); display:flex; flex-direction:column; gap:8px}
+    .gen-history .title{font-size:12px; text-transform:uppercase; letter-spacing:.08em; color:var(--muted)}
+    .gen-history-row{display:flex; align-items:flex-end; gap:4px; min-height:36px}
+    .gen-history-bar{flex:1; min-width:6px; background:linear-gradient(180deg, rgba(59,130,246,.8), rgba(109,40,217,.75)); border-radius:6px 6px 0 0; box-shadow:0 6px 14px rgba(59,130,246,.14)}
+    .gen-history-bar.avg{background:linear-gradient(180deg, rgba(45,212,191,.8), rgba(16,185,129,.75))}
+    .gen-history-bar.acc{background:linear-gradient(180deg, rgba(250,204,21,.9), rgba(234,179,8,.8))}
+    .gen-history-legend{display:flex; gap:8px; flex-wrap:wrap; font-size:11px; color:var(--muted)}
+    .gen-history-dot{width:10px; height:10px; border-radius:50%; display:inline-block; margin-right:6px; box-shadow:0 0 10px currentColor}
+
     .chip-line{display:flex; flex-wrap:wrap; gap:8px; margin-top:12px}
     .chip-line .chip{display:inline-flex; align-items:center; gap:6px; padding:8px 12px; border-radius:14px; border:1px solid rgba(148,163,209,.35); background:rgba(12,18,44,.65); box-shadow:0 8px 18px rgba(15,23,61,.25); font-size:12px; font-weight:700; letter-spacing:.03em; color:var(--ink)}
     .chip .dot{width:10px; height:10px; border-radius:50%; box-shadow:0 0 12px currentColor}
@@ -266,6 +275,7 @@
           <button id="btnSaveTraining" class="btn">Save training (.json)</button>
           <button id="btnLoadTraining" class="btn">Load training…</button>
           <input type="file" id="inputLoadTraining" accept="application/json" style="display:none">
+          <button id="btnReplayChampion" class="btn">Replay best genome</button>
         </div>
       </div>
 
@@ -341,6 +351,15 @@
           <span class="stat-value" id="stat-top">0</span>
         </div>
       </section>
+      <div class="gen-history" id="genHistory" aria-label="Generation history">
+        <div class="title">Recent generations</div>
+        <div class="gen-history-row" id="genHistoryBars"></div>
+        <div class="gen-history-legend">
+          <span><span class="gen-history-dot" style="color:#60a5fa"></span>Best</span>
+          <span><span class="gen-history-dot" style="color:#34d399"></span>Avg</span>
+          <span><span class="gen-history-dot" style="color:#facc15"></span>Accuracy</span>
+        </div>
+      </div>
       <div class="layout-readout" id="layoutReadout">Drag handles are off. Enable them in Layout lab to reposition targets and the nest.</div>
       <div class="chip-line" id="chipLine" aria-label="Ticket heat"></div>
       <div class="holo-feed" id="eventFeed" aria-live="polite" aria-label="Live agent feed"></div>
@@ -550,6 +569,16 @@
             <div class="label">Spawn (ms)</div>
             <input id="slSpawn" type="range" min="120" max="15000" value="900"><div class="val" id="lbSpawn">900</div>
 
+            <div class="label">Adaptive load</div>
+            <input id="chkAdaptiveLoad" type="checkbox" checked><div class="val" id="lbAdaptiveLoad">on</div>
+
+            <div class="label">Scenario presets</div>
+            <div class="control-chips">
+              <button class="chip-btn" id="btnPresetBalanced">Balanced</button>
+              <button class="chip-btn" id="btnPresetIncident">Incident storm</button>
+              <button class="chip-btn chip-btn--hot" id="btnPresetService">Service Friday</button>
+            </div>
+
             <div class="label">Simulation speed</div>
             <input id="slSimSpeed" type="range" min="10" max="600" value="100" step="5"><div class="val" id="lbSimSpeed">1.00×</div>
 
@@ -653,6 +682,7 @@ const canvas = Q('world');
 const ctx = canvas.getContext('2d');
 const W = canvas.width;
 const H = canvas.height;
+const diag = Math.hypot(W, H);
 
 const categories = [
   { id:'incident', label:'Incident', color:'#ef4444', zone:{ x: W*0.18, y: H*0.25, r: 60 } },
@@ -671,6 +701,11 @@ const defaultLayout = {
   categories: categories.map(c=> ({...c, zone:{...c.zone}}))
 };
 
+const ticketTypeWeights = Object.fromEntries(categories.map(c=> [c.id, 1]));
+let placementPreset = 'balanced';
+let replayMode = false;
+let replaySeed = 1;
+
 const layoutState = {
   dragEnabled: true,
   snap: false,
@@ -678,6 +713,28 @@ const layoutState = {
   showGrid: false,
   active: null
 };
+
+const generationHistory = [];
+
+function resetReplaySeed(){ replaySeed = 1; }
+function rand(){
+  if(replayMode){
+    replaySeed = (replaySeed * 9301 + 49297) % 233280;
+    return replaySeed / 233280;
+  }
+  return Math.random();
+}
+
+function pickTicketType(){
+  const options = categories.map(c=> ({id:c.id, w: Math.max(0.01, ticketTypeWeights[c.id] || 1)}));
+  const total = options.reduce((s,o)=> s + o.w, 0);
+  let r = rand()*total;
+  for(const o of options){
+    r -= o.w;
+    if(r <= 0) return o.id;
+  }
+  return options[options.length-1].id;
+}
 
 const params = {
   maxTickets: 32,
@@ -697,6 +754,13 @@ const params = {
   idlePenalty: 0.0004,
   wrongPenalty: 1.0,
   correctReward: 1.0,
+  driftPenalty: 0.0002,
+  progressReward: 0.8,
+  regressPenalty: 1.2,
+  fastDeliveryBonus: 1.1,
+  priorityRewardScale: 0.35,
+  priorityPenaltyScale: 0.4,
+  adaptiveLoad: true,
 };
 
 const learn = {
@@ -736,6 +800,7 @@ function readParams(){
   const topToggle = Q('chkTopHighlight');
   const obstSlider = Q('slObst');
   const scatterSlider = Q('slScatter');
+  const adaptiveToggle = Q('chkAdaptiveLoad');
   params.maxTickets = ticketSlider ? +ticketSlider.value : params.maxTickets;
   params.spawnMs = spawnSlider ? +spawnSlider.value : params.spawnMs;
   params.simSpeed = speedSlider ? (+speedSlider.value / 100) : params.simSpeed;
@@ -748,6 +813,7 @@ function readParams(){
   params.topHighlight = topToggle ? topToggle.checked : params.topHighlight;
   params.maxObstacles = obstSlider ? +obstSlider.value : params.maxObstacles;
   params.ticketScatter = scatterSlider ? +scatterSlider.value : params.ticketScatter;
+  params.adaptiveLoad = adaptiveToggle ? adaptiveToggle.checked : params.adaptiveLoad;
   refreshAutoObstacles();
 }
 
@@ -793,7 +859,20 @@ function readTicketPlacements(){
   return active.length ? active : ['random'];
 }
 
-const INPUT_COUNT = 24;
+function syncPlacementButtons(){
+  document.querySelectorAll('.ticket-placement-option input').forEach(box=>{
+    box.parentElement.classList.toggle('active', box.checked);
+  });
+}
+
+function setPlacementSelection(values){
+  document.querySelectorAll('input[name="ticketPlacement"]').forEach(box=>{
+    box.checked = values.includes(box.value);
+  });
+  syncPlacementButtons();
+}
+
+const INPUT_COUNT = 30;
 const OUTPUT_COUNT = 2;
 
 class Genome {
@@ -852,15 +931,40 @@ class Genome {
   }
 }
 
+function cloneGenome(src){
+  const g = new Genome();
+  g.weights1 = Array.from(src.weights1 || g.weights1);
+  g.weights2 = Array.from(src.weights2 || g.weights2);
+  g.biasH = Array.from(src.biasH || g.biasH);
+  g.biasO = Array.from(src.biasO || g.biasO);
+  g.fitness = src.fitness || 0;
+  return g;
+}
+
+function hydrateGenome(raw){
+  const template = new Genome();
+  const g = new Genome();
+  g.weights1 = Array.isArray(raw?.weights1) && raw.weights1.length === template.weights1.length ? Array.from(raw.weights1) : g.weights1;
+  g.weights2 = Array.isArray(raw?.weights2) && raw.weights2.length === template.weights2.length ? Array.from(raw.weights2) : g.weights2;
+  g.biasH = Array.isArray(raw?.biasH) && raw.biasH.length === template.biasH.length ? Array.from(raw.biasH) : g.biasH;
+  g.biasO = Array.isArray(raw?.biasO) && raw.biasO.length === template.biasO.length ? Array.from(raw.biasO) : g.biasO;
+  g.fitness = typeof raw?.fitness === 'number' ? raw.fitness : 0;
+  return g;
+}
+
 class Population {
   constructor(size){
     this.genomes = Array.from({length:size}, ()=> new Genome());
     this.generation = 1;
     this.bestFitness = 0;
+    this.champion = null;
   }
   evolve(){
     this.genomes.sort((a,b)=> b.fitness - a.fitness);
     this.bestFitness = Math.max(this.bestFitness, this.genomes[0].fitness);
+    if(!this.champion || this.genomes[0].fitness > this.champion.fitness){
+      this.champion = cloneGenome(this.genomes[0]);
+    }
     const eliteCount = Math.max(1, Math.floor(this.genomes.length * learn.elite));
     const freshCount = Math.max(0, Math.floor(this.genomes.length * learn.fresh));
     const next = this.genomes.slice(0, eliteCount).map(g=>g);
@@ -890,10 +994,11 @@ class Population {
 }
 
 class Ticket {
-  constructor(type, x, y){
+  constructor(type, x, y, priority=1){
     this.type = type;
     this.x = x;
     this.y = y;
+    this.priority = priority;
   }
 }
 
@@ -905,13 +1010,14 @@ class SortingAgent {
     this.reset();
   }
   reset(){
-    this.x = nest.x + (Math.random()*2-1) * nest.r * 0.45;
-    this.y = nest.y + (Math.random()*2-1) * nest.r * 0.35;
+    this.x = nest.x + (rand()*2-1) * nest.r * 0.45;
+    this.y = nest.y + (rand()*2-1) * nest.r * 0.35;
     this.vx = 0;
     this.vy = 0;
-    this.angle = Math.PI/2 + (Math.random()*0.6 - 0.3);
+    this.angle = Math.PI/2 + (rand()*0.6 - 0.3);
     this.carrying = null;
     this.carryTime = 0;
+    this.goalDistancePrev = null;
     this.fitness = 0;
     this.tail = Array.from({length: Math.max(4, Math.floor(params.tailLen/6))}, ()=>({x:this.x, y:this.y}));
     this.tailTimer = 0;
@@ -920,16 +1026,14 @@ class SortingAgent {
     this.lastTicketType = null;
   }
   think(tickets, obstacles, teammates){
+    // 1) Perception of the nearest ticket (vector), its type one-hot, and priority level
     let target = null;
     let distToTicket = Infinity;
     for(const t of tickets){
       const dx = t.x - this.x;
       const dy = t.y - this.y;
       const d = Math.hypot(dx, dy);
-      if(d < distToTicket){
-        distToTicket = d;
-        target = t;
-      }
+      if(d < distToTicket){ distToTicket = d; target = t; }
     }
     const inputs = [];
     if(target){
@@ -937,18 +1041,27 @@ class SortingAgent {
       inputs.push((target.y - this.y)/H);
       const typeIndex = categories.findIndex(c=> c.id===target.type);
       categories.forEach((cat, idx)=> inputs.push(idx===typeIndex ? 1 : 0));
+      inputs.push(target.priority/3);
     } else {
       inputs.push(0,0);
       inputs.push(0,0,0);
+      inputs.push(0);
     }
+
+    // 2) Zone direction vectors and radial distances to each delivery circle
     for(const cat of categories){
-      inputs.push((cat.zone.x - this.x)/W);
-      inputs.push((cat.zone.y - this.y)/H);
+      const dx = cat.zone.x - this.x;
+      const dy = cat.zone.y - this.y;
+      inputs.push(dx/W);
+      inputs.push(dy/H);
+      inputs.push(Math.min(1, Math.hypot(dx, dy) / diag));
     }
-    const carryingFlags = categories.map(cat=> this.carrying === cat.id ? 1 : 0);
+
+    // 3) Carry-state flags and progress awareness
+    const carryingFlags = categories.map(cat=> this.carrying?.type === cat.id ? 1 : 0);
     inputs.push(...carryingFlags);
 
-    // Separation / avoidance
+    // 4) Separation / avoidance vs teammates
     let sepX = 0, sepY = 0;
     for(const mate of teammates){
       if(mate === this) continue;
@@ -962,25 +1075,37 @@ class SortingAgent {
         sepY += dy * inv;
       }
     }
+
+    // 5) Velocity, obstacle force (vector + magnitude), nest pull, timers, and backlog pressure
     const obs = obstacleForce(this, obstacles);
+    const obsMag = Math.min(1, Math.hypot(obs.x, obs.y));
+    const goalZone = this.carrying ? categories.find(c=> c.id===this.carrying.type)?.zone : null;
+    const goalDist = goalZone ? Math.min(1, Math.hypot(goalZone.x - this.x, goalZone.y - this.y)/diag) : 0;
     inputs.push(this.vx/params.maxSpeed);
     inputs.push(this.vy/params.maxSpeed);
     inputs.push(sepX*0.01);
     inputs.push(sepY*0.01);
     inputs.push(obs.x);
     inputs.push(obs.y);
+    inputs.push(obsMag);
     inputs.push((nest.x - this.x)/W);
     inputs.push((nest.y - this.y)/H);
     inputs.push(Math.min(1, this.carryTime/8));
     inputs.push(Math.min(1, tickets.length / Math.max(1, params.maxTickets)));
+    inputs.push(goalDist);
     return this.genome.activate(inputs);
   }
   update(dt, tickets, obstacles, teammates){
+    const goalZone = this.carrying ? categories.find(c=> c.id===this.carrying.type)?.zone : null;
+    const prevGoalDist = goalZone ? Math.hypot(goalZone.x - this.x, goalZone.y - this.y) : null;
+    // Brain outputs steering (turn) and thrust
     const [turn, thrustRaw] = this.think(tickets, obstacles, teammates);
     const thrust = (thrustRaw+1)/2;
     this.angle += turn * params.turnRate * dt;
-    this.vx += (Math.cos(this.angle) * thrust * params.accel + 18*obstacleForce(this, obstacles).x) * dt;
-    this.vy += (Math.sin(this.angle) * thrust * params.accel + 18*obstacleForce(this, obstacles).y) * dt;
+    const obsVec = obstacleForce(this, obstacles);
+    // Physics integration with obstacle deflection baked in
+    this.vx += (Math.cos(this.angle) * thrust * params.accel + 18*obsVec.x) * dt;
+    this.vy += (Math.sin(this.angle) * thrust * params.accel + 18*obsVec.y) * dt;
     const speed = Math.hypot(this.vx, this.vy);
     if(speed > params.maxSpeed){
       const scale = params.maxSpeed / speed;
@@ -1006,10 +1131,25 @@ class SortingAgent {
     if(this.x < 6 || this.x > W-6){ this.vx *= -0.8; this.x = Math.max(6, Math.min(W-6, this.x)); }
     if(this.y < 6 || this.y > H-6){ this.vy *= -0.8; this.y = Math.max(6, Math.min(H-6, this.y)); }
 
+    const newGoalDist = goalZone ? Math.hypot(goalZone.x - this.x, goalZone.y - this.y) : null;
+    const progress = goalZone ? ((prevGoalDist ?? newGoalDist) - newGoalDist) / diag : 0;
     if(this.carrying){
       this.carryTime += dt;
-      this.fitness -= params.idlePenalty * dt;
+      // Shaping reward when moving toward the correct zone, penalty when drifting away
+      if(progress > 0){
+        this.fitness += params.progressReward * progress;
+      } else if(progress < 0){
+        this.fitness -= params.regressPenalty * Math.abs(progress);
+      }
+      // Idle penalty that scales up when orbiting or backtracking
+      const idleScale = progress > 0.002 ? 0 : Math.min(3.2, Math.abs(progress)*40 + (progress < 0 ? 1.4 : 1));
+      this.fitness -= params.idlePenalty * idleScale * dt;
     }
+
+    // Small drift penalty every step, scaled by whether movement is helpful
+    const driftScale = this.carrying ? (progress >= 0 ? 0.6 : 1.4) : 1;
+    this.fitness -= params.driftPenalty * driftScale * dt;
+    this.goalDistancePrev = goalZone ? newGoalDist : null;
 
     this.tailTimer += dt;
     if(this.tailTimer > 0.01){
@@ -1030,6 +1170,7 @@ let generationTimer = 0;
 let correctSorted = 0;
 let wrongSorted = 0;
 let bestFitness = 0;
+let lastGenStats = {best:0, avg:0, acc:0};
 let manualObstacles = [];
 let currentTool = 'select';
 let drawingState = null;
@@ -1190,24 +1331,74 @@ function applyLayoutRadii(){
   if(nestSlider) nest.r = +nestSlider.value;
 }
 
+function placementPool(){
+  if(placementPreset === 'incidentStorm') return ['nw','ne','center'];
+  if(placementPreset === 'serviceFriday') return ['sw','se','center'];
+  const chosen = readTicketPlacements();
+  return chosen.length ? chosen : ['random'];
+}
+
+// Adaptive backlog-aware spawn interval
+function computeSpawnMs(){
+  if(!params.adaptiveLoad) return params.spawnMs;
+  const backlogRatio = tickets.length / Math.max(1, params.maxTickets);
+  const total = correctSorted + wrongSorted;
+  const accuracy = total ? correctSorted / total : 0.75;
+  let factor = 1;
+  if(backlogRatio < 0.25 && accuracy > 0.65) factor *= 0.7;
+  if(backlogRatio < 0.1 && accuracy > 0.8) factor *= 0.6;
+  if(backlogRatio > 0.6 && accuracy < 0.55) factor *= 1.4;
+  if(backlogRatio > 0.8 && accuracy < 0.45) factor *= 1.6;
+  return params.spawnMs * Math.min(2.5, Math.max(0.4, factor));
+}
+
+function applyScenarioPreset(preset){
+  Object.keys(ticketTypeWeights).forEach(k=> ticketTypeWeights[k] = 1);
+  let placements = ['random'];
+  if(preset === 'incidentStorm'){
+    ticketTypeWeights.incident = 2.4;
+    ticketTypeWeights.service = 0.7;
+    ticketTypeWeights.problem = 1.1;
+    placementPreset = 'incidentStorm';
+    placements = ['nw','ne','center'];
+    pushFeed('Preset', 'Incident storm: north-heavy urgent tickets.', 'tone-warn');
+  } else if(preset === 'serviceFriday'){
+    ticketTypeWeights.service = 2.4;
+    ticketTypeWeights.problem = 1.1;
+    ticketTypeWeights.incident = 0.7;
+    placementPreset = 'serviceFriday';
+    placements = ['sw','se','center'];
+    pushFeed('Preset', 'Service Friday: requests spread low on the map.', 'tone-good');
+  } else {
+    placementPreset = 'balanced';
+    placements = ['random','center','sw','se','nw','ne'];
+    pushFeed('Preset', 'Balanced queues with even ticket mix.', 'tone-good');
+  }
+  setPlacementSelection(placements);
+}
+
 function spawnTicket(){
   if(tickets.length >= params.maxTickets) return;
-  const type = categories[Math.floor(Math.random()*categories.length)].id;
-  const spots = readTicketPlacements();
-  const pick = spots[Math.floor(Math.random()*spots.length)];
+  const type = pickTicketType();
+  const spots = placementPool();
+  const pick = spots[Math.floor(rand()*spots.length)];
   const padding = Math.max(20, params.ticketScatter);
-  let x = Math.random() * (W - padding*2) + padding;
-  let y = Math.random() * (H - padding*2) + padding;
-  if(pick === 'center'){ x = W*0.5 + (Math.random()*2-1)*80; y = H*0.5 + (Math.random()*2-1)*60; }
-  if(pick === 'nw'){ x = padding + Math.random()*W*0.28; y = padding + Math.random()*H*0.28; }
-  if(pick === 'ne'){ x = W*0.72 + Math.random()*W*0.28 - padding; y = padding + Math.random()*H*0.28; }
-  if(pick === 'sw'){ x = padding + Math.random()*W*0.28; y = H*0.72 + Math.random()*H*0.2 - padding; }
-  if(pick === 'se'){ x = W*0.72 + Math.random()*W*0.28 - padding; y = H*0.72 + Math.random()*H*0.2 - padding; }
-  tickets.push(new Ticket(type, x, y));
+  let x = rand() * (W - padding*2) + padding;
+  let y = rand() * (H - padding*2) + padding;
+  if(pick === 'center'){ x = W*0.5 + (rand()*2-1)*80; y = H*0.5 + (rand()*2-1)*60; }
+  if(pick === 'nw'){ x = padding + rand()*W*0.28; y = padding + rand()*H*0.28; }
+  if(pick === 'ne'){ x = W*0.72 + rand()*W*0.28 - padding; y = padding + rand()*H*0.28; }
+  if(pick === 'sw'){ x = padding + rand()*W*0.28; y = H*0.72 + rand()*H*0.2 - padding; }
+  if(pick === 'se'){ x = W*0.72 + rand()*W*0.28 - padding; y = H*0.72 + rand()*H*0.2 - padding; }
+  // Priority spice: higher numbers glow more and reward/penalize fitness harder
+  const priority = 1 + Math.floor(rand()*3);
+  tickets.push(new Ticket(type, x, y, priority));
 }
 
 function resetGeneration(){
   applyLayoutRadii();
+  replayMode = false;
+  resetReplaySeed();
   tickets = [];
   agents = population.genomes.map(g=> new SortingAgent(g));
   spawnTimer = 0;
@@ -1224,21 +1415,79 @@ function resetGeneration(){
   renderFeed();
 }
 
+function recordGenerationStats(){
+  if(replayMode) return;
+  const fitnesses = agents.map(a=> a.fitness);
+  const best = fitnesses.length ? Math.max(...fitnesses) : 0;
+  const avg = fitnesses.length ? fitnesses.reduce((s,f)=> s+f,0)/fitnesses.length : 0;
+  const total = correctSorted + wrongSorted;
+  const acc = total ? correctSorted/total : 0;
+  lastGenStats = {best, avg, acc};
+  // Append compact telemetry for lightweight DOM history rendering
+  generationHistory.push({gen: population.generation, best, avg, acc});
+  while(generationHistory.length > 30) generationHistory.shift();
+}
+
+function commitGenerationFitness(){
+  for(let i=0;i<population.genomes.length;i++){
+    population.genomes[i].fitness = agents[i]?.fitness ?? population.genomes[i].fitness;
+  }
+  recordGenerationStats();
+}
+
+function startChampionReplay(){
+  if(!population.champion){
+    pushFeed('Replay', 'Train a champion before replaying.', 'tone-warn');
+    return;
+  }
+  replayMode = true;
+  resetReplaySeed();
+  placementPreset = 'balanced';
+  setPlacementSelection(['random','center']);
+  resetLayout();
+  applyLayoutRadii();
+  updateLayoutReadout();
+  manualObstacles = [];
+  tickets = [];
+  const champ = cloneGenome(population.champion);
+  agents = [new SortingAgent(champ)];
+  const a = agents[0];
+  a.x = nest.x; a.y = nest.y; a.vx = 0; a.vy = 0; a.angle = Math.PI/2;
+  spawnTimer = 0;
+  generationTimer = 0;
+  correctSorted = 0; wrongSorted = 0; stepCounter = 0;
+  const starter = [
+    new Ticket('incident', W*0.2, H*0.18, 3),
+    new Ticket('service', W*0.55, H*0.72, 2),
+    new Ticket('problem', W*0.8, H*0.32, 1)
+  ];
+  starter.forEach(t=> tickets.push(t));
+  liveFeed.length = 0;
+  renderFeed();
+  pushFeed('Replay', 'Champion dropped into a fixed arena — watch the routing!', 'tone-good');
+}
+
 function deliver(agent, zoneCat){
   if(!agent.carrying) return;
-  if(agent.carrying === zoneCat.id){
-    agent.fitness += params.correctReward;
+  const priority = agent.carrying?.priority || 1;
+  const priorityBoost = 1 + (priority-1) * params.priorityRewardScale;
+  if(agent.carrying.type === zoneCat.id){
+    const speedFactor = 1 + params.fastDeliveryBonus / Math.max(0.6, agent.carryTime + 0.001);
+    const reward = params.correctReward * priorityBoost * speedFactor;
+    agent.fitness += reward;
     correctSorted++;
     deliveredByType[zoneCat.id] = (deliveredByType[zoneCat.id]||0)+1;
     agent.deliveryFlash = 1.1;
-    pushFeed(zoneCat.label, `Delivered in ${agent.carryTime.toFixed(1)}s — fitness +${params.correctReward.toFixed(2)}`, 'tone-good');
+    pushFeed(zoneCat.label, `Priority ${priority} in ${agent.carryTime.toFixed(1)}s — fitness +${reward.toFixed(2)}`, 'tone-good');
   } else {
-    agent.fitness -= params.wrongPenalty;
+    const penalty = params.wrongPenalty * (1 + (priority-1) * params.priorityPenaltyScale);
+    agent.fitness -= penalty;
     wrongSorted++;
-    pushFeed('Oops', `Misrouted ${agent.carrying} to ${zoneCat.label} — penalty ${params.wrongPenalty.toFixed(1)}`, 'tone-bad');
+    pushFeed('Oops', `Misrouted ${agent.carrying.type} (P${priority}) to ${zoneCat.label} — penalty ${penalty.toFixed(1)}`, 'tone-bad');
   }
   agent.carrying = null;
   agent.carryTime = 0;
+  agent.goalDistancePrev = null;
 }
 
 function tryPickup(agent){
@@ -1252,8 +1501,10 @@ function tryPickup(agent){
   }
   if(targetIndex >= 0){
     const t = tickets.splice(targetIndex,1)[0];
-    agent.carrying = t.type;
+    agent.carrying = {type:t.type, priority:t.priority};
     agent.carryTime = 0;
+    const goalZone = categories.find(c=> c.id===t.type)?.zone;
+    agent.goalDistancePrev = goalZone ? Math.hypot(goalZone.x - agent.x, goalZone.y - agent.y) : null;
     agent.pickupFlash = 1.2;
     agent.lastTicketType = t.type;
     pickupByType[t.type] = (pickupByType[t.type]||0)+1;
@@ -1270,7 +1521,9 @@ function drawTicket(t){
   ctx.rotate(-0.1);
   ctx.fillStyle = 'rgba(15,23,42,0.9)';
   ctx.strokeStyle = color;
-  ctx.lineWidth = 2;
+  ctx.lineWidth = 1.8 + t.priority*0.6;
+  ctx.shadowColor = color;
+  ctx.shadowBlur = 4 + t.priority*4;
   ctx.beginPath();
   ctx.moveTo(-9,-12);
   ctx.lineTo(9,-12);
@@ -1292,6 +1545,9 @@ function drawTicket(t){
   ctx.font = '10px Inter, sans-serif';
   ctx.textAlign = 'center';
   ctx.fillText(cat?.label?.[0] || '?', 0, 3);
+  ctx.fillStyle = '#cbd5e1';
+  ctx.font = '8px Inter, sans-serif';
+  ctx.fillText(`P${t.priority}`, 0, 12);
   ctx.restore();
 }
 
@@ -1376,7 +1632,11 @@ function drawAgent(agent, highlight=false){
     ctx.fillStyle = '#facc15';
     ctx.font = '9px Inter, sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText(agent.carrying[0].toUpperCase(), 0, 3);
+    const carryLabel = agent.carrying.type?.[0]?.toUpperCase() || '?';
+    ctx.fillText(carryLabel, 0, 2);
+    ctx.fillStyle = '#cbd5e1';
+    ctx.font = '7px Inter, sans-serif';
+    ctx.fillText(`P${agent.carrying.priority||1}`, 0, 9);
     ctx.restore();
   }
   ctx.restore();
@@ -1389,7 +1649,8 @@ function update(dt){
   }
 
   spawnTimer += dt*1000;
-  if(spawnTimer >= params.spawnMs){
+  const targetSpawn = computeSpawnMs();
+  if(spawnTimer >= targetSpawn){
     spawnTicket();
     spawnTimer = 0;
   }
@@ -1403,16 +1664,15 @@ function update(dt){
         deliver(agent, cat);
       }
     }
-    agent.fitness -= 0.0002*dt;
   }
   stepCounter += dt*60;
   if(stepCounter >= params.generationSteps){
-    for(let i=0;i<population.genomes.length;i++){
-      population.genomes[i].fitness = agents[i].fitness;
-    }
-    if(learn.auto){
-      population.evolve();
-      resetGeneration();
+    if(!replayMode){
+      commitGenerationFitness();
+      if(learn.auto){
+        population.evolve();
+        resetGeneration();
+      }
     }
     stepCounter = 0;
   }
@@ -1492,7 +1752,7 @@ function draw(){
       ctx.restore();
     }
     if(bestAgent.carrying){
-      const zone = categories.find(c=> c.id===bestAgent.carrying)?.zone;
+      const zone = categories.find(c=> c.id===bestAgent.carrying.type)?.zone;
       if(zone){
         ctx.save();
         ctx.strokeStyle = '#facc15aa';
@@ -1544,13 +1804,37 @@ function loop(now){
   requestAnimationFrame(loop);
 }
 
+function renderGenerationHistory(){
+  const barWrap = Q('genHistoryBars');
+  if(!barWrap) return;
+  if(!generationHistory.length){
+    barWrap.innerHTML = '<div style="font-size:11px; color:var(--muted);">Waiting for first generation…</div>';
+    return;
+  }
+  const maxBest = generationHistory.reduce((m,g)=> Math.max(m, g.best), 1);
+  barWrap.innerHTML = generationHistory.map(g=>{
+    const bestH = Math.max(4, Math.min(42, (g.best/maxBest)*42));
+    const avgH = Math.max(4, Math.min(42, (g.avg/maxBest)*42));
+    const accH = Math.max(4, Math.min(42, g.acc*42));
+    return `<div style="display:flex;flex-direction:column;gap:2px;align-items:center; width:14px;">
+      <div class="gen-history-bar acc" style="height:${accH}px"></div>
+      <div class="gen-history-bar avg" style="height:${avgH}px"></div>
+      <div class="gen-history-bar" style="height:${bestH}px"></div>
+      <span style="font-size:9px;color:var(--muted);">${g.gen}</span>
+    </div>`;
+  }).join('');
+}
+
 function updateStats(){
+  const totalDeliveries = correctSorted + wrongSorted;
+  const accuracy = totalDeliveries ? (correctSorted/totalDeliveries)*100 : null;
+  const deliveryText = accuracy===null ? `${correctSorted} ✓ / ${wrongSorted} ✗` : `${correctSorted} ✓ / ${wrongSorted} ✗ (${accuracy.toFixed(1)}%)`;
   const stats = {
     gen: population.generation,
     teams: agents.length,
     tickets: tickets.length,
-    deliveries: `${correctSorted} ✓ / ${wrongSorted} ✗`,
-    top: population.bestFitness.toFixed(2)
+    deliveries: deliveryText,
+    top: `${population.bestFitness.toFixed(2)} / ${lastGenStats.best.toFixed(2)}`
   };
   for(const [key,val] of Object.entries(stats)){
     const el = Q(`stat-${key}`);
@@ -1563,7 +1847,8 @@ function updateStats(){
   const brainTeam = Q('brain-team');
   if(brainTeam){
     const avg = agents.reduce((s,a)=> s+a.fitness,0)/Math.max(1, agents.length);
-    brainTeam.textContent = `Best fitness this run: ${population.bestFitness.toFixed(2)} • Avg ${avg.toFixed(2)}`;
+    const accText = lastGenStats.acc ? `${(lastGenStats.acc*100).toFixed(1)}%` : '—';
+    brainTeam.textContent = `Best run ${population.bestFitness.toFixed(2)} • Gen best ${lastGenStats.best.toFixed(2)} • Gen avg ${lastGenStats.avg.toFixed(2)} • Acc ${accText}`;
   }
   const brainBadge = Q('brain-badge');
   if(brainBadge){
@@ -1576,6 +1861,7 @@ function updateStats(){
   }
   updateLayoutReadout();
   renderFeed();
+  renderGenerationHistory();
 }
 
 function updateLayoutReadout(){
@@ -1609,15 +1895,23 @@ bindRange('slCrossover','lbCrossover',(v)=> `${v}% A`);
 bindRange('slTournament','lbTournament',(v)=> `×${(v/10).toFixed(1)}`);
 bindRange('slFresh','lbFresh',(v)=> `${v}%`);
 bindToggle('chkAuto','lbAuto');
+bindToggle('chkAdaptiveLoad','lbAdaptiveLoad');
 bindToggle('chkAgentCollisions','lbAgentCollisions');
 bindToggle('chkTopHighlight','lbTopHighlight');
 
 document.querySelectorAll('.ticket-placement-option input').forEach(box=>{
   box.addEventListener('change', ()=>{
-    box.parentElement.classList.toggle('active', box.checked);
+    syncPlacementButtons();
   });
-  box.parentElement.classList.toggle('active', box.checked);
 });
+syncPlacementButtons();
+
+const btnPresetBalanced = Q('btnPresetBalanced');
+const btnPresetIncident = Q('btnPresetIncident');
+const btnPresetService = Q('btnPresetService');
+if(btnPresetBalanced) btnPresetBalanced.addEventListener('click', ()=> applyScenarioPreset('balanced'));
+if(btnPresetIncident) btnPresetIncident.addEventListener('click', ()=> applyScenarioPreset('incidentStorm'));
+if(btnPresetService) btnPresetService.addEventListener('click', ()=> applyScenarioPreset('serviceFriday'));
 
 readParams();
 readLearnParams();
@@ -1787,7 +2081,8 @@ if(btnLoadObstacles && inputLoadObstacles){
 const btnNextGen = Q('btnNextGen');
 if(btnNextGen){
   btnNextGen.addEventListener('click', ()=>{
-    for(let i=0;i<population.genomes.length;i++) population.genomes[i].fitness = agents[i].fitness;
+    if(replayMode){ replayMode = false; resetGeneration(); return; }
+    commitGenerationFitness();
     population.evolve();
     resetGeneration();
   });
@@ -1799,8 +2094,16 @@ if(btnResetTraining){
     population = new Population(params.populationSize);
     population.generation = 1;
     population.bestFitness = 0;
+    population.champion = null;
+    generationHistory.length = 0;
+    lastGenStats = {best:0, avg:0, acc:0};
     resetGeneration();
   });
+}
+
+const btnReplayChampion = Q('btnReplayChampion');
+if(btnReplayChampion){
+  btnReplayChampion.addEventListener('click', startChampionReplay);
 }
 
 const btnSaveTraining = Q('btnSaveTraining');
@@ -1808,8 +2111,10 @@ if(btnSaveTraining){
   btnSaveTraining.addEventListener('click', ()=>{
     const data = {
       generation: population.generation,
-      params:{...params, learn:{...learn}},
-      genomes: population.genomes
+      params:{...params},
+      learn:{...learn},
+      genomes: population.genomes,
+      champion: population.champion
     };
     const blob = new Blob([JSON.stringify(data)], {type:'application/json'});
     const url = URL.createObjectURL(blob);
@@ -1832,10 +2137,17 @@ if(btnLoadTraining && inputLoadTraining){
       try{
         const data = JSON.parse(reader.result);
         if(Array.isArray(data.genomes)){
+          if(data.params) Object.assign(params, data.params);
+          if(data.params?.learn) Object.assign(learn, data.params.learn);
+          if(data.learn) Object.assign(learn, data.learn);
+          readParams();
+          readLearnParams();
           population = new Population(data.genomes.length);
-          population.genomes = data.genomes.map(g=> Object.assign(new Genome(), g));
+          population.genomes = data.genomes.map(hydrateGenome);
           population.generation = data.generation || 1;
-          population.bestFitness = 0;
+          population.bestFitness = data.bestFitness || 0;
+          population.champion = data.champion ? cloneGenome(data.champion) : null;
+          population.bestFitness = Math.max(population.bestFitness, ...population.genomes.map(g=> g.fitness||0));
           resetGeneration();
         }
       }catch(err){ console.error(err); }
