@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>NEAT Data Sorting Simulation - Enhanced</title>
+  <title>NEAT Data Sorting Simulation - Enhanced Input</title>
   <style>
     :root {
       /* New Color Palette - Sci-Fi / Dark Mode */
@@ -178,6 +178,11 @@
       <input type="range" id="slTicketCount" min="5" max="50" value="15">
     </div>
     
+    <div class="control-group">
+      <label title="Antal frames per generation">Generation Duration (Frames): <span id="valDuration">2500</span></label>
+      <input type="range" id="slDuration" min="500" max="10000" step="100" value="2500">
+    </div>
+    
     <div class="btn-group">
         <button class="btn alt" id="btnResetAI">Reset AI Only</button>
         <button class="btn" id="btnSkip">Insta-Train (Skip Gen)</button>
@@ -203,8 +208,8 @@
     <h2>NEAT & Topology Tweaks</h2>
 
     <div class="control-group">
-      <label title="Antal noder i dolda lagret. Högre = Mer komplex logik">Hidden Nodes: <span id="valHidden">16</span></label>
-      <input type="range" id="slHidden" min="4" max="32" step="4" value="16">
+      <label title="Antal noder i dolda lagret. Högre = Mer komplex logik">Hidden Nodes: <span id="valHidden">20</span></label>
+      <input type="range" id="slHidden" min="8" max="40" step="4" value="20">
     </div>
 
     <div class="control-group">
@@ -257,17 +262,17 @@ const CFG = {
   popSize: 40,
   mutationRate: 0.1,
   eliteCount: 4,
-  selectionPoolRatio: 0.5, // NY: 50% av de bästa får reproducera sig
+  selectionPoolRatio: 0.5, 
   ticketCount: 15,
   sensorRange: 180, 
   sensorCount: 5, 
   fov: Math.PI * 0.8,
   maxSpeed: 4.0, 
   turnRate: 0.08, 
-  genDuration: 2500,
+  genDuration: 2500, // FRAME COUNT PER GENERATION
   energyDrain: 0.0008, 
-  inputs: 12, 
-  hiddens: 16, // NY: Standardvärde för dolda noder
+  inputs: 16, // **UPDATED: 12 -> 16**
+  hiddens: 20, // **UPDATED: 16 -> 20 (More capacity for new inputs)**
   outputs: 6, // [SteerLeft, SteerRight, Forward, Reverse, Brake, Memory]
   categories: [
     { id: 'incident', color: '#ff3366', label: 'Incident' }, /* Red */
@@ -285,6 +290,7 @@ const hoverTip = document.getElementById('hoverTip');
 const fpsDisplay = document.getElementById('fpsDisplay');
 
 let W, H;
+let maxWorldDist = 1; // Used for normalization
 let frame = 0;
 let generation = 1;
 let speedMult = 1;
@@ -314,6 +320,17 @@ let stats = {
 const dist = (x1,y1,x2,y2) => Math.hypot(x2-x1, y2-y1);
 const clamp = (v,min,max) => Math.max(min, Math.min(max, v));
 const rand = (min,max) => Math.random() * (max-min) + min;
+// Utility to normalize a distance by the maximum possible distance
+const normDist = (d) => clamp(d / maxWorldDist, 0, 1);
+// Utility to normalize an angle (in radians) to a value between -1 and 1
+const normAngle = (a) => {
+    // Normalize angle to [-PI, PI]
+    while (a > Math.PI) a -= 2 * Math.PI;
+    while (a < -Math.PI) a += 2 * Math.PI;
+    // Normalize to [-1, 1]
+    return a / Math.PI;
+}
+
 
 // --- NEAT CORE ---
 class Genome {
@@ -324,10 +341,22 @@ class Genome {
     const O = CFG.outputs;
 
     if(parent) {
-      this.w1 = parent.w1.map(w => this.mutate(w));
-      this.w2 = parent.w2.map(w => this.mutate(w));
-      this.bias1 = parent.bias1.map(b => this.mutate(b));
-      this.bias2 = parent.bias2.map(b => this.mutate(b));
+      // Re-initialize arrays if dimensions changed
+      const getArray = (oldArr, newSize) => {
+        let newArr = new Float32Array(newSize);
+        for(let i=0; i<newSize; i++) {
+            newArr[i] = i < oldArr.length ? this.mutate(oldArr[i]) : rand(-1,1);
+        }
+        return newArr;
+      };
+
+      // Handle dimension changes by copying and mutating existing weights,
+      // and creating new random weights for expanded layers.
+      this.w1 = getArray(parent.w1, I * H);
+      this.w2 = getArray(parent.w2, H * O);
+      this.bias1 = getArray(parent.bias1, H);
+      this.bias2 = getArray(parent.bias2, O);
+
     } else {
       this.w1 = new Float32Array(I * H).map(() => rand(-1,1));
       this.w2 = new Float32Array(H * O).map(() => rand(-1,1));
@@ -347,10 +376,14 @@ class Genome {
     const I = CFG.inputs;
     const O = CFG.outputs;
     
+    // Ensure inputs array matches expected size, filling with 0 if short
+    const safeInputs = new Float32Array(I);
+    for(let i=0; i<I; i++) safeInputs[i] = inputs[i] || 0;
+
     let hiddens = new Float32Array(H);
     for(let i=0; i<H; i++) {
       let sum = this.bias1[i];
-      for(let j=0; j<I; j++) sum += inputs[j] * this.w1[j*H + i];
+      for(let j=0; j<I; j++) sum += safeInputs[j] * this.w1[j*H + i];
       hiddens[i] = Math.tanh(sum);
     }
     let outputs = new Float32Array(O);
@@ -465,7 +498,7 @@ class Agent {
     this.angle = rand(0, Math.PI*2);
     this.vel = 0;
     this.r = 10;
-    this.teamHue = 210; // Ny: Fast HSL-nyans för "Team Blue"
+    this.teamHue = 210; 
     this.carrying = null;
     this.energy = 1.0;
     this.memory = 0;
@@ -480,26 +513,56 @@ class Agent {
 
     this.fireSensors();
 
-    // Think
-    const inputs = [...this.sensors];
+    // --- INPUT GENERATION (16 Inputs) ---
+    const inputs = [...this.sensors]; // 5 inputs (LIDAR)
+
+    // Carrying Info (4 inputs)
     if(this.carrying) {
-      inputs.push(this.carrying.typeIdx === 0 ? 1:0);
-      inputs.push(this.carrying.typeIdx === 1 ? 1:0);
-      inputs.push(this.carrying.typeIdx === 2 ? 1:0);
-      inputs.push(this.carrying.life);
+      inputs.push(this.carrying.typeIdx === 0 ? 1:0); // 6: INC
+      inputs.push(this.carrying.typeIdx === 1 ? 1:0); // 7: REQ
+      inputs.push(this.carrying.typeIdx === 2 ? 1:0); // 8: PROB
+      inputs.push(this.carrying.life);               // 9: SLA Life
     } else {
       inputs.push(0,0,0,0);
     }
-    inputs.push(this.energy);
-    inputs.push(this.vel / CFG.maxSpeed);
-    inputs.push(this.memory);
+    
+    // Status (3 inputs)
+    inputs.push(this.energy);                       // 10: Energy
+    inputs.push(this.vel / CFG.maxSpeed);           // 11: Speed (Normalized)
+    inputs.push(this.memory);                       // 12: Memory
+
+    // Directional Context (4 new inputs)
+    // 1. Nest Information (Always relevant)
+    const dNest = dist(this.x, this.y, nest.x, nest.y);
+    const aNest = Math.atan2(nest.y - this.y, nest.x - this.x);
+    const angleDiffNest = aNest - this.angle;
+    
+    inputs.push(normDist(dNest));                   // 13: Nest Distance
+    inputs.push(normAngle(angleDiffNest));          // 14: Nest Angle
+
+    // 2. Target Zone Information (Only relevant when carrying)
+    let dTarget = 0, aTarget = 0;
+    if(this.carrying) {
+        const targetZone = getZones().find(z => z.id === this.carrying.def.id);
+        if(targetZone) {
+            dTarget = dist(this.x, this.y, targetZone.x, targetZone.y);
+            aTarget = Math.atan2(targetZone.y - this.y, targetZone.x - this.x);
+            const angleDiffTarget = aTarget - this.angle;
+            inputs.push(normDist(dTarget));         // 15: Target Distance
+            inputs.push(normAngle(angleDiffTarget)); // 16: Target Angle
+        } else {
+            inputs.push(0, 0);
+        }
+    } else {
+        inputs.push(0, 0); // Not carrying, distance/angle are 0
+    }
+    // --- END INPUT GENERATION ---
     
     this.lastInputs = inputs;
     const { outputs, hiddens } = this.brain.predict(inputs);
     this.lastHiddens = hiddens;
     this.lastOutputs = outputs; 
 
-    // --- NEW CONTROL LOGIC (6 Outputs) ---
     // outputs: [steerLeft, steerRight, forward, reverse, brake, memory]
     const steerLeft = (outputs[0] + 1) / 2; // Normalize from [-1, 1] to [0, 1]
     const steerRight = (outputs[1] + 1) / 2;
@@ -527,7 +590,7 @@ class Agent {
             this.energy -= CFG.energyDrain * (1 + Math.abs(netThrust));
         }
         this.stalled = false;
-        // NY: Belöning för rörelse/aktivitet
+        // Reward for movement/activity
         this.fitness += 0.1 * Math.abs(this.vel);
     } else {
         this.stalled = true;
@@ -535,8 +598,8 @@ class Agent {
 
     // 3. Braking / Friction
     if (brake > 0.1) {
-        this.vel *= (1 - brake * 0.2); // Stronger braking effect based on output
-        this.energy -= CFG.energyDrain * 0.5; // Slight energy cost to brake
+        this.vel *= (1 - brake * 0.2); 
+        this.energy -= CFG.energyDrain * 0.5; 
     } else {
         // Standard friction
         this.vel *= 0.92; 
@@ -547,19 +610,18 @@ class Agent {
     
     if(Math.abs(this.vel) < 0.1) {
         this.vel = 0;
-        this.energy = Math.min(1, this.energy + 0.02); // Faster recharge when fully stopped
+        this.energy = Math.min(1, this.energy + 0.02); 
     }
 
     this.x += Math.cos(this.angle) * this.vel;
     this.y += Math.sin(this.angle) * this.vel;
-    // --- END NEW CONTROL LOGIC ---
     
     // Bounds (Wall Bounce)
     if(this.x < this.r || this.x > W-this.r || this.y < this.r || this.y > H-this.r) {
       this.x = clamp(this.x, this.r, W-this.r);
       this.y = clamp(this.y, this.r, H-this.r);
       this.vel *= -0.5;
-      this.fitness -= 5; // SKÄRPT STRAFF för att krocka med väggar
+      this.fitness -= 5; 
     }
 
     // Interactions
@@ -575,14 +637,14 @@ class Agent {
         }
       }
     } else {
-      // NY: Belöning för att bära en biljett
+      // Reward for carrying a ticket
       this.fitness += 0.5; 
       
       const zones = getZones();
       for(let z of zones) {
         if(dist(this.x, this.y, z.x, z.y) < z.r) {
           if(z.id === this.carrying.def.id) {
-            // NY: Proportional belöning baserat på brådska (högre decay = högre reward)
+            // Proportional reward based on urgency
             const urgencyFactor = 1 / this.carrying.decay; 
             const baseReward = 50 + (this.energy * 10);
             this.fitness += baseReward + (baseReward * urgencyFactor * 0.01); 
@@ -591,7 +653,7 @@ class Agent {
             spawnParticles(this.x, this.y, z.color, 15);
             pushFeed(`Sorted: ${this.carrying.def.label}`, 'good');
           } else {
-            this.fitness -= 25; // HÖGT STRAFF för fel sortering
+            this.fitness -= 25; // High penalty for wrong sort
             stats.wrong++;
             spawnParticles(this.x, this.y, varStyles.accentBad, 8);
             pushFeed(`Wrong Zone!`, 'bad');
@@ -606,7 +668,7 @@ class Agent {
     // Trail update
     if(this === bestBrain && document.getElementById('chkTrail')?.checked) {
         this.trail.push({ x: this.x, y: this.y, alpha: 1.0 });
-        if(this.trail.length > 50) this.trail.shift(); // Longer trail
+        if(this.trail.length > 50) this.trail.shift(); 
     } else if (this !== bestBrain) {
         this.trail = [];
     }
@@ -667,16 +729,11 @@ class Agent {
     ctx.strokeStyle = ringColor;
     ctx.stroke();
     
-    // Body (Enhanced Arrow/Wedge)
-    ctx.globalAlpha = 1;
-    ctx.beginPath(); 
-    ctx.moveTo(this.r, 0); 
-    ctx.lineTo(-this.r * 0.6, this.r * 0.7); 
-    ctx.lineTo(-this.r * 0.3, 0); 
-    ctx.lineTo(-this.r * 0.6, -this.r * 0.7); 
-    ctx.closePath();
     
-    // Färglogik
+    // Body (Arrow/Wedge Shape) 
+    ctx.globalAlpha = 1;
+    
+    // Color logic
     let agentFillColor;
     if (this.carrying) {
         agentFillColor = this.carrying.def.color;
@@ -685,6 +742,7 @@ class Agent {
         agentFillColor = `hsl(${this.teamHue}, ${memSaturation}%, 50%)`;
     }
 
+    // Apply fill style before drawing
     ctx.fillStyle = this.stalled ? '#552222' : agentFillColor;
     
     // Highlight Best Agent
@@ -693,7 +751,17 @@ class Agent {
         ctx.shadowColor = '#ffffaa';
         ctx.fillStyle = '#fff';
     }
+
+    // Draw the arrow/wedge shape
+    ctx.beginPath();
+    ctx.moveTo(this.r * 1.5, 0); // Tip
+    ctx.lineTo(-this.r, this.r * 0.8); // Back right
+    ctx.lineTo(-this.r * 0.5, 0); // Center point in the back for a cleaner wedge
+    ctx.lineTo(-this.r, -this.r * 0.8); // Back left
+    ctx.closePath();
     ctx.fill();
+
+    // Reset shadow/highlight
     ctx.shadowBlur = 0;
 
     ctx.restore();
@@ -773,7 +841,6 @@ const varStyles = {
 
 
 function getZones() {
-  // Returnerar den globala, muterbara arrayen
   return goalZones; 
 }
 
@@ -951,7 +1018,6 @@ function drawBrain(agent) {
   // Input to Hidden
   for(let i=0; i<CFG.inputs; i++) {
     for(let h=0; h<CFG.hiddens; h++) {
-      // NOTE: Using a try-catch for defensive indexing, as CFG.hiddens can change
       try{
         const w = net.w1[i*CFG.hiddens + h];
         brainCtx.strokeStyle = getLineColor(w, agent.lastInputs[i] || 0);
@@ -976,9 +1042,15 @@ function drawBrain(agent) {
   brainCtx.globalAlpha = 1;
   brainCtx.font = '8px monospace'; 
   
-  // Input Nodes
+  // Input Nodes (16 inputs)
   brainCtx.textAlign = 'right';
-  const inputLabels = ['Wall(1)', 'Ticket(2)', 'Ticket(3)', 'Ticket(4)', 'Wall(5)', 'INC', 'REQ', 'PROB', 'Life', 'E', 'Speed', 'Mem'];
+  const inputLabels = [
+    'Wall(1)', 'Wall(2)', 'Wall(3)', 'Wall(4)', 'Wall(5)', 
+    'Carry_INC', 'Carry_REQ', 'Carry_PROB', 'Carry_SLA', 
+    'Energy', 'Speed', 'Memory', 
+    'Nest_Dist', 'Nest_Ang', 
+    'Goal_Dist', 'Goal_Ang'
+  ];
   for(let i=0; i<CFG.inputs; i++) {
     const val = agent.lastInputs[i] || 0;
     // Node Color based on value
@@ -1004,7 +1076,7 @@ function drawBrain(agent) {
   
   // Output Nodes
   brainCtx.textAlign = 'left';
-  const outputLabels = ['VÄNSTER', 'HÖGER', 'FRAMÅT', 'BAKÅT', 'BROMSA', 'MEMORY']; 
+  const outputLabels = ['STEER_L', 'STEER_R', 'FORWARD', 'REVERSE', 'BRAKE', 'MEMORY_OUT']; 
   for(let i=0; i<CFG.outputs; i++) {
     const val = agent.lastOutputs ? agent.lastOutputs[i] : 0;
     
@@ -1095,6 +1167,7 @@ function init(resetStats = true) {
   // Update canvas dimensions based on parent container
   W = canvas.width = canvas.parentElement.offsetWidth;
   H = canvas.height = canvas.parentElement.offsetHeight;
+  maxWorldDist = Math.hypot(W, H); // Calculate maximum possible distance for normalization
   
   // Set brain canvas fixed dimensions for drawing
   brainCanvas.width = 300;
@@ -1118,14 +1191,16 @@ function init(resetStats = true) {
   CFG.ticketCount = parseInt(document.getElementById('slTicketCount').value); 
   CFG.eliteCount = parseInt(document.getElementById('slElite').value);
   CFG.selectionPoolRatio = parseInt(document.getElementById('slSelection').value) / 100;
-
+  CFG.genDuration = parseInt(document.getElementById('slDuration').value); 
 
   if(resetStats) {
-      // Tvinga en full reset av AI:n om Hidden Nodes ändras
+      // Tvinga en full reset av AI:n om Hidden Nodes eller Input/Output har ändrats
       const newHiddens = parseInt(document.getElementById('slHidden').value);
-      if (newHiddens !== CFG.hiddens) {
+      if (newHiddens !== CFG.hiddens || CFG.inputs !== 16 || CFG.outputs !== 6) {
           CFG.hiddens = newHiddens;
-          pushFeed(`Hidden Nodes set to ${CFG.hiddens}. Performing AI Hard Reset.`, 'warn');
+          CFG.inputs = 16;
+          CFG.outputs = 6;
+          pushFeed(`Topology updated. Performing AI Hard Reset.`, 'warn');
           // Tvinga en fullständig nystart nedan
       }
 
@@ -1136,15 +1211,11 @@ function init(resetStats = true) {
   
   // Re-initialize agents and tickets based on current CFG
   if(resetStats || !bestBrain || agents.length !== CFG.popSize) { 
-    // This is the path for initial load, hard reset, or population size change
     if(resetStats || !bestBrain || agents.length !== CFG.popSize) {
-        // Full new random population
         agents = [];
         for(let i=0; i<CFG.popSize; i++) agents.push(new Agent());
         bestBrain = agents[0];
     } else {
-        // Population size changed, need to call nextGeneration to adjust array size
-        // We ensure all new agents are initialized correctly with the current best brain
         nextGeneration(true); 
     }
   }
@@ -1156,31 +1227,27 @@ function init(resetStats = true) {
 }
 
 function nextGeneration(forceNew = false) {
-  // Uppdatera CFG-värden från sliders
+  // Update CFG values from sliders
   CFG.popSize = parseInt(document.getElementById('slPop').value); 
   CFG.eliteCount = parseInt(document.getElementById('slElite').value);
   CFG.selectionPoolRatio = parseInt(document.getElementById('slSelection').value) / 100;
   
-  // Filtrera bort agenter utan fitness eller som är ogiltiga FÖRE sortering
   const validAgents = agents.filter(a => a && typeof a.fitness === 'number');
 
   if(validAgents.length === 0) {
-      // Om ingen giltig agent finns, gör en fullständig nystart
       pushFeed('No valid agents found. Starting fresh population.', 'bad');
       init(true);
       return;
   }
   
   // 1. Calculate and find best agent
-  // Skapa en kopia för att sortera utan att ändra den ursprungliga agents-arrayen
   const sorted = [...validAgents].sort((a,b) => b.fitness - a.fitness);
 
-  // Uppdatera bestBrain
+  // Update bestBrain
   if(!bestBrain || sorted[0].fitness > bestBrain.fitness) {
     bestBrain = sorted[0];
   }
   
-  // Vi lägger bara till i historiken om vi har en bra agent.
   if (bestBrain.fitness > 0 || generation === 1) {
     history.push({ gen: generation, best: bestBrain.fitness });
   }
@@ -1188,12 +1255,10 @@ function nextGeneration(forceNew = false) {
   const newAgents = [];
   
   // 2. Eliteism (Keep best genomes)
-  // CFG.eliteCount kan max vara storleken på den sorterade listan
   const eliteLimit = Math.min(CFG.eliteCount, sorted.length);
 
   for(let i=0; i<eliteLimit; i++) {
     const el = new Agent(sorted[i].brain);
-    // Bevara trail för den absolut bästa agenten
     if (sorted[i] === bestBrain) {
         el.trail = sorted[i].trail;
     }
@@ -1202,9 +1267,7 @@ function nextGeneration(forceNew = false) {
   
   // 3. Reproduction (Fill remaining slots)
   while(newAgents.length < CFG.popSize) {
-    // Använd selectionPoolRatio för att definiera urvalspoolen (Rank Selection)
     const selectionPoolSize = Math.max(1, Math.floor(sorted.length * CFG.selectionPoolRatio));
-    // Sorterad lista garanterar att p1 är från den bästa andelen
     const p1 = sorted[Math.floor(Math.random()*selectionPoolSize)]; 
     newAgents.push(new Agent(new Genome(p1.brain)));
   }
@@ -1213,7 +1276,6 @@ function nextGeneration(forceNew = false) {
   newAgents.forEach(a => {
     a.x = nest.x;
     a.y = nest.y;
-    // Återställ trail om det inte är den elit-agent som behåller sin trail
     if(a !== bestBrain) a.trail = []; 
   });
 
@@ -1262,8 +1324,6 @@ function loop(now) {
       if(mouse.dragAgent) {
         mouse.dragAgent.x = mouse.x; mouse.dragAgent.y = mouse.y; mouse.dragAgent.vel = 0;
       }
-      
-      // The movement logic for nest and zones is in mousemove, but the redrawing is here.
     }
   }
   drawBrain(bestBrain);
@@ -1276,7 +1336,8 @@ function loop(now) {
 window.addEventListener('resize', () => { 
     W = canvas.width = canvas.parentElement.offsetWidth; 
     H = canvas.height = canvas.parentElement.offsetHeight; 
-    nest.x = W / 2; nest.y = H / 2; // Center nest on resize
+    maxWorldDist = Math.hypot(W, H); 
+    nest.x = W / 2; nest.y = H / 2; 
 });
 
 canvas.addEventListener('mousedown', e => {
@@ -1291,7 +1352,7 @@ canvas.addEventListener('mousedown', e => {
     // 2. Check for other Zone hit
     const hitZone = goalZones.find(z => dist(z.x, z.y, mouse.x, mouse.y) < z.r);
     if(hitZone) {
-      mouse.dragZone = hitZone; // Track the specific zone object being dragged
+      mouse.dragZone = hitZone; 
     } else {
       // 3. Check for Agent hit
       const hit = agents.find(a => dist(a.x, a.y, mouse.x, mouse.y) < 20);
@@ -1350,7 +1411,6 @@ document.getElementById('slSpeed').oninput = (e) => { speedMult = parseInt(e.tar
 document.getElementById('slPop').oninput = (e) => { 
     document.getElementById('valPop').innerText = e.target.value; 
     CFG.popSize = parseInt(e.target.value);
-    // Anropa init(false) för att hantera storleksförändringen via nextGeneration()
     init(false); 
 };
 
@@ -1359,6 +1419,11 @@ document.getElementById('slTicketCount').oninput = (e) => {
     document.getElementById('valTickets').innerText = CFG.ticketCount; 
     tickets = [];
     for(let i=0; i<CFG.ticketCount; i++) tickets.push(new Ticket());
+};
+
+document.getElementById('slDuration').oninput = (e) => { 
+    CFG.genDuration = parseInt(e.target.value); 
+    document.getElementById('valDuration').innerText = CFG.genDuration; 
 };
 
 document.getElementById('slSensor').oninput = (e) => { 
@@ -1379,7 +1444,6 @@ document.getElementById('slDrain').oninput = (e) => {
     document.getElementById('valDrain').innerText = label; 
 };
 
-// NYA SLIDERS
 document.getElementById('slElite').oninput = (e) => { 
     CFG.eliteCount = parseInt(e.target.value); 
     document.getElementById('valElite').innerText = CFG.eliteCount;
@@ -1393,7 +1457,7 @@ document.getElementById('slSelection').oninput = (e) => {
 
 document.getElementById('slHidden').oninput = (e) => { 
     document.getElementById('valHidden').innerText = e.target.value; 
-    // Måste tvinga en full reset för att neurala nätverkets storlek ska uppdateras
+    // Must force a hard reset to apply the change in neural network size
     pushFeed('Hidden Nodes ändrat. Tryck "Hard Reset All" för att uppdatera nätverket.', 'warn');
 };
 
