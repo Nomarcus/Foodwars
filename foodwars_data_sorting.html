@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>NEAT Data Sorting Simulation - Enhanced Input</title>
+  <title>Hybrid Policy Learning (HPL) Data Sorting Simulation - RL-ACO</title>
   <style>
     :root {
       /* New Color Palette - Sci-Fi / Dark Mode */
@@ -119,15 +119,15 @@
 
 <aside class="sidebar">
   <div class="panel-section">
-    <h1>NEAT Control Console</h1>
+    <h1>HPL Control Console</h1>
     
     <div class="stat-grid">
       <div class="stat-box">
-        <span class="stat-label">Generation</span>
+        <span class="stat-label">Episode</span>
         <span class="stat-val" id="dispGen">1</span>
       </div>
       <div class="stat-box">
-        <span class="stat-label">Best Fitness</span>
+        <span class="stat-label">Best Q-Score</span>
         <span class="stat-val" id="dispFit" style="color:var(--accent-ok)">0.0</span>
       </div>
       <div class="stat-box">
@@ -150,12 +150,12 @@
   </div>
   
   <div class="panel-section">
-    <h2>Fitness History</h2>
+    <h2>Performance History (Best Agent)</h2>
     <canvas id="fitnessGraph"></canvas>
   </div>
   
   <div class="panel-section">
-      <h2>Active Brain (Best Agent)</h2>
+      <h2>Active Policy Network (Best Agent)</h2>
       <canvas id="brainCanvas" width="300" height="150"></canvas>
       <div style="font-size:10px; color:#667; text-align:center">Live Neural Network Activity (Red=Negative, Green=Positive)</div>
   </div>
@@ -179,19 +179,43 @@
     </div>
     
     <div class="control-group">
-      <label title="Antal frames per generation">Generation Duration (Frames): <span id="valDuration">2500</span></label>
+      <label title="Antal frames per episod">Episode Duration (Frames): <span id="valDuration">2500</span></label>
       <input type="range" id="slDuration" min="500" max="10000" step="100" value="2500">
     </div>
     
     <div class="btn-group">
-        <button class="btn alt" id="btnResetAI">Reset AI Only</button>
-        <button class="btn" id="btnSkip">Insta-Train (Skip Gen)</button>
+        <button class="btn alt" id="btnResetAI">Reset Policy Weights</button>
+        <button class="btn" id="btnSkip">Restart Episode</button>
     </div>
     <button class="btn danger" id="btnReset">Hard Reset All</button>
   </div>
 
   <div class="panel-section">
-    <h2>Game Physics</h2>
+    <h2>RL/Policy Parameters</h2>
+    
+    <div class="control-group">
+        <label title="Hur snabbt nätverkets vikter uppdateras">Learning Rate (Alpha): <span id="valAlpha">0.05</span></label>
+        <input type="range" id="slAlpha" min="1" max="100" value="5" step="1">
+    </div>
+
+    <div class="control-group">
+        <label title="Vikt för framtida belöningar. Högre = mer långsiktigt tänkande">Discount Factor (Gamma): <span id="valGamma">0.90</span></label>
+        <input type="range" id="slGamma" min="50" max="99" value="90" step="1">
+    </div>
+    
+    <div class="control-group">
+        <label title="Andelen slumpmässiga drag för utforskning">Exploration Rate (Epsilon): <span id="valEpsilon">10%</span></label>
+        <input type="range" id="slEpsilon" min="0" max="50" value="10" step="1">
+    </div>
+    
+    <div class="control-group">
+      <label title="Antal noder i dolda lagret.">Hidden Nodes: <span id="valHidden">20</span></label>
+      <input type="range" id="slHidden" min="8" max="40" step="4" value="20">
+    </div>
+  </div>
+
+  <div class="panel-section">
+    <h2>Game Physics / ACO</h2>
     
     <div class="control-group">
       <label title="Hur långt agenterna kan se">Sensor Range: <span id="valSensor">180px</span></label>
@@ -202,37 +226,18 @@
       <label title="Högre = Batterier dör snabbare">Battery Drain: <span id="valDrain">Normal</span></label>
       <input type="range" id="slDrain" min="1" max="20" value="8">
     </div>
+
+    <div class="control-group">
+      <label title="Avdunstningshastighet för feromoner. 0.99 = långsam">Pheromone Decay: <span id="valDecay">0.990</span></label>
+      <input type="range" id="slDecay" min="980" max="999" value="990">
+    </div>
   </div>
   
   <div class="panel-section">
-    <h2>NEAT & Topology Tweaks</h2>
-
-    <div class="control-group">
-      <label title="Antal noder i dolda lagret. Högre = Mer komplex logik">Hidden Nodes: <span id="valHidden">20</span></label>
-      <input type="range" id="slHidden" min="8" max="40" step="4" value="20">
-    </div>
-
-    <div class="control-group">
-      <label title="Högre = Mer kaos/testning">Mutation Rate: <span id="valMut">10%</span></label>
-      <input type="range" id="slMut" min="1" max="50" value="10">
-    </div>
-
-    <div class="control-group">
-      <label>Elite Count: <span id="valElite">4</span></label>
-      <input type="range" id="slElite" min="1" max="10" value="4">
-    </div>
-
-    <div class="control-group">
-      <label title="Andel av den bästa populationen som får reproducera sig (Rank Selection)">Selection Pool: <span id="valSelection">50%</span></label>
-      <input type="range" id="slSelection" min="20" max="80" step="10" value="50">
-    </div>
-  </div>
-
-  <div class="panel-section">
     <h2>Visuals</h2>
-    <label class="checkbox-row"><input type="checkbox" id="chkBrainViz" checked> Show Brain Visualization</label>
-    <label class="checkbox-row"><input type="checkbox" id="chkSensors"> Show LIDAR Rays</label>
-    <label class="checkbox-row"><input type="checkbox" id="chkHeatmap"> Show Traffic Heatmap</label>
+    <label class="checkbox-row"><input type="checkbox" id="chkBrainViz" checked> Show Policy Network</label>
+    <label class="checkbox-row"><input type="checkbox" id="chkSensors"> Show Sensors (Simplified)</label>
+    <label class="checkbox-row"><input type="checkbox" id="chkPheromones" checked> Show Pheromone Heatmap</label>
     <label class="checkbox-row"><input type="checkbox" id="chkParticles" checked> Show Particles (Feedback)</label>
     <label class="checkbox-row"><input type="checkbox" id="chkTrail"> Show Best Agent Trail</label>
   </div>
@@ -241,14 +246,14 @@
 <main class="main-view">
   <div class="viewport">
     <div class="sim-top-bar">
-        <span><strong style="color:var(--accent)">NEAT-DS:</strong> Ticket Routing Simulation</span>
+        <span><strong style="color:var(--accent)">HPL-ACO:</strong> Hybrid Policy Learning Simulation</span>
         <span class="fps-counter" id="fpsDisplay">FPS: 0</span>
     </div>
     <canvas id="simCanvas"></canvas>
     <div class="hud">
-      <div class="generation-display" id="hudGen">GEN 1</div>
+      <div class="generation-display" id="hudGen">EPISODE 1</div>
       <div style="text-align:right; font-size:12px; color:rgba(255,255,255,0.4)">
-        <p>[SPACE] Pause | [S] Skip Gen | Click & Drag Agent / NEST / Zone</p>
+        <p>[SPACE] Pause | [S] Restart Episode | Click & Drag Agent / NEST / Zone</p>
       </div>
     </div>
     <div class="live-feed" id="feed"></div>
@@ -260,20 +265,23 @@
 // --- CONFIGURATION OBJECT (Mutable) ---
 const CFG = {
   popSize: 40,
-  mutationRate: 0.1,
-  eliteCount: 4,
-  selectionPoolRatio: 0.5, 
+  RL_ALPHA: 0.005, // Learning Rate
+  RL_GAMMA: 0.90,  // Discount Factor
+  RL_EPSILON: 0.1, // Exploration Rate
+  
   ticketCount: 15,
   sensorRange: 180, 
-  sensorCount: 5, 
-  fov: Math.PI * 0.8,
   maxSpeed: 4.0, 
   turnRate: 0.08, 
-  genDuration: 2500, // FRAME COUNT PER GENERATION
+  episodeDuration: 2500, 
   energyDrain: 0.0008, 
-  inputs: 16, // **UPDATED: 12 -> 16**
-  hiddens: 20, // **UPDATED: 16 -> 20 (More capacity for new inputs)**
-  outputs: 6, // [SteerLeft, SteerRight, Forward, Reverse, Brake, Memory]
+  
+  // Policy Network Architecture (Fixed)
+  inputs: 16, 
+  hiddens: 20, 
+  outputs: 6, 
+  // Outputs: [Steer_Bias, Speed_Factor, Brake_Factor, NestP_Weight, TargetP_Weight, Deposit_Amount]
+  
   categories: [
     { id: 'incident', color: '#ff3366', label: 'Incident' }, /* Red */
     { id: 'request', color: '#00ff99', label: 'Service Req' }, /* Green */
@@ -290,15 +298,14 @@ const hoverTip = document.getElementById('hoverTip');
 const fpsDisplay = document.getElementById('fpsDisplay');
 
 let W, H;
-let maxWorldDist = 1; // Used for normalization
+let episode = 1;
 let frame = 0;
-let generation = 1;
 let speedMult = 1;
 let paused = false;
 let agents = [];
 let tickets = [];
 let particles = [];
-let bestBrain = null;
+let bestAgent = null; // Agent with the highest accumulated fitness in the current episode
 let history = [];
 let nest = null; 
 let goalZones = []; 
@@ -320,179 +327,340 @@ let stats = {
 const dist = (x1,y1,x2,y2) => Math.hypot(x2-x1, y2-y1);
 const clamp = (v,min,max) => Math.max(min, Math.min(max, v));
 const rand = (min,max) => Math.random() * (max-min) + min;
-// Utility to normalize a distance by the maximum possible distance
-const normDist = (d) => clamp(d / maxWorldDist, 0, 1);
-// Utility to normalize an angle (in radians) to a value between -1 and 1
+const normDist = (d) => clamp(d / CFG.sensorRange, 0, 1); 
 const normAngle = (a) => {
-    // Normalize angle to [-PI, PI]
     while (a > Math.PI) a -= 2 * Math.PI;
     while (a < -Math.PI) a += 2 * Math.PI;
-    // Normalize to [-1, 1]
     return a / Math.PI;
 }
 
+// Sigmoid activation function (useful for policy outputs)
+const sigmoid = (x) => 1 / (1 + Math.exp(-x));
+const tanh = (x) => Math.tanh(x);
 
-// --- NEAT CORE ---
-class Genome {
-  constructor(parent = null) {
-    // Säkra att de senaste CFG-värdena används för nätverksdimensioner
-    const I = CFG.inputs;
-    const H = CFG.hiddens;
-    const O = CFG.outputs;
+// --- FEROMON SYSTEM (ACO) ---
+const PHEROMONE_CAP = 10;
+const PHEROMONE_SPREAD = 0.4;
+let PHEROMONE_DECAY = 0.990; 
 
-    if(parent) {
-      // Re-initialize arrays if dimensions changed
-      const getArray = (oldArr, newSize) => {
-        let newArr = new Float32Array(newSize);
-        for(let i=0; i<newSize; i++) {
-            newArr[i] = i < oldArr.length ? this.mutate(oldArr[i]) : rand(-1,1);
-        }
-        return newArr;
-      };
+let CS = 25; 
+let GW = 0; 
+let GH = 0; 
+let grid = {
+    food: null, 
+    incident: null, 
+    request: null, 
+    problem: null, 
+};
+const GRID_FIELDS = ['food', 'incident', 'request', 'problem'];
 
-      // Handle dimension changes by copying and mutating existing weights,
-      // and creating new random weights for expanded layers.
-      this.w1 = getArray(parent.w1, I * H);
-      this.w2 = getArray(parent.w2, H * O);
-      this.bias1 = getArray(parent.bias1, H);
-      this.bias2 = getArray(parent.bias2, O);
+const gi=(x,y)=> y*GW + x;
+const clampi=(v,a,b)=> v<a?a:(v>b?b:v);
 
-    } else {
-      this.w1 = new Float32Array(I * H).map(() => rand(-1,1));
-      this.w2 = new Float32Array(H * O).map(() => rand(-1,1));
-      this.bias1 = new Float32Array(H).map(() => rand(-1,1));
-      this.bias2 = new Float32Array(O).map(() => rand(-1,1));
-    }
-    this.fitness = 0;
-  }
-
-  mutate(val) {
-    if(Math.random() < CFG.mutationRate) return val + rand(-0.5, 0.5);
-    return val;
-  }
-
-  predict(inputs) {
-    const H = CFG.hiddens;
-    const I = CFG.inputs;
-    const O = CFG.outputs;
+function makeGrid(){
+    GW = Math.floor(W / CS);
+    GH = Math.floor(H / CS);
+    const size = GW * GH;
     
-    // Ensure inputs array matches expected size, filling with 0 if short
-    const safeInputs = new Float32Array(I);
-    for(let i=0; i<I; i++) safeInputs[i] = inputs[i] || 0;
-
-    let hiddens = new Float32Array(H);
-    for(let i=0; i<H; i++) {
-      let sum = this.bias1[i];
-      for(let j=0; j<I; j++) sum += safeInputs[j] * this.w1[j*H + i];
-      hiddens[i] = Math.tanh(sum);
+    for(const key of GRID_FIELDS){
+        grid[key] = new Float32Array(size); 
     }
-    let outputs = new Float32Array(O);
-    for(let i=0; i<O; i++) {
-      let sum = this.bias2[i];
-      for(let j=0; j<H; j++) sum += hiddens[j] * this.w2[j*O + i];
-      outputs[i] = Math.tanh(sum);
-    }
-    return { outputs, hiddens };
-  }
 }
+
+function deposit(type, x, y, amt, opts = {}){
+    const field = grid?.[type];
+    if(!field) return;
+    const amount = Number(amt);
+    if(!Number.isFinite(amount) || amount <= 0) return;
+    
+    const cx=clampi((x/CS)|0,0,GW-1), cy=clampi((y/CS)|0,0,GH-1);
+    const idx = gi(cx,cy);
+    const cap = Number.isFinite(opts.cap) ? opts.cap : PHEROMONE_CAP;
+    
+    const apply = (index, delta)=>{ 
+        if(index<0 || index>=field.length) return;
+        let next = field[index] + delta;
+        field[index] = Math.min(next, cap);
+    }; 
+    
+    apply(idx, amount);
+    
+    const spread = Math.max(0, Number(opts.spread)||0);
+    if(spread > 0) {
+         const dx = [-1, 0, 1, -1, 1, -1, 0, 1];
+         const dy = [-1, -1, -1, 0, 0, 1, 1, 1];
+         const spreadAmt = amount * spread * 0.1;
+         for(let i=0; i<8; i++){
+             const ncx = cx + dx[i];
+             const ncy = cy + dy[i];
+             const nidx = gi(clampi(ncx,0,GW-1), clampi(ncy,0,GH-1));
+             apply(nidx, spreadAmt);
+         }
+    }
+}
+
+// Beräknar feromongradienten (doftriktningen) på en position
+function senseGrad(type, x, y){
+    const field = grid?.[type];
+    if(!field) return { gx: 0, gy: 0, mag: 0 };
+    
+    const cx=clampi((x/CS)|0,0,GW-1), cy=clampi((y/CS)|0,0,GH-1);
+    
+    let gx = 0;
+    let gy = 0;
+    let centerVal = field[gi(cx,cy)];
+
+    if(centerVal > 0){
+        const dx = [1, 1, 1, 0, 0, -1, -1, -1];
+        const dy = [-1, 0, 1, -1, 1, -1, 0, 1];
+        const scale = [0.5, 1, 0.5, 1, 1, 0.5, 1, 0.5]; 
+
+        for(let i=0; i<8; i++){
+            const ncx = cx + dx[i];
+            const ncy = cy + dy[i];
+            
+            const nidx = gi(clampi(ncx,0,GW-1), clampi(ncy,0,GH-1));
+            const neighborVal = field[nidx];
+            
+            const diff = neighborVal - centerVal; 
+
+            gx += dx[i] * diff * scale[i];
+            gy += dy[i] * diff * scale[i];
+        }
+    }
+
+    const mag = Math.hypot(gx, gy);
+    if(mag > 0){
+        gx /= mag;
+        gy /= mag;
+    }
+
+    return { gx, gy, mag: centerVal }; 
+}
+
+function evaporate(){
+    for(let i=0; i<grid.food.length; i++){
+        for(const key of GRID_FIELDS){
+            grid[key][i] *= PHEROMONE_DECAY;
+        }
+    }
+}
+
+// --- END FEROMON SYSTEM ---
+
+
+// --- POLICY NETWORK (RL Component) ---
+
+class PolicyNetwork {
+    constructor(inputs, hiddens, outputs, weights = null) {
+        this.I = inputs;
+        this.H = hiddens;
+        this.O = outputs;
+        
+        const size1 = this.I * this.H;
+        const size2 = this.H * this.O;
+
+        // Initialize or clone weights and biases
+        this.w1 = weights ? new Float32Array(weights.w1) : new Float32Array(size1).map(() => rand(-0.5, 0.5));
+        this.w2 = weights ? new Float32Array(weights.w2) : new Float32Array(size2).map(() => rand(-0.5, 0.5));
+        this.bias1 = weights ? new Float32Array(weights.bias1) : new Float32Array(this.H).map(() => rand(-0.5, 0.5));
+        this.bias2 = weights ? new Float32Array(weights.bias2) : new Float32Array(this.O).map(() => rand(-0.5, 0.5));
+
+        // For backpropagation: Store activations and Z-values (pre-activation)
+        this.hiddens = new Float32Array(this.H);
+        this.outputs = new Float32Array(this.O);
+        this.z1 = new Float32Array(this.H);
+        this.z2 = new Float32Array(this.O);
+    }
+
+    clone() {
+        return new PolicyNetwork(this.I, this.H, this.O, {
+            w1: this.w1, w2: this.w2, bias1: this.bias1, bias2: this.bias2
+        });
+    }
+
+    // Forward pass - Maps state (inputs) to action policy (outputs)
+    predict(inputs) {
+        const safeInputs = new Float32Array(this.I);
+        for(let i=0; i<this.I; i++) safeInputs[i] = inputs[i] || 0;
+
+        // Hidden Layer (Tanh activation)
+        for(let i=0; i<this.H; i++) {
+            let sum = this.bias1[i];
+            for(let j=0; j<this.I; j++) sum += safeInputs[j] * this.w1[j*this.H + i];
+            this.z1[i] = sum;
+            this.hiddens[i] = tanh(sum);
+        }
+
+        // Output Layer (Tanh for Action Weights)
+        for(let i=0; i<this.O; i++) {
+            let sum = this.bias2[i];
+            for(let j=0; j<this.H; j++) sum += this.hiddens[j] * this.w2[j*this.O + i];
+            this.z2[i] = sum;
+            this.outputs[i] = tanh(sum); // Policy is [-1, 1]
+        }
+        return { outputs: this.outputs, hiddens: this.hiddens };
+    }
+
+    // Simplified Policy Gradient/Online Learning Update
+    // Reward (R) acts as the 'Advantage' estimate.
+    backpropagate(inputs, outputs, reward, alpha) {
+        if(reward === 0) return; // Skip learning if no reward
+
+        const learningRate = alpha * Math.abs(reward); // Scale learning by reward magnitude
+        
+        // 1. Calculate Output Gradients (Policy update proportional to reward)
+        let outputDeltas = new Float32Array(this.O);
+        for(let i=0; i<this.O; i++) {
+             // Derivative of tanh(x) is 1 - tanh(x)^2.
+             const activation_derivative = 1 - outputs[i] * outputs[i];
+             // Simple pseudo-gradient: (Reward Signal) * (Activation Derivative)
+             outputDeltas[i] = reward * activation_derivative; 
+        }
+
+        // 2. Calculate Hidden Deltas
+        let hiddenDeltas = new Float32Array(this.H);
+        for(let i=0; i<this.H; i++) {
+            let sum = 0;
+            for(let j=0; j<this.O; j++) {
+                sum += outputDeltas[j] * this.w2[i*this.O + j];
+            }
+            // Derivative of tanh(x) is 1 - tanh(x)^2.
+            hiddenDeltas[i] = sum * (1 - this.hiddens[i] * this.hiddens[i]);
+        }
+        
+        // 3. Update Weights (Hidden -> Output)
+        for(let i=0; i<this.H; i++) {
+            for(let j=0; j<this.O; j++) {
+                const index = i*this.O + j;
+                this.w2[index] += learningRate * outputDeltas[j] * this.hiddens[i];
+            }
+        }
+        // Update Biases (Output)
+        for(let i=0; i<this.O; i++) {
+            this.bias2[i] += learningRate * outputDeltas[i];
+        }
+
+        // 4. Update Weights (Input -> Hidden)
+        const safeInputs = new Float32Array(this.I);
+        for(let i=0; i<this.I; i++) safeInputs[i] = inputs[i] || 0;
+        
+        for(let i=0; i<this.I; i++) {
+            for(let j=0; j<this.H; j++) {
+                const index = i*this.H + j;
+                this.w1[index] += learningRate * hiddenDeltas[j] * safeInputs[i];
+            }
+        }
+        // Update Biases (Hidden)
+        for(let i=0; i<this.H; i++) {
+            this.bias1[i] += learningRate * hiddenDeltas[i];
+        }
+    }
+}
+
 
 // --- ENTITIES ---
 class Nest {
-  constructor(x, y) {
-    this.x = x;
-    this.y = y;
-    this.r = 25;
-  }
-  draw() {
-    // Outer Ring (Pulsating Effect)
-    const pulseR = this.r * (1 + Math.sin(frame * 0.1) * 0.1);
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.arc(this.x, this.y, pulseR + 5, 0, Math.PI * 2);
-    ctx.stroke();
-
-    // Inner Body
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.08)';
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.arc(this.x, this.y, this.r, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
-    
-    // Text Label
-    ctx.fillStyle = '#fff';
-    ctx.textAlign = 'center';
-    ctx.font = '12px ' + varStyles.fontUi;
-    ctx.fillText('NEST', this.x, this.y + 4);
-    
-    // Highlight if being dragged
-    if (mouse.dragNest) {
-        ctx.strokeStyle = varStyles.accent;
-        ctx.lineWidth = 3;
-        ctx.beginPath();
-        ctx.arc(this.x, this.y, this.r + 5, 0, Math.PI * 2);
-        ctx.stroke();
+    // ... (Nest class remains the same) ...
+    constructor(x, y) {
+        this.x = x;
+        this.y = y;
+        this.r = 25;
     }
-  }
+    draw() {
+        const pulseR = this.r * (1 + Math.sin(frame * 0.1) * 0.1);
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, pulseR + 5, 0, Math.PI * 2);
+        ctx.stroke();
+
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.08)';
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.r, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        
+        ctx.fillStyle = '#fff';
+        ctx.textAlign = 'center';
+        ctx.font = '12px ' + varStyles.fontUi;
+        ctx.fillText('NEST', this.x, this.y + 4);
+        
+        if (mouse.dragNest) {
+            ctx.strokeStyle = varStyles.accent;
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, this.r + 5, 0, Math.PI * 2);
+            ctx.stroke();
+        }
+        
+        // Feromon Deposition (Food/Nest Pheromone) at the Nest
+        if(frame % 5 === 0) {
+            deposit('food', this.x, this.y, PHEROMONE_CAP * 0.05, { cap: PHEROMONE_CAP, spread: 0.1 });
+        }
+    }
 }
 
 class Ticket {
-  constructor() { this.respawn(); }
+    // ... (Ticket class remains the same) ...
+    constructor() { this.respawn(); }
 
-  update() {
-    // Subtle float animation
-    this.x += Math.sin(frame * 0.05 + this.id) * 0.2;
-    this.y += Math.cos(frame * 0.05 + this.id) * 0.2;
-    
-    this.life -= this.decay;
-    if(this.life <= 0) {
-      spawnParticles(this.x, this.y, '#555', 5);
-      this.respawn();
+    update() {
+        this.x += Math.sin(frame * 0.05 + this.id) * 0.2;
+        this.y += Math.cos(frame * 0.05 + this.id) * 0.2;
+        
+        this.life -= this.decay;
+        if(this.life <= 0) {
+            spawnParticles(this.x, this.y, '#555', 5);
+            this.respawn();
+        }
+        
+        // Feromon Deposition (Food/General Search Pheromone) at Ticket location
+        if(frame % 5 === 0) {
+            deposit('food', this.x, this.y, PHEROMONE_CAP * 0.02, { cap: PHEROMONE_CAP, spread: 0.1 });
+        }
     }
-  }
 
-  respawn() {
-    this.id = Math.random();
-    this.x = rand(50, W-50);
-    this.y = rand(150, H-150);
-    this.life = 1.0;
-    this.typeIdx = Math.floor(Math.random() * 3);
-    this.def = CFG.categories[this.typeIdx];
-    this.decay = rand(0.0002, 0.0008); 
-    this.r = 8;
-  }
+    respawn() {
+        this.id = Math.random();
+        this.x = rand(50, W-50);
+        this.y = rand(150, H-150);
+        this.life = 1.0;
+        this.typeIdx = Math.floor(Math.random() * CFG.categories.length);
+        this.def = CFG.categories[this.typeIdx];
+        this.decay = rand(0.0002, 0.0008); 
+        this.r = 8;
+    }
 
-  draw() {
-    const w = 12, h = 16; 
-    ctx.save();
-    ctx.translate(this.x, this.y);
+    draw() {
+        const w = 12, h = 16; 
+        ctx.save();
+        ctx.translate(this.x, this.y);
 
-    // Paper Body (Rounded Rectangle - using polyfill/function)
-    ctx.fillStyle = this.def.color;
-    ctx.globalAlpha = 0.8;
-    ctx.beginPath();
-    ctx.roundRectPolyfill(-w/2, -h/2, w, h, 3);
-    ctx.fill();
-    ctx.globalAlpha = 1;
+        ctx.fillStyle = this.def.color;
+        ctx.globalAlpha = 0.8;
+        ctx.beginPath();
+        ctx.roundRectPolyfill(-w/2, -h/2, w, h, 3);
+        ctx.fill();
+        ctx.globalAlpha = 1;
 
-    // SLA Bar (Life) - White bar
-    ctx.fillStyle = '#fff';
-    ctx.fillRect(-w/2 + 1, -h/2 + 1, (w-2) * this.life, 2);
-    
-    // Highlight based on type
-    ctx.strokeStyle = '#fff';
-    ctx.lineWidth = 1;
-    ctx.stroke();
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(-w/2 + 1, -h/2 + 1, (w-2) * this.life, 2);
+        
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 1;
+        ctx.stroke();
 
-    ctx.restore();
-  }
+        ctx.restore();
+    }
 }
 
+
 class Agent {
-  constructor(genome) {
-    this.brain = genome || new Genome();
+  constructor(policy = null) {
+    this.policy = policy || new PolicyNetwork(CFG.inputs, CFG.hiddens, CFG.outputs);
     this.x = nest ? nest.x : W/2; 
     this.y = nest ? nest.y : H/2; 
     this.angle = rand(0, Math.PI*2);
@@ -501,111 +669,174 @@ class Agent {
     this.teamHue = 210; 
     this.carrying = null;
     this.energy = 1.0;
-    this.memory = 0;
     this.fitness = 0;
-    this.sensors = [];
     this.stalled = false;
     this.trail = []; 
+    
+    // RL State Variables
+    this.lastState = new Array(CFG.inputs).fill(0); 
+    this.lastAction = new Array(CFG.outputs).fill(0);
+    this.accumulatedReward = 0;
+    this.qScore = 0; // Accumulated Q-score / long-term fitness
   }
+  
+  // Gets the current state (inputs) for the Policy Network
+  getState() {
+    let inputs = new Array(CFG.inputs).fill(0);
+    let inputIndex = 0;
+    
+    let targetPheromone = 'food'; 
+    if (this.carrying) {
+        targetPheromone = this.carrying.def.id; 
+    }
 
-  update() {
-    if(mouse.dragAgent === this || mouse.dragNest || mouse.dragZone) return; 
+    // 1. Sense Target Pheromone Gradient (2 inputs)
+    const targetGrad = senseGrad(targetPheromone, this.x, this.y);
+    inputs[inputIndex++] = targetGrad.gx;
+    inputs[inputIndex++] = targetGrad.gy;
 
-    this.fireSensors();
+    // 2. Sense Nest/Food Pheromone Gradient (2 inputs)
+    const foodGrad = senseGrad('food', this.x, this.y);
+    inputs[inputIndex++] = foodGrad.gx;
+    inputs[inputIndex++] = foodGrad.gy;
 
-    // --- INPUT GENERATION (16 Inputs) ---
-    const inputs = [...this.sensors]; // 5 inputs (LIDAR)
+    // 3. Wall Sensor (2 inputs)
+    let minDistToWall = Infinity;
+    const distToLeft = this.x;
+    const distToRight = W - this.x;
+    const distToTop = this.y;
+    const distToBottom = H - this.y;
+    minDistToWall = Math.min(distToLeft, distToRight, distToTop, distToBottom);
+    
+    inputs[inputIndex++] = normDist(minDistToWall); 
+    inputs[inputIndex++] = 0; // Reserved input
+    
+    // 4. Closest Ticket Sensor (1 input)
+    let closestTicketDist = Infinity;
+    if(!this.carrying) {
+        for(let t of tickets) {
+            if(t.x < 0) continue; 
+            closestTicketDist = Math.min(closestTicketDist, dist(this.x, this.y, t.x, t.y));
+        }
+    }
+    inputs[inputIndex++] = normDist(closestTicketDist);
 
-    // Carrying Info (4 inputs)
+    // 5. Carrying Info (4 inputs)
     if(this.carrying) {
-      inputs.push(this.carrying.typeIdx === 0 ? 1:0); // 6: INC
-      inputs.push(this.carrying.typeIdx === 1 ? 1:0); // 7: REQ
-      inputs.push(this.carrying.typeIdx === 2 ? 1:0); // 8: PROB
-      inputs.push(this.carrying.life);               // 9: SLA Life
+      inputs[inputIndex++] = this.carrying.def.id === 'incident' ? 1:0; 
+      inputs[inputIndex++] = this.carrying.def.id === 'request' ? 1:0; 
+      inputs[inputIndex++] = this.carrying.def.id === 'problem' ? 1:0; 
+      inputs[inputIndex++] = this.carrying.life;                       
     } else {
-      inputs.push(0,0,0,0);
+      inputs[inputIndex++] = 0;
+      inputs[inputIndex++] = 0;
+      inputs[inputIndex++] = 0;
+      inputs[inputIndex++] = 0;
     }
     
-    // Status (3 inputs)
-    inputs.push(this.energy);                       // 10: Energy
-    inputs.push(this.vel / CFG.maxSpeed);           // 11: Speed (Normalized)
-    inputs.push(this.memory);                       // 12: Memory
+    // 6. Status (3 inputs)
+    inputs[inputIndex++] = this.energy;                   
+    inputs[inputIndex++] = this.vel / CFG.maxSpeed;       
+    inputs[inputIndex++] = this.qScore / 1000; // Normalized Q-Score as "Memory"                 
 
-    // Directional Context (4 new inputs)
-    // 1. Nest Information (Always relevant)
+    // 7. Directional Context (2 inputs)
     const dNest = dist(this.x, this.y, nest.x, nest.y);
     const aNest = Math.atan2(nest.y - this.y, nest.x - this.x);
     const angleDiffNest = aNest - this.angle;
     
-    inputs.push(normDist(dNest));                   // 13: Nest Distance
-    inputs.push(normAngle(angleDiffNest));          // 14: Nest Angle
+    inputs[inputIndex++] = normDist(dNest);               
+    inputs[inputIndex++] = normAngle(angleDiffNest);      
 
-    // 2. Target Zone Information (Only relevant when carrying)
-    let dTarget = 0, aTarget = 0;
+    // 8. Extra Input (1 input) - Closest Target Zone Distance
+    let dTarget = 0;
     if(this.carrying) {
         const targetZone = getZones().find(z => z.id === this.carrying.def.id);
         if(targetZone) {
             dTarget = dist(this.x, this.y, targetZone.x, targetZone.y);
-            aTarget = Math.atan2(targetZone.y - this.y, targetZone.x - this.x);
-            const angleDiffTarget = aTarget - this.angle;
-            inputs.push(normDist(dTarget));         // 15: Target Distance
-            inputs.push(normAngle(angleDiffTarget)); // 16: Target Angle
-        } else {
-            inputs.push(0, 0);
         }
-    } else {
-        inputs.push(0, 0); // Not carrying, distance/angle are 0
     }
-    // --- END INPUT GENERATION ---
+    inputs[inputIndex++] = normDist(dTarget);             
     
-    this.lastInputs = inputs;
-    const { outputs, hiddens } = this.brain.predict(inputs);
-    this.lastHiddens = hiddens;
-    this.lastOutputs = outputs; 
+    return inputs;
+  }
+  
+  // Core Policy/Action Execution
+  executeAction(policyOutputs, targetGrad, foodGrad) {
+    // outputs: [Steer_Bias, Speed_Factor, Brake_Factor, NestP_Weight, TargetP_Weight, Deposit_Amount]
+    const steerBias = policyOutputs[0]; // [-1, 1] - Left/Right preference
+    const speedFactor = (policyOutputs[1] + 1) / 2; // [0, 1]
+    const brakeFactor = (policyOutputs[2] + 1) / 2; // [0, 1]
+    const nestPWeight = (policyOutputs[3] + 1) / 2; // [0, 1]
+    const targetPWeight = (policyOutputs[4] + 1) / 2; // [0, 1]
+    const depositAmount = (policyOutputs[5] + 1) / 2; // [0, 1]
 
-    // outputs: [steerLeft, steerRight, forward, reverse, brake, memory]
-    const steerLeft = (outputs[0] + 1) / 2; // Normalize from [-1, 1] to [0, 1]
-    const steerRight = (outputs[1] + 1) / 2;
-    const thrust = (outputs[2] + 1) / 2;
-    const reverse = (outputs[3] + 1) / 2;
-    const brake = (outputs[4] + 1) / 2;
-    this.memory = outputs[5];
-
-    // 1. Steering
-    const turnRate = CFG.turnRate;
-    let turn = (steerRight - steerLeft) * turnRate;
-    this.angle += turn;
-
-    // 2. Propulsion
-    let netThrust = 0;
-    if (thrust > reverse) {
-        netThrust = thrust; // Forward acceleration
+    // 1. Calculate Desired Steering Angle (ACO + Policy)
+    let desiredAngle = this.angle;
+    let turnMag = 0;
+    
+    // Convert pheromone gradient vector to an angle
+    let pheroAngle = 0;
+    let pheroMag = 0;
+    
+    if (this.carrying) {
+        // Target is the goal zone, follow its pheromone
+        pheroAngle = Math.atan2(targetGrad.gy, targetGrad.gx);
+        pheroMag = targetGrad.mag;
     } else {
-        netThrust = -reverse; // Reverse acceleration
+        // Target is a ticket/search area, follow food pheromone
+        pheroAngle = Math.atan2(foodGrad.gy, foodGrad.gx);
+        pheroMag = foodGrad.mag;
     }
+    
+    // Weighted steering combination
+    if (pheroMag > 0.05) {
+        const combinedWeight = nestPWeight + targetPWeight;
+        
+        let targetAngle = pheroAngle;
+        
+        if (this.carrying) {
+             // If carrying, prioritize the target zone Pheromone
+             const tAngle = Math.atan2(targetGrad.gy, targetGrad.gx);
+             targetAngle = tAngle * targetPWeight + this.angle * (1 - targetPWeight); 
+        } else {
+             // If searching, prioritize the food Pheromone
+             const fAngle = Math.atan2(foodGrad.gy, foodGrad.gx);
+             targetAngle = fAngle * nestPWeight + this.angle * (1 - nestPWeight);
+        }
+        
+        desiredAngle = targetAngle;
+        
+        // Calculate the difference between current angle and desired angle
+        let angleDiff = desiredAngle - this.angle;
+        angleDiff = normAngle(angleDiff * Math.PI) * Math.PI; // Normalize to [-PI, PI]
+        
+        turnMag = angleDiff;
+    } 
+
+    // Add Policy Steering Bias
+    turnMag += steerBias * 0.5; // Policy can push the steering left/right
+    
+    // Apply Turning
+    this.angle += clamp(turnMag, -CFG.turnRate, CFG.turnRate);
+    
+    // 2. Propulsion
+    let netThrust = speedFactor; // Always try to move forward based on policy output
 
     if(this.energy > 0) {
-        if (Math.abs(netThrust) > 0.1) {
-            this.vel += netThrust * 0.2;
-            this.energy -= CFG.energyDrain * (1 + Math.abs(netThrust));
-        }
-        this.stalled = false;
-        // Reward for movement/activity
-        this.fitness += 0.1 * Math.abs(this.vel);
+        this.vel += netThrust * 0.3;
+        this.energy -= CFG.energyDrain * (1 + netThrust * 2); 
     } else {
         this.stalled = true;
     }
 
     // 3. Braking / Friction
-    if (brake > 0.1) {
-        this.vel *= (1 - brake * 0.2); 
+    if (brakeFactor > 0.1) {
+        this.vel *= (1 - brakeFactor * 0.2); 
         this.energy -= CFG.energyDrain * 0.5; 
     } else {
-        // Standard friction
         this.vel *= 0.92; 
     }
 
-    // Velocity limits and Energy Recharge
     this.vel = clamp(this.vel, -CFG.maxSpeed, CFG.maxSpeed);
     
     if(Math.abs(this.vel) < 0.1) {
@@ -615,45 +846,112 @@ class Agent {
 
     this.x += Math.cos(this.angle) * this.vel;
     this.y += Math.sin(this.angle) * this.vel;
+
+    // 4. Pheromone Deposit (Modulated by Policy)
+    const depositAmt = depositAmount * 0.05; 
+    if(depositAmt > 0.005) {
+        const type = this.carrying ? this.carrying.def.id : 'food';
+        deposit(type, this.x, this.y, depositAmt, { spread: PHEROMONE_SPREAD });
+    }
+  }
+
+  // RL Learning Step (Called after Action Execution)
+  learn(prevState, prevAction, reward, newPolicyOutputs) {
+    if (reward === 0) return;
+    
+    const alpha = CFG.RL_ALPHA;
+    const gamma = CFG.RL_GAMMA;
+
+    // The accumulated Q-Score is updated using a simple temporal difference update.
+    // Q(S, A) = Q(S, A) + alpha * [ R + gamma * Q_max(S') - Q(S, A) ]
+    // Since we don't store Q(S,A) explicitly, we use the immediate reward and update the network.
+    
+    // Update Agent's long-term score
+    this.qScore = this.qScore * gamma + reward; 
+
+    // Backpropagate using the reward as the Advantage/Loss signal
+    this.policy.backpropagate(prevState, prevAction, reward, alpha);
+  }
+
+  update() {
+    if(mouse.dragAgent === this || mouse.dragNest || mouse.dragZone) return; 
+
+    const prevState = this.getState();
+    
+    // --- Policy Prediction & Exploration (Epsilon-Greedy) ---
+    let policyOutputs;
+    let hiddens;
+    let reward = 0;
+
+    const targetPheromone = this.carrying ? this.carrying.def.id : 'food'; 
+    const targetGrad = senseGrad(targetPheromone, this.x, this.y);
+    const foodGrad = senseGrad('food', this.x, this.y);
+
+    if (Math.random() < CFG.RL_EPSILON) {
+        // Exploration: Random Action
+        policyOutputs = new Array(CFG.outputs).fill(0).map(() => rand(-1, 1));
+        hiddens = new Array(CFG.hiddens).fill(0); 
+    } else {
+        // Exploitation: Policy Network Action
+        const { outputs, hiddens: h } = this.policy.predict(prevState);
+        policyOutputs = Array.from(outputs);
+        hiddens = h;
+    }
+    
+    this.lastState = prevState;
+    this.lastAction = policyOutputs;
+    this.lastHiddens = hiddens;
+    this.lastOutputs = policyOutputs; 
+
+    // --- Execute Action ---
+    const prevX = this.x, prevY = this.y;
+    this.executeAction(policyOutputs, targetGrad, foodGrad);
+    const postX = this.x, postY = this.y;
+    
+    // --- Calculate Reward ($R_t$) ---
+    const movementReward = dist(prevX, prevY, postX, postY) * 0.15; 
+    reward += movementReward; 
     
     // Bounds (Wall Bounce)
     if(this.x < this.r || this.x > W-this.r || this.y < this.r || this.y > H-this.r) {
       this.x = clamp(this.x, this.r, W-this.r);
       this.y = clamp(this.y, this.r, H-this.r);
       this.vel *= -0.5;
-      this.fitness -= 5; 
+      reward -= 10; // Stronger wall penalty
     }
 
-    // Interactions
+    if(this.stalled) {
+        reward -= 0.5;
+    }
+    
+    // --- Interactions (Source of Major Rewards/Penalties) ---
     if(!this.carrying) {
+      // Try to pick up ticket
       for(let t of tickets) {
         if(dist(this.x, this.y, t.x, t.y) < this.r + 5 && t.x > 0) {
           this.carrying = t;
           t.x = -1000;
           pushFeed(`Picked up ${t.def.label}`, 'good');
-          this.fitness += 10; 
+          reward += 10; 
           zoneHighlight = { id: t.def.id, frame: frame }; 
           break;
         }
       }
     } else {
-      // Reward for carrying a ticket
-      this.fitness += 0.5; 
-      
+      // Try to drop off ticket
       const zones = getZones();
       for(let z of zones) {
         if(dist(this.x, this.y, z.x, z.y) < z.r) {
           if(z.id === this.carrying.def.id) {
-            // Proportional reward based on urgency
             const urgencyFactor = 1 / this.carrying.decay; 
             const baseReward = 50 + (this.energy * 10);
-            this.fitness += baseReward + (baseReward * urgencyFactor * 0.01); 
+            reward += baseReward + (baseReward * urgencyFactor * 0.05);
 
             stats.solved++;
             spawnParticles(this.x, this.y, z.color, 15);
             pushFeed(`Sorted: ${this.carrying.def.label}`, 'good');
           } else {
-            this.fitness -= 25; // High penalty for wrong sort
+            reward -= 50; // MUCH stronger penalty for wrong sorting
             stats.wrong++;
             spawnParticles(this.x, this.y, varStyles.accentBad, 8);
             pushFeed(`Wrong Zone!`, 'bad');
@@ -664,58 +962,61 @@ class Agent {
         }
       }
     }
+    
+    this.accumulatedReward = reward; // Store for display/debugging
+    this.fitness += reward; // Overall episode fitness (for finding best agent)
+    
+    // --- Learning Step (RL) ---
+    this.learn(prevState, policyOutputs, reward, policyOutputs); 
 
     // Trail update
-    if(this === bestBrain && document.getElementById('chkTrail')?.checked) {
+    if(this === bestAgent && document.getElementById('chkTrail')?.checked) {
         this.trail.push({ x: this.x, y: this.y, alpha: 1.0 });
         if(this.trail.length > 50) this.trail.shift(); 
-    } else if (this !== bestBrain) {
+    } else if (this !== bestAgent) {
         this.trail = [];
     }
   }
 
-  fireSensors() {
-    this.sensors = [];
-    const startAngle = this.angle - CFG.fov/2;
-    const step = CFG.fov / (CFG.sensorCount - 1);
-    const range = CFG.sensorRange; 
-    
-    for(let i=0; i<CFG.sensorCount; i++) {
-      const rayAngle = startAngle + (step * i);
-      let minDist = 1.0; 
+  // Draw simplified sensor line to closest wall/ticket if enabled
+  drawSensors() {
+      if(!document.getElementById('chkSensors')?.checked) return;
       
-      // Check Tickets
-      for(let t of tickets) {
-        if(t.x < 0) continue; 
-        let d = dist(this.x, this.y, t.x, t.y);
-        if(d < range) {
-          let angleTo = Math.atan2(t.y - this.y, t.x - this.x);
-          let diff = Math.abs(angleTo - rayAngle);
-          if(diff > Math.PI) diff = Math.PI*2 - diff;
-          if(diff < step/2) minDist = Math.min(minDist, d / range);
-        }
+      const inputs = this.lastState;
+      const distInput = inputs[4]; 
+      const ticketInput = inputs[6]; 
+
+      ctx.globalAlpha = 0.5;
+      ctx.lineWidth = 1;
+
+      if (distInput < 1) {
+        const wallRange = distInput * CFG.sensorRange;
+        ctx.strokeStyle = varStyles.accentBad;
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, wallRange, 0, Math.PI * 2);
+        ctx.stroke();
       }
       
-      // Check Walls
-      let dx = Math.cos(rayAngle);
-      let dy = Math.sin(rayAngle);
-      let dX = dx > 0 ? (W - this.x) / dx : -this.x / dx;
-      let dY = dy > 0 ? (H - this.y) / dy : -this.y / dy;
-      let dWall = Math.min(dX, dY);
-      if(dWall < range) minDist = Math.min(minDist, dWall/range);
-
-      this.sensors.push(minDist);
-    }
+      if (ticketInput < 1 && ticketInput > 0) {
+        const ticketRange = ticketInput * CFG.sensorRange;
+        ctx.strokeStyle = varStyles.accentOk;
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, ticketRange, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      
+      ctx.globalAlpha = 1;
   }
 
+
   draw() {
+    this.drawSensors();
     if(this.carrying) this.drawCarryingLink(); 
 
     ctx.save();
     ctx.translate(this.x, this.y);
     ctx.rotate(this.angle);
     
-    // Battery Ring (Pulsating low energy)
     let ringColor = this.energy > 0.3 ? varStyles.accentOk : (this.stalled ? varStyles.accentBad : '#ff9900');
     if(this.energy < 0.3) {
         ctx.globalAlpha = 0.5 + Math.sin(frame * 0.2) * 0.5; 
@@ -729,60 +1030,39 @@ class Agent {
     ctx.strokeStyle = ringColor;
     ctx.stroke();
     
-    
-    // Body (Arrow/Wedge Shape) 
     ctx.globalAlpha = 1;
     
-    // Color logic
     let agentFillColor;
     if (this.carrying) {
         agentFillColor = this.carrying.def.color;
     } else {
-        const memSaturation = 50 + Math.abs(this.memory) * 40; 
+        // Color based on policy's 'memory' (normalized Q-Score)
+        const memSaturation = 50 + clamp(this.qScore / 100, 0, 100); 
         agentFillColor = `hsl(${this.teamHue}, ${memSaturation}%, 50%)`;
     }
 
-    // Apply fill style before drawing
     ctx.fillStyle = this.stalled ? '#552222' : agentFillColor;
     
-    // Highlight Best Agent
-    if(this === bestBrain) {
+    if(this === bestAgent) {
         ctx.shadowBlur = 10;
         ctx.shadowColor = '#ffffaa';
         ctx.fillStyle = '#fff';
     }
 
-    // Draw the arrow/wedge shape
     ctx.beginPath();
-    ctx.moveTo(this.r * 1.5, 0); // Tip
-    ctx.lineTo(-this.r, this.r * 0.8); // Back right
-    ctx.lineTo(-this.r * 0.5, 0); // Center point in the back for a cleaner wedge
-    ctx.lineTo(-this.r, -this.r * 0.8); // Back left
+    ctx.moveTo(this.r * 1.5, 0); 
+    ctx.lineTo(-this.r, this.r * 0.8); 
+    ctx.lineTo(-this.r * 0.5, 0); 
+    ctx.lineTo(-this.r, -this.r * 0.8); 
     ctx.closePath();
     ctx.fill();
 
-    // Reset shadow/highlight
     ctx.shadowBlur = 0;
 
     ctx.restore();
-
-    // Draw Sensors (LIDAR)
-    if(document.getElementById('chkSensors')?.checked) {
-      const startAngle = this.angle - CFG.fov/2;
-      const step = CFG.fov / (CFG.sensorCount - 1);
-      ctx.globalAlpha = 0.05;
-      for(let i=0; i<this.sensors.length; i++) {
-        const rayAngle = startAngle + (step * i);
-        const len = this.sensors[i] * CFG.sensorRange;
-        ctx.strokeStyle = varStyles.accent;
-        ctx.beginPath(); ctx.moveTo(this.x, this.y); ctx.lineTo(this.x + Math.cos(rayAngle)*len, this.y + Math.sin(rayAngle)*len); ctx.stroke();
-      }
-      ctx.globalAlpha = 1;
-    }
   }
 
   drawCarryingLink() {
-      // Visual link to the ticket being carried (animated)
       if(!this.carrying || this.carrying.x > -100) return; 
       
       const zones = getZones();
@@ -830,7 +1110,6 @@ if (!CanvasRenderingContext2D.prototype.roundRectPolyfill) {
     };
 }
 
-// Helper to get CSS variables for use in JS drawing
 const varStyles = {
     fontUi: getComputedStyle(document.documentElement).getPropertyValue('--font-ui').trim(),
     accent: getComputedStyle(document.documentElement).getPropertyValue('--accent').trim(),
@@ -845,8 +1124,8 @@ function getZones() {
 }
 
 function drawZones() {
+    // ... (drawZones remains the same) ...
   getZones().forEach(z => {
-    // Highlighting logic (Pulsating White Border)
     if (zoneHighlight && z.id === zoneHighlight.id && frame < zoneHighlight.frame + 30) {
         ctx.globalAlpha = (Math.sin(frame*0.2) + 1.5) * 0.3; 
         ctx.strokeStyle = '#fff';
@@ -854,7 +1133,6 @@ function drawZones() {
         ctx.beginPath(); ctx.arc(z.x, z.y, z.r + 5, 0, Math.PI*2); ctx.stroke();
     }
     
-    // Highlight if being dragged
     if (mouse.dragZone === z) { 
         ctx.globalAlpha = 1;
         ctx.strokeStyle = '#fff';
@@ -864,21 +1142,18 @@ function drawZones() {
         ctx.stroke();
     }
     
-    // Inner Glow
     const grad = ctx.createRadialGradient(z.x, z.y, z.r*0.2, z.x, z.y, z.r);
-    grad.addColorStop(0, z.color + '80'); // 80 alpha
+    grad.addColorStop(0, z.color + '80'); 
     grad.addColorStop(1, 'transparent');
     ctx.fillStyle = grad; 
     ctx.globalAlpha = 0.5;
     ctx.beginPath(); ctx.arc(z.x, z.y, z.r, 0, Math.PI*2); ctx.fill();
     
-    // Outer Ring
     ctx.globalAlpha = 1; 
     ctx.strokeStyle = z.color; 
     ctx.lineWidth = 2; 
     ctx.beginPath(); ctx.arc(z.x, z.y, z.r, 0, Math.PI*2); ctx.stroke();
 
-    // Text Label (Always Visible)
     ctx.fillStyle = '#fff'; 
     ctx.textAlign = 'center'; 
     ctx.font = '14px ' + varStyles.fontUi;
@@ -888,18 +1163,18 @@ function drawZones() {
 }
 
 function drawAgentTrail() {
-    if(!bestBrain || !document.getElementById('chkTrail')?.checked) return;
+    if(!bestAgent || !document.getElementById('chkTrail')?.checked) return;
     
     ctx.lineWidth = 2;
     ctx.beginPath();
     
-    bestBrain.trail.forEach((p, i) => {
-        const alpha = (i / bestBrain.trail.length) * 0.5;
+    bestAgent.trail.forEach((p, i) => {
+        const alpha = (i / bestAgent.trail.length) * 0.5;
         ctx.strokeStyle = `rgba(255, 215, 0, ${alpha})`;
         
         if(i === 0) ctx.moveTo(p.x, p.y);
         else {
-            const prev = bestBrain.trail[i-1];
+            const prev = bestAgent.trail[i-1];
             ctx.beginPath();
             ctx.moveTo(prev.x, prev.y);
             ctx.lineTo(p.x, p.y);
@@ -910,6 +1185,7 @@ function drawAgentTrail() {
 }
 
 function spawnParticles(x, y, color, count) {
+    // ... (spawnParticles remains the same) ...
   if(!document.getElementById('chkParticles')?.checked) return;
   for(let i=0; i<count; i++) {
     particles.push({ 
@@ -924,6 +1200,7 @@ function spawnParticles(x, y, color, count) {
 }
 
 function updateParticles() {
+    // ... (updateParticles remains the same) ...
   for(let i=particles.length-1; i>=0; i--) {
     let p = particles[i];
     p.x += p.vx * p.life; 
@@ -934,6 +1211,7 @@ function updateParticles() {
 }
 
 function drawParticles() {
+    // ... (drawParticles remains the same) ...
   particles.forEach(p => {
     ctx.globalAlpha = p.life;
     ctx.fillStyle = p.color;
@@ -942,24 +1220,57 @@ function drawParticles() {
   ctx.globalAlpha = 1;
 }
 
-function drawHeatmap() {
-  if(!document.getElementById('chkHeatmap')?.checked) return;
+function drawPheromones() {
+    // ... (drawPheromones remains the same) ...
+  if(!document.getElementById('chkPheromones')?.checked) return;
   
-  // Use a soft, non-blur gradient circle for each agent
-  ctx.globalCompositeOperation = 'lighter'; 
-  agents.forEach(a => {
-    const grad = ctx.createRadialGradient(a.x, a.y, 0, a.x, a.y, 40);
-    grad.addColorStop(0, 'rgba(0, 200, 255, 0.05)');
-    grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
-    ctx.fillStyle = grad;
-    ctx.beginPath();
-    ctx.arc(a.x, a.y, 40, 0, Math.PI * 2);
-    ctx.fill();
-  });
+  const maxPh = PHEROMONE_CAP;
   ctx.globalCompositeOperation = 'source-over'; 
+
+  for(let y=0; y<GH; y++) {
+      for(let x=0; x<GW; x++) {
+          const idx = gi(x,y);
+          const fx = x * CS;
+          const fy = y * CS;
+          
+          let r=0, g=0, b=0, a=0;
+          let trailFound = false;
+
+          CFG.categories.forEach(cat => {
+              const val = grid[cat.id][idx];
+              if(val > 0) {
+                  const factor = val / maxPh * 0.6;
+                  if(cat.id === 'incident') r = Math.max(r, factor * 255); 
+                  if(cat.id === 'request') g = Math.max(g, factor * 255); 
+                  if(cat.id === 'problem') b = Math.max(b, factor * 255); 
+                  a = Math.max(a, val / maxPh * 0.4);
+                  trailFound = true;
+              }
+          });
+          
+          const foodVal = grid.food[idx];
+          if (foodVal > 0) {
+              const factor = foodVal / maxPh * 0.4;
+              r = Math.max(r, factor * 100); 
+              g = Math.max(g, factor * 200); 
+              b = Math.max(b, factor * 255); 
+              a = Math.max(a, foodVal / maxPh * 0.3);
+              trailFound = true;
+          }
+
+          if(trailFound) {
+              ctx.fillStyle = `rgba(${Math.min(255, r)}, ${Math.min(255, g)}, ${Math.min(255, b)}, ${a})`;
+              ctx.fillRect(fx, fy, CS, CS);
+          }
+      }
+  }
+
+  drawZones();
 }
 
+
 function updateFPS(now) {
+    // ... (updateFPS remains the same) ...
     if (lastFrameTime) {
         fps = 1000 / (now - lastFrameTime);
         fpsDisplay.innerText = `FPS: ${fps.toFixed(0)}`;
@@ -968,13 +1279,8 @@ function updateFPS(now) {
 }
 
 function updateUI() {
-  // Update the large HUD Generation display
-  document.getElementById('hudGen').innerText = `GEN ${generation}`; 
-  
-  // Update sidebar Generation stat
-  document.getElementById('dispGen').innerText = generation;
-  
-  // Update all other stats
+  document.getElementById('hudGen').innerText = `EPISODE ${episode}`; 
+  document.getElementById('dispGen').innerText = episode;
   document.getElementById('dispSolved').innerText = stats.solved;
   document.getElementById('dispWrong').innerText = stats.wrong;
   
@@ -987,119 +1293,125 @@ function updateUI() {
   stats.activeCount = agents.length - stalledCount;
 
   document.getElementById('dispActive').innerText = `${stats.activeCount}/${agents.length}`;
-  if(bestBrain) document.getElementById('dispFit').innerText = bestBrain.fitness.toFixed(2);
-
-  // Toggle Brain Visualization visibility based on checkbox
+  if(bestAgent) {
+      document.getElementById('dispFit').innerText = bestAgent.qScore.toFixed(2);
+  }
+  
+  // Toggle Policy Visualization visibility based on checkbox
   brainCanvas.style.display = document.getElementById('chkBrainViz').checked ? 'block' : 'none';
 }
 
 function drawBrain(agent) {
-  if(!document.getElementById('chkBrainViz').checked || !agent) return;
+    // ... (drawBrain adapted for Policy Network) ...
+    if(!document.getElementById('chkBrainViz').checked || !agent) return;
   
-  const W_B = brainCanvas.width;
-  const H_B = brainCanvas.height;
-  brainCtx.clearRect(0, 0, W_B, H_B);
-  
-  const net = agent.brain;
-  const nodeR = 4; 
-  
-  const layerX = [W_B*0.15, W_B*0.5, W_B*0.85];
-  const getY = (idx, total) => (H_B / (total + 1)) * (idx + 1);
-  
-  // --- DRAW CONNECTIONS (Color Coded by Weight and Activation) ---
-  brainCtx.lineWidth = 0.5; 
-  
-  const getLineColor = (weight, inputVal) => {
-    const activation = weight * inputVal;
-    const alpha = clamp(Math.abs(activation) * 0.8, 0.1, 0.6);
-    return activation > 0 ? `rgba(0,255,150,${alpha})` : `rgba(255,50,50,${alpha})`;
-  }
+    const W_B = brainCanvas.width;
+    const H_B = brainCanvas.height;
+    brainCtx.clearRect(0, 0, W_B, H_B);
+    
+    const net = agent.policy;
+    const nodeR = 4; 
+    
+    const layerX = [W_B*0.15, W_B*0.5, W_B*0.85];
+    const getY = (idx, total) => (H_B / (total + 1)) * (idx + 1);
+    
+    // --- DRAW CONNECTIONS ---
+    brainCtx.lineWidth = 0.5; 
+    
+    const getLineColor = (weight, inputVal) => {
+        const activation = weight * inputVal;
+        const alpha = clamp(Math.abs(activation) * 0.8, 0.1, 0.6);
+        return activation > 0 ? `rgba(0,255,150,${alpha})` : `rgba(255,50,50,${alpha})`;
+    }
 
-  // Input to Hidden
-  for(let i=0; i<CFG.inputs; i++) {
+    // Input to Hidden
+    for(let i=0; i<CFG.inputs; i++) {
+        for(let h=0; h<CFG.hiddens; h++) {
+            try{
+                const w = net.w1[i*CFG.hiddens + h];
+                brainCtx.strokeStyle = getLineColor(w, agent.lastState[i] || 0);
+                brainCtx.beginPath(); brainCtx.moveTo(layerX[0], getY(i, CFG.inputs)); brainCtx.lineTo(layerX[1], getY(h, CFG.hiddens)); brainCtx.stroke();
+            } catch(e) {}
+        }
+    }
+    
+    // Hidden to Output
     for(let h=0; h<CFG.hiddens; h++) {
-      try{
-        const w = net.w1[i*CFG.hiddens + h];
-        brainCtx.strokeStyle = getLineColor(w, agent.lastInputs[i] || 0);
-        brainCtx.beginPath(); brainCtx.moveTo(layerX[0], getY(i, CFG.inputs)); brainCtx.lineTo(layerX[1], getY(h, CFG.hiddens)); brainCtx.stroke();
-      } catch(e) {/* Skip if index is out of bounds due to CFG.hiddens change */}
+        for(let o=0; o<CFG.outputs; o++) {
+            try{
+                const w = net.w2[h*CFG.outputs + o];
+                const hVal = agent.lastHiddens ? agent.lastHiddens[h] : 0;
+                brainCtx.strokeStyle = getLineColor(w, hVal);
+                brainCtx.beginPath(); brainCtx.moveTo(layerX[1], getY(h, CFG.hiddens)); brainCtx.lineTo(layerX[2], getY(o, CFG.outputs)); brainCtx.stroke();
+            } catch(e) {}
+        }
     }
-  }
-  
-  // Hidden to Output
-  for(let h=0; h<CFG.hiddens; h++) {
-    for(let o=0; o<CFG.outputs; o++) {
-      try{
-        const w = net.w2[h*CFG.outputs + o];
-        const hVal = agent.lastHiddens ? agent.lastHiddens[h] : 0;
-        brainCtx.strokeStyle = getLineColor(w, hVal);
-        brainCtx.beginPath(); brainCtx.moveTo(layerX[1], getY(h, CFG.hiddens)); brainCtx.lineTo(layerX[2], getY(o, CFG.outputs)); brainCtx.stroke();
-      } catch(e) {/* Skip if index is out of bounds due to CFG.hiddens change */}
-    }
-  }
 
-  // --- DRAW NODES & LABELS (Color Coded by Activation/Bias) ---
-  brainCtx.globalAlpha = 1;
-  brainCtx.font = '8px monospace'; 
-  
-  // Input Nodes (16 inputs)
-  brainCtx.textAlign = 'right';
-  const inputLabels = [
-    'Wall(1)', 'Wall(2)', 'Wall(3)', 'Wall(4)', 'Wall(5)', 
-    'Carry_INC', 'Carry_REQ', 'Carry_PROB', 'Carry_SLA', 
-    'Energy', 'Speed', 'Memory', 
-    'Nest_Dist', 'Nest_Ang', 
-    'Goal_Dist', 'Goal_Ang'
-  ];
-  for(let i=0; i<CFG.inputs; i++) {
-    const val = agent.lastInputs[i] || 0;
-    // Node Color based on value
-    const c = Math.round(clamp(val, 0, 1) * 255);
-    brainCtx.fillStyle = `rgb(${c}, ${c}, ${c})`;
-    brainCtx.beginPath(); brainCtx.arc(layerX[0], getY(i, CFG.inputs), nodeR, 0, Math.PI*2); brainCtx.fill();
-    // Label
-    brainCtx.fillStyle = '#94a3b8';
-    brainCtx.fillText(inputLabels[i], layerX[0] - nodeR - 2, getY(i, CFG.inputs) + 2);
-  }
-
-  // Hidden Nodes
-  for(let i=0; i<CFG.hiddens; i++) {
-    const val = agent.lastHiddens ? agent.lastHiddens[i] : 0;
-    let color = 'rgb(68, 68, 85)'; // Default
-    if (Math.abs(val) > 0.01) {
-        const intensity = clamp(Math.abs(val) * 255, 50, 255);
-        color = val > 0 ? `rgb(0, ${intensity}, 150)` : `rgb(${intensity}, 0, 50)`;
-    }
-    brainCtx.fillStyle = color;
-    brainCtx.beginPath(); brainCtx.arc(layerX[1], getY(i, CFG.hiddens), nodeR-1, 0, Math.PI*2); brainCtx.fill();
-  }
-  
-  // Output Nodes
-  brainCtx.textAlign = 'left';
-  const outputLabels = ['STEER_L', 'STEER_R', 'FORWARD', 'REVERSE', 'BRAKE', 'MEMORY_OUT']; 
-  for(let i=0; i<CFG.outputs; i++) {
-    const val = agent.lastOutputs ? agent.lastOutputs[i] : 0;
+    // --- DRAW NODES & LABELS ---
+    brainCtx.globalAlpha = 1;
+    brainCtx.font = '8px monospace'; 
     
-    let color = '#fff';
-    if (Math.abs(val) > 0.01) {
-        const intensity = clamp(Math.abs(val) * 255, 50, 255);
-        color = val > 0 ? `rgb(0, ${intensity}, 150)` : `rgb(${intensity}, 0, 50)`;
+    // Input Nodes (State)
+    brainCtx.textAlign = 'right';
+    const inputLabels = [
+        'Ph_Goal_X', 'Ph_Goal_Y', 'Ph_Nest_X', 'Ph_Nest_Y', 
+        'Wall_Dist', 'Wall_---', 'Ticket_Dist',
+        'Carry_INC', 'Carry_REQ', 'Carry_PROB', 'Carry_SLA', 
+        'Energy', 'Speed', 'Q-SCORE', 
+        'Nest_Dist', 'Goal_Dist'
+    ];
+    for(let i=0; i<CFG.inputs; i++) {
+        const val = agent.lastState[i] || 0;
+        const c = Math.round(clamp(val, 0, 1) * 255);
+        let color = `rgb(${c}, ${c}, ${c})`;
+        if (i < 4) { 
+            const intensity = clamp(Math.abs(val) * 255, 0, 255);
+            color = val > 0 ? `rgb(0, ${intensity}, 150)` : `rgb(${intensity}, 0, 50)`;
+        }
+
+        brainCtx.fillStyle = color;
+        brainCtx.beginPath(); brainCtx.arc(layerX[0], getY(i, CFG.inputs), nodeR, 0, Math.PI*2); brainCtx.fill();
+        brainCtx.fillStyle = '#94a3b8';
+        brainCtx.fillText(inputLabels[i], layerX[0] - nodeR - 2, getY(i, CFG.inputs) + 2);
     }
 
-    brainCtx.fillStyle = color;
-    brainCtx.beginPath(); brainCtx.arc(layerX[2], getY(i, CFG.outputs), nodeR, 0, Math.PI*2); brainCtx.fill();
+    // Hidden Nodes
+    for(let i=0; i<CFG.hiddens; i++) {
+        const val = agent.lastHiddens ? agent.lastHiddens[i] : 0;
+        let color = 'rgb(68, 68, 85)'; 
+        if (Math.abs(val) > 0.01) {
+            const intensity = clamp(Math.abs(val) * 255, 50, 255);
+            color = val > 0 ? `rgb(0, ${intensity}, 150)` : `rgb(${intensity}, 0, 50)`;
+        }
+        brainCtx.fillStyle = color;
+        brainCtx.beginPath(); brainCtx.arc(layerX[1], getY(i, CFG.hiddens), nodeR-1, 0, Math.PI*2); brainCtx.fill();
+    }
     
-    // Label
-    brainCtx.fillStyle = '#94a3b8';
-    brainCtx.fillText(outputLabels[i], layerX[2] + nodeR + 2, getY(i, CFG.outputs) + 2);
-  }
+    // Output Nodes (Action Policy)
+    brainCtx.textAlign = 'left';
+    const outputLabels = ['STEER_BIAS', 'SPEED_FACT', 'BRAKE_FACT', 'NEST_P_WT', 'TARGET_P_WT', 'DEPOSIT_AMT']; 
+    for(let i=0; i<CFG.outputs; i++) {
+        const val = agent.lastOutputs ? agent.lastOutputs[i] : 0;
+        
+        let color = '#fff';
+        if (Math.abs(val) > 0.01) {
+            const intensity = clamp(Math.abs(val) * 255, 50, 255);
+            color = val > 0 ? `rgb(0, ${intensity}, 150)` : `rgb(${intensity}, 0, 50)`;
+        }
+
+        brainCtx.fillStyle = color;
+        brainCtx.beginPath(); brainCtx.arc(layerX[2], getY(i, CFG.outputs), nodeR, 0, Math.PI*2); brainCtx.fill();
+        
+        brainCtx.fillStyle = '#94a3b8';
+        brainCtx.fillText(outputLabels[i], layerX[2] + nodeR + 2, getY(i, CFG.outputs) + 2);
+    }
 }
 
 function drawFitnessGraph() {
+    // ... (drawFitnessGraph adapted to track best Q-Score) ...
   const W_G = 360, H_G = 70;
   const fitCtx = document.getElementById('fitnessGraph').getContext('2d');
   
-  // Always set dimensions to match CSS for correct drawing
   const canvasElement = document.getElementById('fitnessGraph');
   canvasElement.width = W_G;
   canvasElement.height = H_G;
@@ -1107,7 +1419,7 @@ function drawFitnessGraph() {
   if(history.length < 2) { fitCtx.clearRect(0,0,W_G,H_G); return; }
   
   fitCtx.clearRect(0,0,W_G,H_G);
-  const maxFit = Math.max(...history.map(h=>h.best), 1); // Ensure maxFit is at least 1
+  const maxFit = Math.max(...history.map(h=>h.best), 1); 
   const stepX = W_G / (history.length - 1);
   
   fitCtx.strokeStyle = varStyles.accentOk;
@@ -1115,7 +1427,8 @@ function drawFitnessGraph() {
   fitCtx.beginPath();
   
   history.forEach((h, i) => {
-    const y = H_G - (h.best / maxFit * H_G * 0.9 + 5);
+    // Clamp to 1.0 to avoid graph jumping too high initially
+    const y = H_G - (h.best / maxFit * H_G * 0.9 + 5); 
     if(i===0) fitCtx.moveTo(0, y); else fitCtx.lineTo(i*stepX, y);
   });
   fitCtx.stroke();
@@ -1123,6 +1436,7 @@ function drawFitnessGraph() {
 
 
 function pushFeed(msg, type='normal') {
+    // ... (pushFeed remains the same) ...
   const el = document.getElementById('feed');
   const div = document.createElement('div');
   div.className = `feed-item ${type}`;
@@ -1132,6 +1446,7 @@ function pushFeed(msg, type='normal') {
 }
 
 function updateHoverTip(e) {
+    // ... (updateHoverTip adapted for Q-Score) ...
     const rect = canvas.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
@@ -1150,10 +1465,10 @@ function updateHoverTip(e) {
         hoverTip.style.top = `${e.clientY}px`;
         hoverTip.innerHTML = `
             <strong>Status:</strong><br>
-            Fitness: <span style="color:var(--accent-ok)">${hoveredAgent.fitness.toFixed(2)}</span><br>
+            Episode Fitness: <span style="color:var(--accent-ok)">${hoveredAgent.fitness.toFixed(2)}</span><br>
+            Q-Score: <span style="color:${hoveredAgent.qScore > 0 ? '#0ff' : '#aaa'}">${hoveredAgent.qScore.toFixed(2)}</span><br>
             Energy: <span style="color:${hoveredAgent.energy > 0.3 ? '#0f0' : '#ff9900'}">${(hoveredAgent.energy * 100).toFixed(0)}%</span><br>
             Speed: ${hoveredAgent.vel.toFixed(1)} / ${CFG.maxSpeed}<br>
-            Memory: ${hoveredAgent.memory.toFixed(3)}<br>
             Carrying: ${hoveredAgent.carrying ? hoveredAgent.carrying.def.label : 'None'}
         `;
     } else {
@@ -1163,170 +1478,172 @@ function updateHoverTip(e) {
 
 
 // --- MAIN LOOP ---
-function init(resetStats = true) {
-  // Update canvas dimensions based on parent container
+function init(resetPolicyWeights = true) {
   W = canvas.width = canvas.parentElement.offsetWidth;
   H = canvas.height = canvas.parentElement.offsetHeight;
-  maxWorldDist = Math.hypot(W, H); // Calculate maximum possible distance for normalization
   
-  // Set brain canvas fixed dimensions for drawing
   brainCanvas.width = 300;
   brainCanvas.height = 150;
   
-  // Initialize NEST
   if (!nest) { 
       nest = new Nest(W / 2, H / 2);
-  }
-
-  // Initialize or Reset Goal Zones
-  if (goalZones.length === 0 || resetStats) {
-      goalZones = [
-          { x: W*0.2, y: H*0.2, r: 40, id: 'incident', color: CFG.categories.find(c=>c.id==='incident').color, label: 'INCIDENT' },
-          { x: W*0.8, y: H*0.2, r: 40, id: 'request', color: CFG.categories.find(c=>c.id==='request').color, label: 'SERVICE' },
-          { x: W*0.5, y: H*0.9, r: 40, id: 'problem', color: CFG.categories.find(c=>c.id==='problem').color, label: 'PROBLEM' }
-      ];
-  }
-
-  CFG.popSize = parseInt(document.getElementById('slPop').value); 
-  CFG.ticketCount = parseInt(document.getElementById('slTicketCount').value); 
-  CFG.eliteCount = parseInt(document.getElementById('slElite').value);
-  CFG.selectionPoolRatio = parseInt(document.getElementById('slSelection').value) / 100;
-  CFG.genDuration = parseInt(document.getElementById('slDuration').value); 
-
-  if(resetStats) {
-      // Tvinga en full reset av AI:n om Hidden Nodes eller Input/Output har ändrats
-      const newHiddens = parseInt(document.getElementById('slHidden').value);
-      if (newHiddens !== CFG.hiddens || CFG.inputs !== 16 || CFG.outputs !== 6) {
-          CFG.hiddens = newHiddens;
-          CFG.inputs = 16;
-          CFG.outputs = 6;
-          pushFeed(`Topology updated. Performing AI Hard Reset.`, 'warn');
-          // Tvinga en fullständig nystart nedan
-      }
-
-      generation = 1; 
-      history = []; 
-      stats = { solved: 0, wrong: 0, activeCount: 0 };
+  } else {
+       nest.x = W / 2; nest.y = H / 2;
   }
   
-  // Re-initialize agents and tickets based on current CFG
-  if(resetStats || !bestBrain || agents.length !== CFG.popSize) { 
-    if(resetStats || !bestBrain || agents.length !== CFG.popSize) {
-        agents = [];
-        for(let i=0; i<CFG.popSize; i++) agents.push(new Agent());
-        bestBrain = agents[0];
-    } else {
-        nextGeneration(true); 
-    }
+  // Initialize Goal Zones
+  goalZones = [
+      { x: W*0.2, y: H*0.2, r: 40, id: 'incident', color: CFG.categories.find(c=>c.id==='incident').color, label: 'INCIDENT' },
+      { x: W*0.8, y: H*0.2, r: 40, id: 'request', color: CFG.categories.find(c=>c.id==='request').color, label: 'SERVICE' },
+      { x: W*0.5, y: H*0.9, r: 40, id: 'problem', color: CFG.categories.find(c=>c.id==='problem').color, label: 'PROBLEM' }
+  ];
+  
+  // Set CFG from Sliders
+  CFG.popSize = parseInt(document.getElementById('slPop').value); 
+  CFG.ticketCount = parseInt(document.getElementById('slTicketCount').value); 
+  CFG.episodeDuration = parseInt(document.getElementById('slDuration').value); 
+  CFG.RL_ALPHA = parseInt(document.getElementById('slAlpha').value) / 1000;
+  CFG.RL_GAMMA = parseInt(document.getElementById('slGamma').value) / 100;
+  CFG.RL_EPSILON = parseInt(document.getElementById('slEpsilon').value) / 100;
+
+  // Check for Topology Change (Hidden Nodes)
+  const newHiddens = parseInt(document.getElementById('slHidden').value);
+  const topologyChanged = newHiddens !== CFG.hiddens;
+  if (topologyChanged) {
+      CFG.hiddens = newHiddens;
+      pushFeed(`Topology updated. Rebuilding Policy Networks...`, 'warn');
+      resetPolicyWeights = true; // Force weight reset on topology change
+  }
+
+  PHEROMONE_DECAY = parseInt(document.getElementById('slDecay').value) / 1000;
+  
+  makeGrid(); 
+
+  // Agent Initialization Logic
+  if(agents.length !== CFG.popSize || topologyChanged) {
+      // Re-create agents if population size or topology changed
+      agents = [];
+      for(let i=0; i<CFG.popSize; i++) agents.push(new Agent());
+      bestAgent = agents[0];
+  } else if (resetPolicyWeights) {
+      // Reset weights of existing agents
+      agents = agents.map(a => new Agent());
+      bestAgent = agents[0];
+  } else {
+      // Keep weights, just reset episode state
+      resetEpisode(true);
+  }
+
+  if(resetPolicyWeights) {
+      episode = 1; 
+      history = []; 
   }
   
   tickets = [];
   for(let i=0; i<CFG.ticketCount; i++) tickets.push(new Ticket());
   
-  requestAnimationFrame(loop);
+  if(!requestAnimationFrame.isLooping) {
+      requestAnimationFrame.isLooping = true;
+      requestAnimationFrame(loop);
+  }
 }
 
-function nextGeneration(forceNew = false) {
-  // Update CFG values from sliders
-  CFG.popSize = parseInt(document.getElementById('slPop').value); 
-  CFG.eliteCount = parseInt(document.getElementById('slElite').value);
-  CFG.selectionPoolRatio = parseInt(document.getElementById('slSelection').value) / 100;
-  
-  const validAgents = agents.filter(a => a && typeof a.fitness === 'number');
+function resetEpisode(keepPolicy = false) {
+  let maxQ = -Infinity;
+  let currentBest = null;
 
-  if(validAgents.length === 0) {
-      pushFeed('No valid agents found. Starting fresh population.', 'bad');
-      init(true);
-      return;
-  }
-  
-  // 1. Calculate and find best agent
-  const sorted = [...validAgents].sort((a,b) => b.fitness - a.fitness);
-
-  // Update bestBrain
-  if(!bestBrain || sorted[0].fitness > bestBrain.fitness) {
-    bestBrain = sorted[0];
-  }
-  
-  if (bestBrain.fitness > 0 || generation === 1) {
-    history.push({ gen: generation, best: bestBrain.fitness });
-  }
-
-  const newAgents = [];
-  
-  // 2. Eliteism (Keep best genomes)
-  const eliteLimit = Math.min(CFG.eliteCount, sorted.length);
-
-  for(let i=0; i<eliteLimit; i++) {
-    const el = new Agent(sorted[i].brain);
-    if (sorted[i] === bestBrain) {
-        el.trail = sorted[i].trail;
-    }
-    newAgents.push(el);
-  }
-  
-  // 3. Reproduction (Fill remaining slots)
-  while(newAgents.length < CFG.popSize) {
-    const selectionPoolSize = Math.max(1, Math.floor(sorted.length * CFG.selectionPoolRatio));
-    const p1 = sorted[Math.floor(Math.random()*selectionPoolSize)]; 
-    newAgents.push(new Agent(new Genome(p1.brain)));
-  }
-  
-  // 4. Reset state for new agents
-  newAgents.forEach(a => {
-    a.x = nest.x;
-    a.y = nest.y;
-    if(a !== bestBrain) a.trail = []; 
+  agents.forEach(a => {
+      // Find the agent with the highest long-term Q-Score
+      if (a.qScore > maxQ) {
+          maxQ = a.qScore;
+          currentBest = a;
+      }
+      
+      // Reset agent state
+      a.x = nest.x;
+      a.y = nest.y;
+      a.angle = rand(0, Math.PI*2);
+      a.vel = 0;
+      a.carrying = null;
+      a.energy = 1.0;
+      a.fitness = 0;
+      a.stalled = false;
+      a.trail = []; 
+      
+      if (!keepPolicy) {
+          // If we reset weights, clone the 'best' policy to the new agents
+          if (currentBest && a !== currentBest) {
+              a.policy = currentBest.policy.clone(); 
+          }
+          a.qScore = 0;
+      }
   });
 
-  agents = newAgents;
-  
-  generation++;
+  // Track performance
+  if(bestAgent && bestAgent.qScore > 0) {
+      history.push({ 
+          episode: episode, 
+          best: bestAgent.qScore 
+      });
+  }
+
+  // Set the overall best agent
+  bestAgent = currentBest || agents[0]; 
+
+  episode++;
   frame = 0;
   stats.solved = 0;
   stats.wrong = 0;
   
+  makeGrid(); 
   tickets.forEach(t => t.respawn());
-  pushFeed('--- NEW GENERATION ---');
+  pushFeed(`--- NEW EPISODE (${episode}) ---`);
 }
 
 function loop(now) {
   updateFPS(now);
 
   if(!paused) {
+    // 1. Global Pheromone Update
+    evaporate();
+    
     for(let n=0; n<speedMult; n++) {
-      ctx.clearRect(0, 0, W, H);
       frame++;
       
-      if(frame > CFG.genDuration) { nextGeneration(); break; }
+      if(frame > CFG.episodeDuration) { resetEpisode(true); break; }
       
-      drawAgentTrail(); 
-      drawHeatmap();
-      drawZones();
-      nest.draw(); 
-      tickets.forEach(t => { t.update(); t.draw(); });
+      tickets.forEach(t => { t.update(); });
       
-      let currentBest = bestBrain;
-      let maxF = bestBrain ? bestBrain.fitness : -Infinity;
+      let currentBest = bestAgent;
+      let maxQ = bestAgent ? bestAgent.qScore : -Infinity;
 
       agents.forEach(a => {
         a.update();
-        a.draw();
-        // Update bestBrain live if a better one is found in current generation
-        if(a.fitness > maxF) { maxF = a.fitness; currentBest = a; }
+        if(a.qScore > maxQ) { maxQ = a.qScore; currentBest = a; }
       });
       
-      bestBrain = currentBest;
+      // Update bestAgent continuously based on Q-Score
+      bestAgent = currentBest;
       updateParticles();
-      drawParticles();
       
       // Drag logic
       if(mouse.dragAgent) {
         mouse.dragAgent.x = mouse.x; mouse.dragAgent.y = mouse.y; mouse.dragAgent.vel = 0;
       }
     }
+    
+    // --- DRAWING ---
+    ctx.clearRect(0, 0, W, H);
+    
+    drawAgentTrail(); 
+    drawPheromones(); 
+    nest.draw(); 
+    tickets.forEach(t => { t.draw(); });
+    agents.forEach(a => { a.draw(); });
+    drawParticles();
   }
-  drawBrain(bestBrain);
+  
+  drawBrain(bestAgent);
   drawFitnessGraph();
   updateUI();
   requestAnimationFrame(loop);
@@ -1336,25 +1653,25 @@ function loop(now) {
 window.addEventListener('resize', () => { 
     W = canvas.width = canvas.parentElement.offsetWidth; 
     H = canvas.height = canvas.parentElement.offsetHeight; 
-    maxWorldDist = Math.hypot(W, H); 
-    nest.x = W / 2; nest.y = H / 2; 
+    if(nest) {
+        nest.x = W / 2; nest.y = H / 2;
+    } 
+    init(false); 
 });
 
 canvas.addEventListener('mousedown', e => {
+    // ... (Mouse listeners remain the same) ...
   const rect = canvas.getBoundingClientRect();
   mouse.x = e.clientX - rect.left; mouse.y = e.clientY - rect.top;
   mouse.down = true;
   
-  // 1. Check for Nest hit (Highest priority)
   if (dist(nest.x, nest.y, mouse.x, mouse.y) < nest.r) {
     mouse.dragNest = true;
   } else {
-    // 2. Check for other Zone hit
     const hitZone = goalZones.find(z => dist(z.x, z.y, mouse.x, mouse.y) < z.r);
     if(hitZone) {
       mouse.dragZone = hitZone; 
     } else {
-      // 3. Check for Agent hit
       const hit = agents.find(a => dist(a.x, a.y, mouse.x, mouse.y) < 20);
       if(hit) mouse.dragAgent = hit;
     }
@@ -1362,12 +1679,14 @@ canvas.addEventListener('mousedown', e => {
 });
 
 canvas.addEventListener('mousemove', e => { 
+    // ... (Mouse listeners remain the same) ...
   const rect = canvas.getBoundingClientRect(); 
   mouse.x = e.clientX - rect.left; mouse.y = e.clientY - rect.top; 
   
   if(mouse.dragNest) {
       nest.x = clamp(mouse.x, nest.r, W - nest.r);
       nest.y = clamp(mouse.y, nest.r, H - nest.r);
+      makeGrid(); 
   } else if (mouse.dragZone) { 
       const r = mouse.dragZone.r;
       mouse.dragZone.x = clamp(mouse.x, r, W - r);
@@ -1377,6 +1696,7 @@ canvas.addEventListener('mousemove', e => {
 });
 
 canvas.addEventListener('mouseup', () => { 
+    // ... (Mouse listeners remain the same) ...
   mouse.down = false; 
   mouse.dragAgent = null; 
   mouse.dragNest = false; 
@@ -1387,15 +1707,17 @@ canvas.addEventListener('mouseup', () => {
 // Buttons & Keyboard
 document.getElementById('btnSkip').onclick = () => { 
     if(paused) paused = false; 
-    speedMult = 100; 
-    pushFeed('Fast Forwarding...', 'warn');
-    setTimeout(() => {
-        speedMult = parseInt(document.getElementById('slSpeed').value);
-        pushFeed(`Speed set to ${speedMult}x`);
-    }, 500); 
+    resetEpisode(true);
 };
-document.getElementById('btnReset').onclick = () => { init(true); pushFeed('Hard Reset: All settings and AI reset', 'bad'); };
-document.getElementById('btnResetAI').onclick = () => { init(true); pushFeed('AI Reset: New generation started with current settings', 'alt'); };
+
+document.getElementById('btnResetAI').onclick = () => { 
+    init(true); 
+    pushFeed('Policy Weights Reset: Agents must learn from scratch.', 'bad'); 
+};
+document.getElementById('btnReset').onclick = () => { 
+    init(true); 
+    pushFeed('Hard Reset: All settings and AI reset', 'danger'); 
+};
 
 document.addEventListener('keydown', e => { 
     if(e.code === 'Space') { 
@@ -1422,19 +1744,13 @@ document.getElementById('slTicketCount').oninput = (e) => {
 };
 
 document.getElementById('slDuration').oninput = (e) => { 
-    CFG.genDuration = parseInt(e.target.value); 
-    document.getElementById('valDuration').innerText = CFG.genDuration; 
+    CFG.episodeDuration = parseInt(e.target.value); 
+    document.getElementById('valDuration').innerText = CFG.episodeDuration; 
 };
 
 document.getElementById('slSensor').oninput = (e) => { 
     CFG.sensorRange = parseInt(e.target.value); 
     document.getElementById('valSensor').innerText = CFG.sensorRange + 'px'; 
-};
-
-document.getElementById('slMut').oninput = (e) => { 
-    let val = parseInt(e.target.value);
-    CFG.mutationRate = val / 100; 
-    document.getElementById('valMut').innerText = val + '%'; 
 };
 
 document.getElementById('slDrain').oninput = (e) => { 
@@ -1444,22 +1760,36 @@ document.getElementById('slDrain').oninput = (e) => {
     document.getElementById('valDrain').innerText = label; 
 };
 
-document.getElementById('slElite').oninput = (e) => { 
-    CFG.eliteCount = parseInt(e.target.value); 
-    document.getElementById('valElite').innerText = CFG.eliteCount;
+document.getElementById('slDecay').oninput = (e) => { 
+    let val = parseInt(e.target.value);
+    PHEROMONE_DECAY = val / 1000; 
+    document.getElementById('valDecay').innerText = PHEROMONE_DECAY.toFixed(3); 
 };
 
-document.getElementById('slSelection').oninput = (e) => { 
+// RL Sliders
+document.getElementById('slAlpha').oninput = (e) => { 
     let val = parseInt(e.target.value);
-    CFG.selectionPoolRatio = val / 100;
-    document.getElementById('valSelection').innerText = val + '%'; 
+    CFG.RL_ALPHA = val / 1000;
+    document.getElementById('valAlpha').innerText = CFG.RL_ALPHA.toFixed(3); 
+};
+
+document.getElementById('slGamma').oninput = (e) => { 
+    let val = parseInt(e.target.value);
+    CFG.RL_GAMMA = val / 100;
+    document.getElementById('valGamma').innerText = CFG.RL_GAMMA.toFixed(2); 
+};
+
+document.getElementById('slEpsilon').oninput = (e) => { 
+    let val = parseInt(e.target.value);
+    CFG.RL_EPSILON = val / 100;
+    document.getElementById('valEpsilon').innerText = val + '%'; 
 };
 
 document.getElementById('slHidden').oninput = (e) => { 
     document.getElementById('valHidden').innerText = e.target.value; 
-    // Must force a hard reset to apply the change in neural network size
-    pushFeed('Hidden Nodes ändrat. Tryck "Hard Reset All" för att uppdatera nätverket.', 'warn');
+    pushFeed('Hidden Nodes ändrat. Tryck "Hard Reset All" för att uppdatera Policy Networks.', 'warn');
 };
+
 
 init();
 </script>
