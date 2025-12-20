@@ -6,8 +6,8 @@
   <title>Retro Rally Lab – NEAT RC Evolution</title>
   <style>
     :root {
-      --bg: #050516;
-      --bg-alt: #0f1536;
+      --bg: #03030f;
+      --bg-alt: #0b1330;
       --panel: rgba(14, 19, 48, 0.9);
       --ink: #f5f7ff;
       --muted: #a0accf;
@@ -20,6 +20,8 @@
       --accent: #f472b6;
       --accent-2: #38bdf8;
       --accent-3: #7cf29d;
+      --grid: rgba(255, 255, 255, 0.04);
+      --sun: rgba(255, 173, 96, 0.35);
     }
     * { box-sizing: border-box; }
     body {
@@ -29,10 +31,25 @@
       background: radial-gradient(circle at 18% 10%, rgba(56, 189, 248, 0.18), transparent 46%),
                   radial-gradient(circle at 82% 8%, rgba(244, 114, 182, 0.16), transparent 54%),
                   radial-gradient(circle at 12% 78%, rgba(124, 242, 157, 0.12), transparent 55%),
-                  linear-gradient(160deg, var(--bg) 0%, var(--bg-alt) 58%, #1a2344 100%);
+                  linear-gradient(170deg, var(--bg) 0%, var(--bg-alt) 52%, #111a46 100%);
       color: var(--ink);
       display: flex;
       flex-direction: column;
+      position: relative;
+      overflow-x: hidden;
+    }
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      background-image: linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+      background-size: 80px 80px;
+      mask-image: radial-gradient(circle at 30% 20%, rgba(255, 255, 255, 0.6), transparent 55%),
+                  radial-gradient(circle at 70% 80%, rgba(255, 255, 255, 0.4), transparent 65%);
+      pointer-events: none;
+      z-index: 0;
+      opacity: 0.6;
+      mix-blend-mode: screen;
     }
     header {
       position: sticky;
@@ -50,6 +67,18 @@
       align-items: center;
       justify-content: space-between;
       gap: 20px;
+      position: relative;
+    }
+    .nav::after {
+      content: "";
+      position: absolute;
+      inset: 10px;
+      border-radius: 18px;
+      background: radial-gradient(circle at 20% 20%, rgba(90, 240, 255, 0.1), transparent 40%),
+                  radial-gradient(circle at 80% 30%, rgba(255, 97, 216, 0.14), transparent 45%);
+      filter: blur(20px);
+      z-index: 0;
+      pointer-events: none;
     }
     .brand {
       display: inline-flex;
@@ -84,6 +113,8 @@
       flex-wrap: wrap;
       align-items: center;
       gap: 12px;
+      position: relative;
+      z-index: 1;
     }
     .nav-links a {
       text-decoration: none;
@@ -112,6 +143,8 @@
       display: grid;
       gap: 28px;
       grid-template-columns: minmax(0, 1fr) 340px;
+      position: relative;
+      z-index: 1;
     }
     .playfield-card {
       position: relative;
@@ -124,6 +157,14 @@
       display: flex;
       flex-direction: column;
       min-height: 560px;
+      position: relative;
+    }
+    .playfield-card::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(circle at 50% 0%, var(--sun), transparent 32%);
+      pointer-events: none;
     }
     .canvas-wrap {
       flex: 1;
@@ -145,6 +186,12 @@
       display: flex;
       flex-direction: column;
       pointer-events: none;
+      gap: 12px;
+    }
+    .hud-stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 10px;
     }
     .hud-top {
       display: flex;
@@ -340,6 +387,38 @@
       background: rgba(6, 10, 24, 0.75);
       border: 1px solid rgba(118, 130, 204, 0.28);
     }
+    .divider {
+      height: 1px;
+      width: 100%;
+      background: linear-gradient(90deg, transparent, rgba(118, 130, 204, 0.38), transparent);
+      margin: 6px 0 10px;
+    }
+    .pill.note {
+      background: rgba(255, 255, 255, 0.06);
+      border-color: rgba(255, 255, 255, 0.14);
+    }
+    .chip-grid {
+      display: grid;
+      gap: 10px;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    }
+    .meta-chip {
+      background: rgba(9, 11, 28, 0.8);
+      border: 1px solid rgba(118, 130, 204, 0.24);
+      border-radius: 12px;
+      padding: 10px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .meta-chip strong {
+      font-size: 0.98rem;
+    }
+    .meta-chip span {
+      color: var(--muted);
+      letter-spacing: 0.06em;
+      font-size: 0.72rem;
+    }
     @media (max-width: 980px) {
       main { padding: 32px 18px 60px; }
       .layout { grid-template-columns: minmax(0, 1fr); }
@@ -371,24 +450,36 @@
               <div class="pill" id="hud-seed">Seed: —</div>
             </div>
             <div class="hud-bottom">
-              <div class="stat-stack">
-                <div class="stat-chip">
-                  <span>Generation</span>
-                  <strong id="stat-generation">1</strong>
+              <div class="hud-stats">
+                <div class="stat-stack">
+                  <div class="stat-chip">
+                    <span>Generation</span>
+                    <strong id="stat-generation">1</strong>
+                  </div>
+                  <div class="stat-chip">
+                    <span>Levande bilar</span>
+                    <strong id="stat-alive">0 / 0</strong>
+                  </div>
                 </div>
-                <div class="stat-chip">
-                  <span>Levande bilar</span>
-                  <strong id="stat-alive">0 / 0</strong>
+                <div class="stat-stack">
+                  <div class="stat-chip">
+                    <span>Bästa fitness</span>
+                    <strong id="stat-best">0</strong>
+                  </div>
+                  <div class="stat-chip">
+                    <span>Bästa varv</span>
+                    <strong id="stat-lap">—</strong>
+                  </div>
                 </div>
-              </div>
-              <div class="stat-stack">
-                <div class="stat-chip">
-                  <span>Bästa fitness</span>
-                  <strong id="stat-best">0</strong>
-                </div>
-                <div class="stat-chip">
-                  <span>Bästa varv</span>
-                  <strong id="stat-lap">—</strong>
+                <div class="stat-stack">
+                  <div class="stat-chip">
+                    <span>Tempo</span>
+                    <strong id="stat-speed">1x</strong>
+                  </div>
+                  <div class="stat-chip">
+                    <span>Bana</span>
+                    <strong id="stat-track">Rund</strong>
+                  </div>
                 </div>
               </div>
             </div>
@@ -413,24 +504,90 @@
               <select id="track-type">
                 <option value="round">Rund bana</option>
                 <option value="retro">Retro bana</option>
+                <option value="spiral">Spiral-labyrint</option>
+                <option value="canyon">Canyon run</option>
+                <option value="hex">Hexagon rush</option>
+                <option value="nebula">Nebula-kaos</option>
+              </select>
+            </div>
+            <div class="control-row">
+              <label for="track-theme">Färgtema</label>
+              <select id="track-theme">
+                <option value="nightfall">Nightfall neon</option>
+                <option value="sunrise">Sunrise synth</option>
+                <option value="emerald">Emerald pulse</option>
+                <option value="violet">Violet storm</option>
+              </select>
+            </div>
+            <div class="control-row">
+              <label for="track-width">Banbredd</label>
+              <input type="range" id="track-width" min="70" max="180" value="120" step="5" />
+            </div>
+            <div class="control-row">
+              <label for="difficulty">Svårighetsgrad</label>
+              <select id="difficulty">
+                <option value="chill">Chill</option>
+                <option value="normal" selected>Normal</option>
+                <option value="wild">Wild</option>
               </select>
             </div>
             <div class="switch-row">
               <span>Visa sensorer</span>
               <input type="checkbox" id="toggle-sensors" checked />
             </div>
+            <div class="control-row">
+              <label for="sensor-count">Sensorer &amp; räckvidd</label>
+              <input type="range" id="sensor-count" min="5" max="12" value="7" />
+              <input type="range" id="sensor-length" min="140" max="320" value="220" step="10" />
+            </div>
             <div class="switch-row">
               <span>Frys / fortsätt</span>
               <button class="secondary" id="pause-btn">Pausa</button>
             </div>
+            <div class="switch-row">
+              <span>Turbo-start</span>
+              <input type="checkbox" id="toggle-boost" checked />
+            </div>
+            <div class="switch-row">
+              <span>Auto-pausa vid generationsskifte</span>
+              <input type="checkbox" id="toggle-autopause" />
+            </div>
+            <div class="switch-row">
+              <span>Rita spår</span>
+              <input type="checkbox" id="toggle-trails" checked />
+            </div>
+            <div class="control-row">
+              <label for="max-gen-time">Generationslängd</label>
+              <input type="range" id="max-gen-time" min="60" max="220" step="10" value="120" />
+            </div>
             <button id="new-track">Ny slumpbana</button>
             <div class="seed-label">Varv registreras när bilen korsar alla checkpoints i följd.</div>
+            <div class="pill note">Tip: kombinera smal bana + Wild för driftiga rallybanor.</div>
           </div>
         </div>
         <div class="panel">
           <h2>Varv-topplista</h2>
           <div class="leaderboard" id="lap-list"></div>
           <div class="feed" id="event-feed"></div>
+        </div>
+        <div class="panel">
+          <h2>Session pulse</h2>
+          <div class="chip-grid">
+            <div class="meta-chip">
+              <span>Högsta toppfart (teoretisk)</span>
+              <strong id="stat-maxspeed">5.6</strong>
+            </div>
+            <div class="meta-chip">
+              <span>Genomsnittlig fitness</span>
+              <strong id="stat-avg">0</strong>
+            </div>
+            <div class="meta-chip">
+              <span>Aktivt tema</span>
+              <strong id="stat-theme">Nightfall</strong>
+            </div>
+          </div>
+          <div class="divider"></div>
+          <div class="pill note">Justera sensorer och bredd för att stress-testa neuronen.</div>
         </div>
       </aside>
     </div>
@@ -491,10 +648,47 @@
     };
     config.inputSize = config.sensorCount + 5;
 
+    function applyDifficulty(level) {
+      const presets = {
+        chill: { acceleration: 0.42, brake: 0.42, friction: 0.92, maxSpeed: 5.2, progressTimeout: 7.5, deathPenalty: -2 },
+        normal: { acceleration: 0.38, brake: 0.52, friction: 0.9, maxSpeed: 5.6, progressTimeout: 6, deathPenalty: -4 },
+        wild: { acceleration: 0.52, brake: 0.64, friction: 0.88, maxSpeed: 6.4, progressTimeout: 4.6, deathPenalty: -6 }
+      };
+      Object.assign(config, presets[level] || presets.normal);
+      statMaxSpeed.textContent = config.maxSpeed.toFixed(1);
+    }
+
     const palette = [
       '#ff58c6', '#62f5ff', '#ffd166', '#8c7bff', '#ff7b7b', '#5cf4a1', '#ff9f1c', '#9d7cff',
       '#ff6bd6', '#50f0e8', '#ffe066', '#5e7bff'
     ];
+
+    const themeMeta = {
+      nightfall: {
+        label: 'Nightfall',
+        roadDark: '#0e1024',
+        roadLight: '#1a1f44',
+        glow: 'rgba(118, 247, 255, 0.18)'
+      },
+      sunrise: {
+        label: 'Sunrise',
+        roadDark: '#1d1326',
+        roadLight: '#332146',
+        glow: 'rgba(255, 173, 96, 0.28)'
+      },
+      emerald: {
+        label: 'Emerald',
+        roadDark: '#0d1f1e',
+        roadLight: '#123c38',
+        glow: 'rgba(124, 242, 157, 0.22)'
+      },
+      violet: {
+        label: 'Violet',
+        roadDark: '#1a1230',
+        roadLight: '#251c45',
+        glow: 'rgba(136, 132, 255, 0.28)'
+      }
+    };
 
     let paused = false;
     let track = null;
@@ -506,11 +700,21 @@
     let events = [];
     let generationTime = 0;
     let lastFrame = performance.now();
+    let trackTheme = 'nightfall';
+    let drawTrails = true;
+    let autoPause = false;
+    let boostStart = true;
+    let averageFitness = 0;
 
     const statGeneration = document.getElementById('stat-generation');
     const statAlive = document.getElementById('stat-alive');
     const statBest = document.getElementById('stat-best');
     const statLap = document.getElementById('stat-lap');
+    const statSpeed = document.getElementById('stat-speed');
+    const statTrack = document.getElementById('stat-track');
+    const statMaxSpeed = document.getElementById('stat-maxspeed');
+    const statAvg = document.getElementById('stat-avg');
+    const statTheme = document.getElementById('stat-theme');
     const lapList = document.getElementById('lap-list');
     const eventFeed = document.getElementById('event-feed');
     const hudSeed = document.getElementById('hud-seed');
@@ -522,6 +726,15 @@
     const pauseBtn = document.getElementById('pause-btn');
     const newTrackBtn = document.getElementById('new-track');
     const trackTypeSelect = document.getElementById('track-type');
+    const trackThemeSelect = document.getElementById('track-theme');
+    const trackWidthSlider = document.getElementById('track-width');
+    const difficultySelect = document.getElementById('difficulty');
+    const sensorCountSlider = document.getElementById('sensor-count');
+    const sensorLengthSlider = document.getElementById('sensor-length');
+    const toggleBoost = document.getElementById('toggle-boost');
+    const toggleAutopause = document.getElementById('toggle-autopause');
+    const toggleTrails = document.getElementById('toggle-trails');
+    const maxGenTimeSlider = document.getElementById('max-gen-time');
 
     trackTypeSelect.value = config.trackMode;
 
@@ -531,6 +744,7 @@
 
     speedSlider.addEventListener('input', () => {
       config.simSpeed = parseFloat(speedSlider.value);
+      statSpeed.textContent = `${config.simSpeed.toFixed(1)}x`;
     });
 
     pauseBtn.addEventListener('click', () => {
@@ -539,8 +753,64 @@
       addEvent(paused ? 'Simuleringen är pausad.' : 'Simuleringen kör igen.');
     });
 
+    toggleBoost.addEventListener('change', () => {
+      boostStart = toggleBoost.checked;
+      addEvent(boostStart ? 'Turbo-start aktiv.' : 'Turbo-start avstängd.');
+    });
+
+    toggleAutopause.addEventListener('change', () => {
+      autoPause = toggleAutopause.checked;
+    });
+
+    toggleTrails.addEventListener('change', () => {
+      drawTrails = toggleTrails.checked;
+    });
+
+    trackThemeSelect.addEventListener('change', () => {
+      trackTheme = trackThemeSelect.value;
+      statTheme.textContent = themeMeta[trackTheme].label;
+      addEvent(`Tema uppdaterat till ${themeMeta[trackTheme].label}.`);
+    });
+
+    trackWidthSlider.addEventListener('input', () => {
+      config.track.width = parseInt(trackWidthSlider.value, 10);
+      track = generateTrack(trackSeed, config.trackMode);
+      updateTrackScale();
+      resetPopulation();
+      addEvent(`Banbredd satt till ${config.track.width}px.`);
+    });
+
+    difficultySelect.addEventListener('change', () => {
+      applyDifficulty(difficultySelect.value);
+      addEvent(`Svårighet: ${difficultySelect.value.toUpperCase()}.`);
+    });
+
+    sensorCountSlider.addEventListener('input', () => {
+      config.sensorCount = parseInt(sensorCountSlider.value, 10);
+      config.inputSize = config.sensorCount + 5;
+      resetPopulation();
+      addEvent(`Antal sensorer: ${config.sensorCount}.`);
+    });
+
+    sensorLengthSlider.addEventListener('input', () => {
+      config.sensorLength = parseInt(sensorLengthSlider.value, 10);
+      addEvent(`Sensorlängd: ${config.sensorLength}.`);
+    });
+
+    maxGenTimeSlider.addEventListener('input', () => {
+      config.maxGenerationTime = parseInt(maxGenTimeSlider.value, 10);
+    });
+
     function describeTrackMode(mode) {
-      return mode === 'retro' ? 'retro bana' : 'rund bana';
+      const labels = {
+        round: 'rund bana',
+        retro: 'retro bana',
+        spiral: 'spiral-labyrint',
+        canyon: 'canyon run',
+        hex: 'hexagon rush',
+        nebula: 'nebula-kaos'
+      };
+      return labels[mode] || 'okänd bana';
     }
 
     function updateSeedLabel() {
@@ -560,6 +830,7 @@
       leaderboard = [];
       renderLeaderboard();
       statLap.textContent = '—';
+      statTrack.textContent = describeTrackMode(config.trackMode);
       addEvent(`Bytte till ${describeTrackMode(config.trackMode)}.`);
     });
 
@@ -582,6 +853,7 @@
       leaderboard = [];
       renderLeaderboard();
       statLap.textContent = '—';
+      statTrack.textContent = describeTrackMode(config.trackMode);
       addEvent(`Ny ${describeTrackMode(config.trackMode)} laddad.`);
     });
 
@@ -686,9 +958,81 @@
       ];
     }
 
+    function createSpiralCenterPoints() {
+      const centerPoints = [];
+      const turns = 2.3;
+      const points = 40;
+      for (let i = 0; i < points; i++) {
+        const t = i / points;
+        const angle = t * Math.PI * 2 * turns;
+        const radius = 80 + t * 260;
+        centerPoints.push({ x: Math.cos(angle) * radius, y: Math.sin(angle) * radius });
+      }
+      return centerPoints;
+    }
+
+    function createCanyonCenterPoints(rng) {
+      const centerPoints = [];
+      const length = 26;
+      let x = -280;
+      let y = 0;
+      for (let i = 0; i < length; i++) {
+        x += 24;
+        y += Math.sin(i * 0.5) * 35 + (rng() - 0.5) * 50;
+        centerPoints.push({ x, y });
+      }
+      for (let i = length - 1; i >= 0; i--) {
+        const p = centerPoints[i];
+        centerPoints.push({ x: p.x, y: p.y + 140 + (rng() - 0.5) * 35 });
+      }
+      return centerPoints;
+    }
+
+    function createHexCenterPoints() {
+      const centerPoints = [];
+      const sides = 12;
+      const radius = 260;
+      for (let i = 0; i < sides; i++) {
+        const angle = (i / sides) * Math.PI * 2;
+        const wobble = (i % 2 === 0 ? 18 : -18);
+        centerPoints.push({ x: Math.cos(angle) * (radius + wobble), y: Math.sin(angle) * (radius - wobble) });
+      }
+      return centerPoints;
+    }
+
+    function createNebulaCenterPoints(rng) {
+      const centerPoints = [];
+      const points = 32;
+      for (let i = 0; i < points; i++) {
+        const angle = (i / points) * Math.PI * 2;
+        const radius = 160 + Math.sin(i * 1.8) * 70 + (rng() - 0.5) * 120;
+        centerPoints.push({ x: Math.cos(angle) * radius, y: Math.sin(angle) * radius });
+      }
+      return centerPoints;
+    }
+
     function generateTrack(seed, mode = 'round') {
       const rng = mulberry32(seed);
-      const centerPoints = mode === 'retro' ? createRetroCenterPoints() : createRoundCenterPoints(rng);
+      let centerPoints;
+      switch (mode) {
+        case 'retro':
+          centerPoints = createRetroCenterPoints();
+          break;
+        case 'spiral':
+          centerPoints = createSpiralCenterPoints();
+          break;
+        case 'canyon':
+          centerPoints = createCanyonCenterPoints(rng);
+          break;
+        case 'hex':
+          centerPoints = createHexCenterPoints();
+          break;
+        case 'nebula':
+          centerPoints = createNebulaCenterPoints(rng);
+          break;
+        default:
+          centerPoints = createRoundCenterPoints(rng);
+      }
       const width = mode === 'retro' ? config.retroTrack.width : config.track.width;
       const pointCount = centerPoints.length;
 
@@ -1002,6 +1346,12 @@
         this.prevX = this.x;
         this.prevY = this.y;
         this.lastSensors = new Array(config.sensorCount).fill(1);
+        this.trail = [];
+        if (boostStart) {
+          const boost = config.maxSpeed * 0.24;
+          this.vx = Math.cos(this.angle) * boost;
+          this.vy = Math.sin(this.angle) * boost;
+        }
       }
 
       update(dt) {
@@ -1050,6 +1400,11 @@
         this.prevY = this.y;
         this.x += this.vx * dt * 60;
         this.y += this.vy * dt * 60;
+
+        if (drawTrails) {
+          this.trail.push({ x: this.x, y: this.y });
+          if (this.trail.length > 26) this.trail.shift();
+        }
 
         if (!isInsideTrack(this.x, this.y)) {
           this.destroy(config.deathPenalty);
@@ -1161,6 +1516,21 @@
         if (config.showSensors && bestCar === this && !this.dead) {
           this.drawSensors(ctx, screenPos);
         }
+
+        if (drawTrails && this.trail.length > 4) {
+          ctx.save();
+          ctx.globalAlpha = 0.35;
+          ctx.strokeStyle = this.color;
+          ctx.lineWidth = 3;
+          ctx.beginPath();
+          this.trail.forEach((p, idx) => {
+            const pos = worldToScreen(p);
+            if (idx === 0) ctx.moveTo(pos.x, pos.y);
+            else ctx.lineTo(pos.x, pos.y);
+          });
+          ctx.stroke();
+          ctx.restore();
+        }
       }
 
       drawSensors(ctx, screenPos) {
@@ -1209,6 +1579,8 @@
       statGeneration.textContent = population.generation;
       statAlive.textContent = `${cars.length} / ${cars.length}`;
       statBest.textContent = population.bestFitness.toFixed(1);
+      averageFitness = 0;
+      statAvg.textContent = '0.0';
     }
 
     function nextGeneration() {
@@ -1219,6 +1591,11 @@
       population.evolve();
       startGeneration();
       statBest.textContent = population.bestFitness.toFixed(1);
+      if (autoPause) {
+        paused = true;
+        pauseBtn.textContent = 'Fortsätt';
+        addEvent('Auto-paus aktiverad vid generationsskifte.');
+      }
     }
 
     function update(dt) {
@@ -1226,6 +1603,7 @@
       generationTime += dt;
       let alive = 0;
       let currentBest = null;
+      let totalFitness = 0;
       for (const car of cars) {
         if (!car.dead) {
           car.update(dt * config.simSpeed);
@@ -1236,6 +1614,7 @@
             currentBest = car;
           }
         }
+        totalFitness += car.fitness;
       }
       bestCar = currentBest;
       statAlive.textContent = `${alive} / ${cars.length}`;
@@ -1243,6 +1622,9 @@
         population.bestFitness = Math.max(population.bestFitness, currentBest.fitness);
         statBest.textContent = currentBest.fitness.toFixed(1);
       }
+
+      averageFitness = cars.length ? totalFitness / cars.length : 0;
+      statAvg.textContent = averageFitness.toFixed(1);
 
       if (alive === 0 || generationTime > config.maxGenerationTime) {
         nextGeneration();
@@ -1253,6 +1635,7 @@
       if (!track) return;
       const viewWidth = canvas.width / dpr;
       const viewHeight = canvas.height / dpr;
+      const theme = themeMeta[trackTheme];
       ctx.save();
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       const gradient = ctx.createLinearGradient(0, 0, viewWidth, viewHeight);
@@ -1280,8 +1663,8 @@
       ctx.fill();
 
       const roadGradient = ctx.createLinearGradient(track.center.x - 200, track.center.y - 200, track.center.x + 200, track.center.y + 200);
-      roadGradient.addColorStop(0, 'rgba(33, 38, 82, 0.95)');
-      roadGradient.addColorStop(1, 'rgba(21, 24, 50, 0.9)');
+      roadGradient.addColorStop(0, theme.roadLight);
+      roadGradient.addColorStop(1, theme.roadDark);
       ctx.fillStyle = roadGradient;
       ctx.beginPath();
       for (let i = 0; i < track.outer.length; i++) {
@@ -1302,7 +1685,7 @@
       ctx.closePath();
       ctx.fill();
 
-      ctx.strokeStyle = 'rgba(118, 247, 255, 0.2)';
+      ctx.strokeStyle = theme.glow;
       ctx.lineWidth = 4 / track.scale;
       ctx.beginPath();
       for (let i = 0; i < track.outer.length; i++) {
@@ -1367,12 +1750,18 @@
 
     function init() {
       resizeCanvas();
+      applyDifficulty(difficultySelect.value);
+      trackThemeSelect.value = trackTheme;
       track = generateTrack(trackSeed, config.trackMode);
       updateTrackScale();
       updateSeedLabel();
       population = new Population(config.populationSize);
       startGeneration();
       renderLeaderboard();
+      statTheme.textContent = themeMeta[trackTheme].label;
+      statSpeed.textContent = `${config.simSpeed.toFixed(1)}x`;
+      statTrack.textContent = describeTrackMode(config.trackMode);
+      statMaxSpeed.textContent = config.maxSpeed.toFixed(1);
       const startTrackLabel = describeTrackMode(config.trackMode);
       addEvent(`Simulering startad. ${startTrackLabel.charAt(0).toUpperCase() + startTrackLabel.slice(1)} vald.`);
       requestAnimationFrame(loop);
