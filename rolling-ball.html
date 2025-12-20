@@ -7,21 +7,24 @@
 <style>
     /* ... (Your exact CSS code from the original, no change needed) ... */
     :root {
-        --bg-gradient-start: #1f2633;
-        --bg-gradient-end: #121722;
-        --accent: #ff9f43;
-        --accent-glow: rgba(255, 159, 67, 0.4);
-        --panel-bg: rgba(24, 31, 44, 0.95);
-        --panel-border: rgba(255, 255, 255, 0.1);
+        --bg-gradient-start: #050516;
+        --bg-gradient-end: #0f1536;
+        --accent: #38bdf8;
+        --accent-glow: rgba(56, 189, 248, 0.35);
+        --panel-bg: rgba(14, 19, 48, 0.9);
+        --panel-border: rgba(148, 163, 209, 0.35);
         --text-light: #f5f7ff;
-        --text-dim: #9aa7c2;
-        --shadow: 0 12px 24px rgba(0, 0, 0, 0.4);
+        --text-dim: #a0accf;
+        --shadow: 0 18px 36px rgba(10, 14, 38, 0.55);
         --radius: 14px;
     }
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
         font-family: 'Inter', 'Segoe UI', sans-serif;
-        background: linear-gradient(160deg, var(--bg-gradient-start), var(--bg-gradient-end));
+        background: radial-gradient(circle at 18% 10%, rgba(56,189,248,.18) 0%, transparent 46%),
+                    radial-gradient(circle at 82% 8%, rgba(244,114,182,.16) 0%, transparent 54%),
+                    radial-gradient(circle at 12% 78%, rgba(124,242,157,.12) 0%, transparent 55%),
+                    linear-gradient(160deg, var(--bg-gradient-start), var(--bg-gradient-end));
         color: var(--text-light);
         min-height: 100vh;
         display: flex;

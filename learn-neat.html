@@ -7,16 +7,16 @@
   <style>
     :root {
       --bg1:#050516;
-      --bg2:#161b3f;
-      --panel:rgba(18,24,56,.82);
-      --ink:#f1f5ff;
-      --muted:#a1a9d8;
+      --bg2:#0f1536;
+      --panel:rgba(14,19,48,.9);
+      --ink:#f5f7ff;
+      --muted:#a0accf;
       --accent:#f472b6;
       --accent-cyan:#38bdf8;
-      --silver:rgba(222,231,255,.55);
+      --silver:rgba(148,163,209,.35);
     }
     *{box-sizing:border-box}
-    body{margin:0; min-height:100vh; display:flex; flex-direction:column; background:radial-gradient(circle at 45% 12%, rgba(87,51,183,.55) 0%, rgba(39,56,121,.85) 45%, var(--bg1) 100%); color:var(--ink); font-family:"Inter",system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;}
+    body{margin:0; min-height:100vh; display:flex; flex-direction:column; background:radial-gradient(circle at 18% 10%, rgba(56,189,248,.18) 0%, transparent 46%), radial-gradient(circle at 82% 8%, rgba(244,114,182,.16) 0%, transparent 54%), radial-gradient(circle at 12% 78%, rgba(124,242,157,.12) 0%, transparent 55%), linear-gradient(160deg, var(--bg1) 0%, var(--bg2) 55%, #1a2344 100%); color:var(--ink); font-family:"Inter",system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;}
     .main-nav{position:sticky; top:0; z-index:200; padding:22px 48px; display:flex; align-items:center; justify-content:space-between; background:linear-gradient(120deg, rgba(15,20,48,.92) 0%, rgba(10,14,34,.75) 60%, rgba(10,14,34,.35) 100%); backdrop-filter:blur(14px); border-bottom:1px solid var(--silver); box-shadow:0 22px 45px rgba(5,9,25,.55)}
     .brand{display:flex; align-items:center; gap:12px; font-size:22px; font-weight:700; letter-spacing:.02em}
     .brand-dot{width:14px; height:14px; border-radius:50%; background:linear-gradient(135deg, var(--accent) 0%, #8b5cf6 100%); box-shadow:0 0 18px rgba(244,114,182,.6)}

@@ -6,27 +6,26 @@
   <title>Hybrid Policy Learning (HPL) Data Sorting Simulation - RL-ACO</title>
   <style>
     :root {
-      /* New Color Palette - Sci-Fi / Dark Mode */
-      --bg-dark: #050a14;
-      --panel-bg: rgba(10, 15, 30, 0.95);
-      --accent: #00eaff; /* Cyan */
-      --accent-ok: #00ff99; /* Green */
-      --accent-bad: #ff3366; /* Red */
-      --text-main: #e8f0ff;
-      --text-dim: #94a3b8;
+      --bg-dark: #050516;
+      --panel-bg: rgba(14, 19, 48, 0.9);
+      --accent: #38bdf8;
+      --accent-ok: #7cf29d;
+      --accent-bad: #f472b6;
+      --text-main: #f5f7ff;
+      --text-dim: #a0accf;
       --font-mono: 'Fira Code', Consolas, monospace;
       --font-ui: 'Inter', system-ui, sans-serif;
     }
     * { box-sizing: border-box; user-select: none; }
     body {
-      margin: 0; overflow: hidden; background: var(--bg-dark); color: var(--text-main);
+      margin: 0; overflow: hidden; background: radial-gradient(circle at 18% 10%, rgba(56,189,248,.18) 0%, transparent 46%), radial-gradient(circle at 82% 8%, rgba(244,114,182,.16) 0%, transparent 54%), radial-gradient(circle at 12% 78%, rgba(124,242,157,.12) 0%, transparent 55%), linear-gradient(160deg, var(--bg-dark) 0%, #0f1536 55%, #1a2344 100%); color: var(--text-main);
       font-family: var(--font-ui); display: flex; height: 100vh;
     }
     
     /* Layout */
     .sidebar {
       width: 360px; flex-shrink: 0; display: flex; flex-direction: column;
-      background: var(--panel-bg); border-right: 1px solid #334;
+      background: var(--panel-bg); border-right: 1px solid var(--text-dim);
       backdrop-filter: blur(10px); z-index: 10; overflow-y: auto;
     }
     .main-view { 
@@ -45,9 +44,9 @@
     canvas#simCanvas { display: block; width: 100%; height: 100%; cursor: crosshair; }
     
     /* UI Elements */
-    .panel-section { padding: 15px; border-bottom: 1px solid #334; }
+    .panel-section { padding: 15px; border-bottom: 1px solid rgba(148,163,209,.28); }
     h1 { font-size: 18px; margin: 0 0 10px; color: var(--accent); text-transform: uppercase; letter-spacing: 1px; text-align: center; }
-    h2 { font-size: 12px; margin: 15px 0 8px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid #334; padding-bottom: 4px; }
+    h2 { font-size: 12px; margin: 15px 0 8px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid rgba(148,163,209,.28); padding-bottom: 4px; }
     
     .stat-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
     .stat-box { background: rgba(0,0,0,0.3); padding: 8px; border-radius: 6px; border: 1px solid #334; display:flex; flex-direction:column; }
