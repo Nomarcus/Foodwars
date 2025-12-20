@@ -25,7 +25,9 @@
     /* Layout */
     .sidebar {
       width: 360px; flex-shrink: 0; display: flex; flex-direction: column;
-      background: var(--panel-bg); border-right: 1px solid var(--text-dim);
+      background: linear-gradient(180deg, rgba(14, 19, 48, 0.95) 0%, rgba(10,14,35,0.9) 50%, rgba(12,17,40,0.85) 100%);
+      border-right: 1px solid rgba(148,163,209,.28);
+      box-shadow: 0 10px 40px rgba(0,0,0,0.35);
       backdrop-filter: blur(10px); z-index: 10; overflow-y: auto;
     }
     .main-view { 
@@ -34,12 +36,33 @@
     }
     
     /* Viewport with improved background gradient */
-    .viewport { 
+    .viewport {
         width: 100%;
         height: 100%;
-        position: relative; 
-        background: radial-gradient(circle at 50% 30%, #101c30 0%, #050a14 80%); 
-        overflow: hidden; 
+        position: relative;
+        background: radial-gradient(circle at 50% 30%, #0b1525 0%, #04070f 80%);
+        overflow: hidden;
+    }
+    .viewport::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background: radial-gradient(circle at 20% 20%, rgba(56,189,248,0.1), transparent 35%),
+                    radial-gradient(circle at 80% 10%, rgba(244,114,182,0.12), transparent 45%),
+                    radial-gradient(circle at 50% 80%, rgba(124,242,157,0.12), transparent 40%),
+                    linear-gradient(120deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0) 20%, rgba(255,255,255,0.04) 40%, rgba(255,255,255,0) 60%, rgba(255,255,255,0.04) 80%);
+        pointer-events: none;
+        mix-blend-mode: screen;
+    }
+    .viewport::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background-image: linear-gradient(rgba(255,255,255,0.04) 1px, transparent 1px),
+                          linear-gradient(90deg, rgba(255,255,255,0.04) 1px, transparent 1px);
+        background-size: 120px 120px;
+        opacity: 0.18;
+        pointer-events: none;
     }
     canvas#simCanvas { display: block; width: 100%; height: 100%; cursor: crosshair; }
     
@@ -69,6 +92,25 @@
     .btn.danger:hover { background: var(--accent-bad); color: #fff; box-shadow: 0 0 15px var(--accent-bad); }
     .btn.alt { border-color: var(--accent-ok); color: var(--accent-ok); background: rgba(0,255,153,0.1); }
     .btn.alt:hover { background: var(--accent-ok); color: #000; box-shadow: 0 0 15px var(--accent-ok); }
+
+    /* Legends & Pulse */
+    .legend-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-bottom: 10px; }
+    .legend-item { background: rgba(255,255,255,0.03); border:1px solid rgba(148,163,209,.28); border-radius: 8px; padding: 8px; text-align:center; }
+    .legend-dot { width: 10px; height: 10px; border-radius: 50%; display:inline-block; margin-right: 4px; box-shadow: 0 0 8px currentColor; }
+
+    .pulse-grid { display:grid; grid-template-columns:1fr; gap:8px; }
+    .pulse-row { display:flex; align-items:center; gap:8px; }
+    .pulse-label { font-size:11px; color:var(--text-dim); letter-spacing:0.5px; }
+    .pulse-bar { flex:1; background: rgba(255,255,255,0.04); border:1px solid rgba(148,163,209,.28); border-radius:12px; height:10px; position:relative; overflow:hidden; }
+    .pulse-bar span { position:absolute; inset:0; width:35%; background:linear-gradient(90deg, var(--accent), var(--accent-ok)); box-shadow:0 0 12px rgba(56,189,248,0.8); border-radius:12px; transition:width 0.3s ease; }
+    .pulse-value { font-family: var(--font-mono); font-size:11px; color:var(--accent-ok); }
+
+    .episode-progress { position:absolute; top:38px; left:20px; right:20px; height:8px; border-radius:12px; background:rgba(255,255,255,0.08); overflow:hidden; box-shadow:0 0 12px rgba(0,0,0,0.4); }
+    .episode-progress .fill { height:100%; background:linear-gradient(90deg, rgba(56,189,248,0.2), rgba(124,242,157,0.5), rgba(244,114,182,0.35)); width:0%; transition:width 0.2s ease; }
+
+    .mini-callouts { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:10px; }
+    .callout { background:linear-gradient(135deg, rgba(56,189,248,0.08), rgba(244,114,182,0.06)); border:1px solid rgba(148,163,209,.28); border-radius:8px; padding:8px; font-size:11px; color:var(--text-dim); }
+    .callout strong { color:var(--accent); }
 
     
     /* HUD Overlay */
@@ -112,6 +154,21 @@
         color: var(--text-dim); font-size: 11px;
     }
     .sim-top-bar .fps-counter { font-family: var(--font-mono); color: var(--accent-ok); }
+
+    /* Glow overlays */
+    .neon-pulse {
+        position:absolute;
+        inset:0;
+        pointer-events:none;
+        background:radial-gradient(circle at 50% 50%, rgba(56,189,248,0.05), transparent 45%),
+                  radial-gradient(circle at 15% 70%, rgba(124,242,157,0.06), transparent 35%),
+                  radial-gradient(circle at 80% 20%, rgba(244,114,182,0.05), transparent 40%);
+        mix-blend-mode:screen;
+        animation: pulse 6s ease-in-out infinite;
+    }
+    @keyframes pulse {
+        0%,100%{opacity:0.4;}50%{opacity:0.8;}
+    }
   </style>
 </head>
 <body>
@@ -152,7 +209,20 @@
     <h2>Performance History (Best Agent)</h2>
     <canvas id="fitnessGraph"></canvas>
   </div>
-  
+
+  <div class="panel-section">
+    <h2>Signal Legend</h2>
+    <div class="legend-grid">
+      <div class="legend-item"><span class="legend-dot" style="color:#ff3366"></span>Incident</div>
+      <div class="legend-item"><span class="legend-dot" style="color:#00ff99"></span>Service</div>
+      <div class="legend-item"><span class="legend-dot" style="color:#00eaff"></span>Problem</div>
+    </div>
+    <div class="mini-callouts">
+      <div class="callout">Exploration spikes surface new routes. <strong>Keep epsilon dynamic.</strong></div>
+      <div class="callout">Gamma anchors long-term credit. <strong>Watch Q-score stability.</strong></div>
+    </div>
+  </div>
+
   <div class="panel-section">
       <h2>Active Policy Network (Best Agent)</h2>
       <canvas id="brainCanvas" width="300" height="150"></canvas>
@@ -193,8 +263,8 @@
     <h2>RL/Policy Parameters</h2>
     
     <div class="control-group">
-        <label title="Hur snabbt nätverkets vikter uppdateras">Learning Rate (Alpha): <span id="valAlpha">0.05</span></label>
-        <input type="range" id="slAlpha" min="1" max="100" value="5" step="1">
+      <label title="Hur snabbt nätverkets vikter uppdateras">Learning Rate (Alpha): <span id="valAlpha">0.05</span></label>
+      <input type="range" id="slAlpha" min="1" max="100" value="5" step="1">
     </div>
 
     <div class="control-group">
@@ -234,11 +304,16 @@
   
   <div class="panel-section">
     <h2>Visuals</h2>
-    <label class="checkbox-row"><input type="checkbox" id="chkBrainViz" checked> Show Policy Network</label>
-    <label class="checkbox-row"><input type="checkbox" id="chkSensors"> Show Sensors (Simplified)</label>
-    <label class="checkbox-row"><input type="checkbox" id="chkPheromones" checked> Show Pheromone Heatmap</label>
-    <label class="checkbox-row"><input type="checkbox" id="chkParticles" checked> Show Particles (Feedback)</label>
-    <label class="checkbox-row"><input type="checkbox" id="chkTrail"> Show Best Agent Trail</label>
+      <label class="checkbox-row"><input type="checkbox" id="chkBrainViz" checked> Show Policy Network</label>
+      <label class="checkbox-row"><input type="checkbox" id="chkSensors"> Show Sensors (Simplified)</label>
+      <label class="checkbox-row"><input type="checkbox" id="chkPheromones" checked> Show Pheromone Heatmap</label>
+      <label class="checkbox-row"><input type="checkbox" id="chkParticles" checked> Show Particles (Feedback)</label>
+      <label class="checkbox-row"><input type="checkbox" id="chkTrail"> Show Best Agent Trail</label>
+      <div class="pulse-grid" style="margin-top:10px;">
+        <div class="pulse-row"><span class="pulse-label">Exploration (ε)</span><div class="pulse-bar"><span id="barEpsilon"></span></div><span class="pulse-value" id="valEpsilonPulse">10%</span></div>
+        <div class="pulse-row"><span class="pulse-label">Learning Rate (α)</span><div class="pulse-bar"><span id="barAlpha"></span></div><span class="pulse-value" id="valAlphaPulse">0.005</span></div>
+        <div class="pulse-row"><span class="pulse-label">Discount (γ)</span><div class="pulse-bar"><span id="barGamma"></span></div><span class="pulse-value" id="valGammaPulse">0.90</span></div>
+      </div>
   </div>
 </aside>
 
@@ -248,6 +323,7 @@
         <span><strong style="color:var(--accent)">HPL-ACO:</strong> Hybrid Policy Learning Simulation</span>
         <span class="fps-counter" id="fpsDisplay">FPS: 0</span>
     </div>
+    <div class="episode-progress"><div class="fill" id="episodeFill"></div></div>
     <canvas id="simCanvas"></canvas>
     <div class="hud">
       <div class="generation-display" id="hudGen">EPISODE 1</div>
@@ -257,6 +333,7 @@
     </div>
     <div class="live-feed" id="feed"></div>
     <div id="hoverTip"></div>
+    <div class="neon-pulse"></div>
   </div>
 </main>
 
@@ -634,12 +711,15 @@ class Ticket {
     }
 
     draw() {
-        const w = 12, h = 16; 
+        const w = 12, h = 16;
         ctx.save();
         ctx.translate(this.x, this.y);
 
-        ctx.fillStyle = this.def.color;
-        ctx.globalAlpha = 0.8;
+        const badge = ctx.createLinearGradient(-w/2, -h/2, w/2, h/2);
+        badge.addColorStop(0, this.def.color);
+        badge.addColorStop(1, 'rgba(255,255,255,0.7)');
+        ctx.fillStyle = badge;
+        ctx.globalAlpha = 0.9;
         ctx.beginPath();
         ctx.roundRectPolyfill(-w/2, -h/2, w, h, 3);
         ctx.fill();
@@ -647,7 +727,7 @@ class Ticket {
 
         ctx.fillStyle = '#fff';
         ctx.fillRect(-w/2 + 1, -h/2 + 1, (w-2) * this.life, 2);
-        
+
         ctx.strokeStyle = '#fff';
         ctx.lineWidth = 1;
         ctx.stroke();
@@ -1010,15 +1090,40 @@ class Agent {
 
   draw() {
     this.drawSensors();
-    if(this.carrying) this.drawCarryingLink(); 
+    if(this.carrying) this.drawCarryingLink();
 
     ctx.save();
     ctx.translate(this.x, this.y);
     ctx.rotate(this.angle);
-    
+
+    // Thruster trail
+    ctx.globalAlpha = 0.5;
+    const flame = ctx.createLinearGradient(-this.r*2, 0, 0, 0);
+    flame.addColorStop(0, 'rgba(56,189,248,0)');
+    flame.addColorStop(1, 'rgba(56,189,248,0.7)');
+    ctx.fillStyle = flame;
+    ctx.beginPath();
+    ctx.moveTo(-this.r*2.2, -2);
+    ctx.lineTo(-this.r*0.8, 0);
+    ctx.lineTo(-this.r*2.2, 2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+
+    if(this === bestAgent) {
+        ctx.save();
+        ctx.rotate(-this.angle);
+        ctx.globalAlpha = 0.5 + Math.sin(frame*0.15)*0.25;
+        ctx.strokeStyle = '#ffd700';
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.arc(0, 0, this.r + 6, 0, Math.PI*2);
+        ctx.stroke();
+        ctx.restore();
+    }
+
     let ringColor = this.energy > 0.3 ? varStyles.accentOk : (this.stalled ? varStyles.accentBad : '#ff9900');
     if(this.energy < 0.3) {
-        ctx.globalAlpha = 0.5 + Math.sin(frame * 0.2) * 0.5; 
+        ctx.globalAlpha = 0.5 + Math.sin(frame * 0.2) * 0.5;
         ctx.lineWidth = 3;
     } else {
         ctx.lineWidth = 1.5;
@@ -1222,9 +1327,9 @@ function drawParticles() {
 function drawPheromones() {
     // ... (drawPheromones remains the same) ...
   if(!document.getElementById('chkPheromones')?.checked) return;
-  
+
   const maxPh = PHEROMONE_CAP;
-  ctx.globalCompositeOperation = 'source-over'; 
+  ctx.globalCompositeOperation = 'screen';
 
   for(let y=0; y<GH; y++) {
       for(let x=0; x<GW; x++) {
@@ -1264,6 +1369,7 @@ function drawPheromones() {
       }
   }
 
+  ctx.globalCompositeOperation = 'source-over';
   drawZones();
 }
 
@@ -1278,7 +1384,7 @@ function updateFPS(now) {
 }
 
 function updateUI() {
-  document.getElementById('hudGen').innerText = `EPISODE ${episode}`; 
+  document.getElementById('hudGen').innerText = `EPISODE ${episode}`;
   document.getElementById('dispGen').innerText = episode;
   document.getElementById('dispSolved').innerText = stats.solved;
   document.getElementById('dispWrong').innerText = stats.wrong;
@@ -1295,7 +1401,32 @@ function updateUI() {
   if(bestAgent) {
       document.getElementById('dispFit').innerText = bestAgent.qScore.toFixed(2);
   }
-  
+
+  // Learning pulse bars
+  const epsilonPct = Math.round(CFG.RL_EPSILON * 100);
+  const alphaVal = CFG.RL_ALPHA;
+  const gammaVal = CFG.RL_GAMMA;
+
+  const setBar = (id, pct) => {
+      const bar = document.getElementById(id);
+      if(bar) bar.style.width = `${clamp(pct,0,100)}%`;
+  };
+
+  setBar('barEpsilon', epsilonPct);
+  setBar('barAlpha', alphaVal * 8000);
+  setBar('barGamma', gammaVal * 120);
+
+  const valEpsilonPulse = document.getElementById('valEpsilonPulse');
+  if(valEpsilonPulse) valEpsilonPulse.innerText = `${epsilonPct}%`;
+  const valAlphaPulse = document.getElementById('valAlphaPulse');
+  if(valAlphaPulse) valAlphaPulse.innerText = alphaVal.toFixed(3);
+  const valGammaPulse = document.getElementById('valGammaPulse');
+  if(valGammaPulse) valGammaPulse.innerText = gammaVal.toFixed(2);
+
+  const progress = clamp(frame / CFG.episodeDuration, 0, 1);
+  const progressFill = document.getElementById('episodeFill');
+  if(progressFill) progressFill.style.width = `${(progress*100).toFixed(1)}%`;
+
   // Toggle Policy Visualization visibility based on checkbox
   brainCanvas.style.display = document.getElementById('chkBrainViz').checked ? 'block' : 'none';
 }
