@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+  <meta charset="UTF-8">
+  <title>Snake ML – Förstärkt inlärning i webbläsaren</title>
+  <style>
+    :root {
+      --bg1:#050516;
+      --bg2:#0f1536;
+      --bg3:#1a2344;
+      --panel:rgba(14,19,48,.92);
+      --border:rgba(148,163,209,.35);
+      --ink:#f5f7ff;
+      --muted:#a0accf;
+      --accent:#38bdf8;
+      --accent-2:#f472b6;
+    }
+    *{box-sizing:border-box;}
+    body{
+      margin:0;min-height:100vh;display:flex;flex-direction:column;align-items:center;gap:14px;
+      background:radial-gradient(circle at 18% 10%, rgba(56,189,248,.18) 0%, transparent 46%),
+                 radial-gradient(circle at 82% 8%, rgba(244,114,182,.16) 0%, transparent 54%),
+                 radial-gradient(circle at 12% 78%, rgba(124,242,157,.12) 0%, transparent 55%),
+                 linear-gradient(160deg, var(--bg1) 0%, var(--bg2) 55%, var(--bg3) 100%);
+      color:var(--ink);
+      font-family:"Inter",system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+      padding:22px;
+    }
+    h1{margin:0;font-size:24px;letter-spacing:.01em;}
+    p{margin:0;color:var(--muted);}    
+    .top{display:flex;flex-direction:column;gap:8px;align-items:center;text-align:center;}
+    #hud{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px;width:100%;max-width:960px;}
+    .card{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:12px 14px;box-shadow:0 18px 40px rgba(10,14,38,.55);} 
+    .title{font-size:14px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);}
+    .value{font-size:22px;font-weight:700;}
+    .controls{display:flex;gap:10px;flex-wrap:wrap;align-items:center;}
+    button,label{cursor:pointer;font-size:14px;padding:8px 12px;border-radius:12px;border:1px solid rgba(56,189,248,.45);
+      background:linear-gradient(135deg,var(--accent) 0%,var(--accent-2) 100%);color:var(--ink);font-weight:600;letter-spacing:.02em;
+      box-shadow:0 12px 30px rgba(10,14,38,.35);transition:transform .2s ease,filter .2s ease;}
+    button:hover{transform:translateY(-1px);filter:brightness(1.05);}    
+    input[type="checkbox"]{transform:scale(1.15);margin-right:6px;accent-color:var(--accent);} 
+    #boardWrap{position:relative;}
+    #game{background:radial-gradient(circle at 30% 20%, rgba(56,189,248,.14), transparent 40%),
+                  radial-gradient(circle at 76% 12%, rgba(244,114,182,.16), transparent 48%),
+                  linear-gradient(180deg,#0e122b 0%,#080a1a 100%);
+      border:1px solid var(--border);border-radius:18px;box-shadow:0 22px 48px rgba(10,14,38,.55),inset 0 0 22px rgba(56,189,248,.1);
+    }
+    .legend{display:flex;gap:10px;flex-wrap:wrap;color:var(--muted);font-size:13px;}
+    .legend span{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;background:rgba(56,189,248,.1);
+      border:1px solid rgba(56,189,248,.2);} 
+    .dot{width:12px;height:12px;border-radius:50%;}
+  </style>
+</head>
+<body>
+  <div class="top">
+    <h1>Snake ML</h1>
+    <p>Förstärkt inlärning med målfördelning, replay-minne och target-nät som gradvis gör masken stabilare.</p>
+    <div class="controls">
+      <button id="toggleRun">Pausa träning</button>
+      <button id="resetBtn">Starta om episode</button>
+      <label><input type="checkbox" id="fastMode" checked>Snabbträna (rendera glesare)</label>
+    </div>
+  </div>
+
+  <div id="hud">
+    <div class="card"><div class="title">Episode</div><div class="value" id="episode">0</div></div>
+    <div class="card"><div class="title">Poäng (senaste)</div><div class="value" id="score">0</div></div>
+    <div class="card"><div class="title">Bästa poäng</div><div class="value" id="best">0</div></div>
+    <div class="card"><div class="title">Epsilon (utforskning)</div><div class="value" id="epsilon">1.00</div></div>
+    <div class="card"><div class="title">Replay-minne</div><div class="value" id="memory">0 / 8000</div></div>
+    <div class="card"><div class="title">Senaste åtgärd</div><div class="value" id="action">–</div></div>
+  </div>
+
+  <div id="boardWrap">
+    <canvas id="game" width="560" height="560"></canvas>
+  </div>
+  <div class="legend">
+    <span><span class="dot" style="background:#7cf29d"></span>Huvud</span>
+    <span><span class="dot" style="background:#38bdf8"></span>Kropp</span>
+    <span><span class="dot" style="background:#f472b6"></span>Mat</span>
+  </div>
+
+  <script>
+    // --- Miljöinställningar ---
+    const COLS = 20; // rutnät 20x20
+    const ROWS = 20;
+    const CELL = 28; // pixelstorlek
+    const ACTIONS = ['Vänster','Rakt','Höger']; // relativt nuvarande riktning
+
+    const canvas = document.getElementById('game');
+    const ctx = canvas.getContext('2d');
+
+    // --- Hjälpfunktioner ---
+    const randInt = (min, max) => Math.floor(Math.random() * (max - min)) + min;
+
+    // --- Enkel matrismodell (Dense-lager) ---
+    class DenseLayer {
+      constructor(input, output) {
+        this.input = input;
+        this.output = output;
+        this.weights = new Float32Array(input * output);
+        this.bias = new Float32Array(output);
+        for (let i = 0; i < this.weights.length; i++) this.weights[i] = (Math.random() * 2 - 1) * 0.3;
+        for (let i = 0; i < this.bias.length; i++) this.bias[i] = 0;
+      }
+
+      forward(inputVec) {
+        const out = new Float32Array(this.output);
+        for (let o = 0; o < this.output; o++) {
+          let sum = this.bias[o];
+          for (let i = 0; i < this.input; i++) sum += inputVec[i] * this.weights[o * this.input + i];
+          out[o] = Math.tanh(sum);
+        }
+        return out;
+      }
+
+      forwardLinear(inputVec) {
+        const out = new Float32Array(this.output);
+        for (let o = 0; o < this.output; o++) {
+          let sum = this.bias[o];
+          for (let i = 0; i < this.input; i++) sum += inputVec[i] * this.weights[o * this.input + i];
+          out[o] = sum;
+        }
+        return out;
+      }
+    }
+
+    class DQN {
+      constructor(inputSize, hidden1, hidden2, outputSize, lr = 0.0008) {
+        this.l1 = new DenseLayer(inputSize, hidden1);
+        this.l2 = new DenseLayer(hidden1, hidden2);
+        this.l3 = new DenseLayer(hidden2, outputSize);
+        this.lr = lr;
+      }
+
+      predict(state) {
+        const h1 = this.l1.forward(state);
+        const h2 = this.l2.forward(h1);
+        return this.l3.forwardLinear(h2);
+      }
+
+      trainBatch(batch) {
+        // Gradient-descent på enkla dense-lager
+        const lr = this.lr;
+        for (const {state, target} of batch) {
+          const h1 = this.l1.forward(state);
+          const h2 = this.l2.forward(h1);
+          const out = this.l3.forwardLinear(h2);
+
+          // output-derivat
+          const outErr = new Float32Array(out.length);
+          for (let i = 0; i < out.length; i++) outErr[i] = (out[i] - target[i]);
+
+          // Backprop från l3 -> l2
+          const gradW3 = new Float32Array(this.l3.weights.length);
+          const gradB3 = new Float32Array(this.l3.bias.length);
+          for (let o = 0; o < this.l3.output; o++) {
+            gradB3[o] = outErr[o];
+            for (let i = 0; i < this.l3.input; i++) gradW3[o * this.l3.input + i] = outErr[o] * h2[i];
+          }
+
+          // l2 fel (tanh derivat)
+          const err2 = new Float32Array(this.l2.output);
+          for (let i = 0; i < this.l2.output; i++) {
+            let sum = 0;
+            for (let o = 0; o < this.l3.output; o++) sum += outErr[o] * this.l3.weights[o * this.l3.input + i];
+            err2[i] = sum * (1 - h2[i] * h2[i]);
+          }
+
+          const gradW2 = new Float32Array(this.l2.weights.length);
+          const gradB2 = new Float32Array(this.l2.bias.length);
+          for (let o = 0; o < this.l2.output; o++) {
+            gradB2[o] = err2[o];
+            for (let i = 0; i < this.l2.input; i++) gradW2[o * this.l2.input + i] = err2[o] * h1[i];
+          }
+
+          // l1 fel
+          const err1 = new Float32Array(this.l1.output);
+          for (let i = 0; i < this.l1.output; i++) {
+            let sum = 0;
+            for (let o = 0; o < this.l2.output; o++) sum += err2[o] * this.l2.weights[o * this.l2.input + i];
+            err1[i] = sum * (1 - h1[i] * h1[i]);
+          }
+
+          const gradW1 = new Float32Array(this.l1.weights.length);
+          const gradB1 = new Float32Array(this.l1.bias.length);
+          for (let o = 0; o < this.l1.output; o++) {
+            gradB1[o] = err1[o];
+            for (let i = 0; i < this.l1.input; i++) gradW1[o * this.l1.input + i] = err1[o] * state[i];
+          }
+
+          // Uppdatera
+          for (let i = 0; i < this.l3.weights.length; i++) this.l3.weights[i] -= lr * gradW3[i];
+          for (let i = 0; i < this.l3.bias.length; i++) this.l3.bias[i] -= lr * gradB3[i];
+          for (let i = 0; i < this.l2.weights.length; i++) this.l2.weights[i] -= lr * gradW2[i];
+          for (let i = 0; i < this.l2.bias.length; i++) this.l2.bias[i] -= lr * gradB2[i];
+          for (let i = 0; i < this.l1.weights.length; i++) this.l1.weights[i] -= lr * gradW1[i];
+          for (let i = 0; i < this.l1.bias.length; i++) this.l1.bias[i] -= lr * gradB1[i];
+        }
+      }
+
+      clone() {
+        const d = new DQN(this.l1.input, this.l1.output, this.l2.output, this.l3.output, this.lr);
+        d.l1.weights.set(this.l1.weights); d.l1.bias.set(this.l1.bias);
+        d.l2.weights.set(this.l2.weights); d.l2.bias.set(this.l2.bias);
+        d.l3.weights.set(this.l3.weights); d.l3.bias.set(this.l3.bias);
+        return d;
+      }
+    }
+
+    // --- Replay-minne ---
+    class ReplayMemory {
+      constructor(capacity) {
+        this.capacity = capacity;
+        this.buffer = [];
+        this.index = 0;
+      }
+      push(experience) {
+        if (this.buffer.length < this.capacity) this.buffer.push(experience);
+        else this.buffer[this.index] = experience;
+        this.index = (this.index + 1) % this.capacity;
+      }
+      sample(size) {
+        const result = [];
+        for (let i = 0; i < size; i++) result.push(this.buffer[randInt(0, this.buffer.length)]);
+        return result;
+      }
+    }
+
+    // --- Spelstatus ---
+    let snake = [];
+    let direction = {x:1,y:0};
+    let food = {x:0,y:0};
+    let episode = 0;
+    let score = 0;
+    let best = 0;
+    let stepsSinceFood = 0;
+
+    const policyNet = new DQN(8, 48, 32, 3, 0.001);
+    let targetNet = policyNet.clone();
+    const memory = new ReplayMemory(8000);
+
+    let epsilon = 1.0;
+    const EPSILON_MIN = 0.05;
+    const EPSILON_DECAY = 0.995;
+
+    const GAMMA = 0.92;
+    const BATCH_SIZE = 64;
+    const SYNC_TARGET = 120; // steg mellan target-kopiering
+
+    let running = true;
+    let totalSteps = 0;
+
+    function resetGame() {
+      snake = [ {x:Math.floor(COLS/2), y:Math.floor(ROWS/2)}, {x:Math.floor(COLS/2)-1, y:Math.floor(ROWS/2)}, {x:Math.floor(COLS/2)-2, y:Math.floor(ROWS/2)} ];
+      direction = {x:1,y:0};
+      placeFood();
+      score = 0;
+      stepsSinceFood = 0;
+      episode++;
+      updateHUD();
+    }
+
+    function placeFood() {
+      let pos;
+      do {
+        pos = {x:randInt(0,COLS), y:randInt(0,ROWS)};
+      } while (snake.some(s => s.x === pos.x && s.y === pos.y));
+      food = pos;
+    }
+
+    function stateVector() {
+      const head = snake[0];
+      const dir = direction;
+      const leftDir = {x:-dir.y, y:dir.x};
+      const rightDir = {x:dir.y, y:-dir.x};
+
+      const danger = (dirVec) => {
+        const nx = head.x + dirVec.x;
+        const ny = head.y + dirVec.y;
+        if (nx < 0 || ny < 0 || nx >= COLS || ny >= ROWS) return 1;
+        if (snake.slice(1).some(s => s.x === nx && s.y === ny)) return 1;
+        return 0;
+      };
+
+      const foodDir = {x: food.x - head.x, y: food.y - head.y};
+      const normFoodX = Math.sign(foodDir.x);
+      const normFoodY = Math.sign(foodDir.y);
+
+      const normDirX = dir.x;
+      const normDirY = dir.y;
+      const lengthNorm = snake.length / (COLS*ROWS);
+
+      return new Float32Array([
+        danger(dir), danger(leftDir), danger(rightDir),
+        normFoodX, normFoodY,
+        normDirX, normDirY,
+        lengthNorm
+      ]);
+    }
+
+    function applyAction(actionIdx) {
+      if (actionIdx === 0) direction = {x:-direction.y, y:direction.x}; // vänster
+      if (actionIdx === 2) direction = {x:direction.y, y:-direction.x}; // höger
+      // action 1 = rakt fram
+    }
+
+    function step() {
+      const prevState = stateVector();
+      let actionIdx;
+      if (Math.random() < epsilon) actionIdx = randInt(0,3); else actionIdx = argMax(policyNet.predict(prevState));
+      applyAction(actionIdx);
+      const newHead = {x: snake[0].x + direction.x, y: snake[0].y + direction.y};
+      stepsSinceFood++;
+
+      let reward = -0.01; // små negativt för att minska loops
+      let done = false;
+
+      // kollision
+      if (newHead.x < 0 || newHead.y < 0 || newHead.x >= COLS || newHead.y >= ROWS || snake.some(s => s.x === newHead.x && s.y === newHead.y)) {
+        reward = -10;
+        done = true;
+      } else {
+        snake.unshift(newHead);
+        if (newHead.x === food.x && newHead.y === food.y) {
+          reward = 10;
+          score++;
+          stepsSinceFood = 0;
+          placeFood();
+        } else {
+          snake.pop();
+        }
+        // trötthet
+        if (stepsSinceFood > COLS * ROWS) {
+          reward = -5;
+          done = true;
+        }
+      }
+
+      const nextState = stateVector();
+      memory.push({state:prevState, action:actionIdx, reward, nextState, done});
+      if (memory.buffer.length >= BATCH_SIZE) learn();
+
+      totalSteps++;
+      if (totalSteps % SYNC_TARGET === 0) targetNet = policyNet.clone();
+
+      if (done) {
+        best = Math.max(best, score);
+        epsilon = Math.max(EPSILON_MIN, epsilon * EPSILON_DECAY);
+        resetGame();
+      }
+
+      updateHUD(actionIdx);
+      render();
+    }
+
+    function learn() {
+      const batch = memory.sample(BATCH_SIZE);
+      const trainingBatch = batch.map(exp => {
+        const qValues = policyNet.predict(exp.state);
+        const targetValues = policyNet.predict(exp.state);
+        const nextQ = targetNet.predict(exp.nextState);
+        const maxNext = exp.done ? 0 : Math.max(...nextQ);
+        targetValues[exp.action] = exp.reward + GAMMA * maxNext;
+        return {state: exp.state, target: targetValues};
+      });
+      policyNet.trainBatch(trainingBatch);
+    }
+
+    function argMax(arr) {
+      let idx = 0; let max = -Infinity;
+      for (let i = 0; i < arr.length; i++) if (arr[i] > max) { max = arr[i]; idx = i; }
+      return idx;
+    }
+
+    function render() {
+      if (document.getElementById('fastMode').checked && totalSteps % 5 !== 0) return; // gles rendering vid snabbträning
+      ctx.clearRect(0,0,canvas.width,canvas.height);
+      ctx.fillStyle = 'rgba(255,255,255,0.05)';
+      for (let x = 0; x <= COLS; x++) {
+        ctx.fillRect(x*CELL,0,1,canvas.height);
+      }
+      for (let y = 0; y <= ROWS; y++) ctx.fillRect(0,y*CELL,canvas.width,1);
+
+      // food
+      ctx.fillStyle = '#f472b6';
+      ctx.fillRect(food.x*CELL+4, food.y*CELL+4, CELL-8, CELL-8);
+
+      // snake body
+      ctx.fillStyle = '#38bdf8';
+      for (let i = snake.length-1; i>0; i--) ctx.fillRect(snake[i].x*CELL+3, snake[i].y*CELL+3, CELL-6, CELL-6);
+      // head
+      ctx.fillStyle = '#7cf29d';
+      ctx.fillRect(snake[0].x*CELL+2, snake[0].y*CELL+2, CELL-4, CELL-4);
+    }
+
+    function updateHUD(actionIdx) {
+      document.getElementById('episode').textContent = episode;
+      document.getElementById('score').textContent = score;
+      document.getElementById('best').textContent = best;
+      document.getElementById('epsilon').textContent = epsilon.toFixed(2);
+      document.getElementById('memory').textContent = `${memory.buffer.length} / ${memory.capacity}`;
+      document.getElementById('action').textContent = actionIdx !== undefined ? ACTIONS[actionIdx] : '–';
+    }
+
+    // --- Loop ---
+    function loop() {
+      if (running) {
+        const iterations = document.getElementById('fastMode').checked ? 8 : 1;
+        for (let i = 0; i < iterations; i++) step();
+      }
+      requestAnimationFrame(loop);
+    }
+
+    document.getElementById('toggleRun').addEventListener('click', () => {
+      running = !running;
+      document.getElementById('toggleRun').textContent = running ? 'Pausa träning' : 'Återuppta träning';
+    });
+
+    document.getElementById('resetBtn').addEventListener('click', () => {
+      epsilon = 1.0;
+      totalSteps = 0;
+      targetNet = policyNet.clone();
+      resetGame();
+    });
+
+    // Initiera
+    resetGame();
+    render();
+    requestAnimationFrame(loop);
+  </script>
+</body>
+</html>
