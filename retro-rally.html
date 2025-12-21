@@ -433,8 +433,8 @@
         <h1>Retro Rally Lab</h1>
       </a>
       <div class="nav-links">
-        <a href="index.html">Tillbaka</a>
-        <a href="learn-neat.html">Lär dig NEAT</a>
+        <a href="index.html">Back</a>
+        <a href="learn-neat.html">Learn NEAT</a>
         <a href="foodwars.html">Foodwars Arena</a>
       </div>
     </div>
@@ -457,29 +457,29 @@
                     <strong id="stat-generation">1</strong>
                   </div>
                   <div class="stat-chip">
-                    <span>Levande bilar</span>
+                    <span>Cars alive</span>
                     <strong id="stat-alive">0 / 0</strong>
                   </div>
                 </div>
                 <div class="stat-stack">
                   <div class="stat-chip">
-                    <span>Bästa fitness</span>
+                    <span>Best fitness</span>
                     <strong id="stat-best">0</strong>
                   </div>
                   <div class="stat-chip">
-                    <span>Bästa varv</span>
+                    <span>Best lap</span>
                     <strong id="stat-lap">—</strong>
                   </div>
                 </div>
                 <div class="stat-stack">
-                  <div class="stat-chip">
-                    <span>Tempo</span>
-                    <strong id="stat-speed">1x</strong>
-                  </div>
-                  <div class="stat-chip">
-                    <span>Bana</span>
-                    <strong id="stat-track">Rund</strong>
-                  </div>
+                    <div class="stat-chip">
+                      <span>Pace</span>
+                      <strong id="stat-speed">1x</strong>
+                    </div>
+                    <div class="stat-chip">
+                      <span>Track</span>
+                      <strong id="stat-track">Round</strong>
+                    </div>
                 </div>
               </div>
             </div>
@@ -488,30 +488,30 @@
       </section>
       <aside class="side-panel">
         <div class="panel">
-          <h2>Kontroller</h2>
+          <h2>Controls</h2>
           <div class="grid">
             <div class="control-row">
-              <label for="population-input">Antal bilar</label>
+              <label for="population-input">Car count</label>
               <input type="number" id="population-input" min="8" max="80" step="1" value="40" />
-              <button id="apply-population">Uppdatera population</button>
+              <button id="apply-population">Update population</button>
             </div>
             <div class="control-row">
-              <label for="speed-slider">Sim-hastighet</label>
+              <label for="speed-slider">Sim speed</label>
               <input type="range" id="speed-slider" min="0.5" max="2.5" value="1" step="0.1" />
             </div>
             <div class="control-row">
-              <label for="track-type">Bantyp</label>
+              <label for="track-type">Track type</label>
               <select id="track-type">
-                <option value="round">Rund bana</option>
-                <option value="retro">Retro bana</option>
-                <option value="spiral">Spiral-labyrint</option>
+                <option value="round">Round track</option>
+                <option value="retro">Retro track</option>
+                <option value="spiral">Spiral maze</option>
                 <option value="canyon">Canyon run</option>
                 <option value="hex">Hexagon rush</option>
-                <option value="nebula">Nebula-kaos</option>
+                <option value="nebula">Nebula chaos</option>
               </select>
             </div>
             <div class="control-row">
-              <label for="track-theme">Färgtema</label>
+              <label for="track-theme">Color theme</label>
               <select id="track-theme">
                 <option value="nightfall">Nightfall neon</option>
                 <option value="sunrise">Sunrise synth</option>
@@ -520,11 +520,11 @@
               </select>
             </div>
             <div class="control-row">
-              <label for="track-width">Banbredd</label>
+              <label for="track-width">Track width</label>
               <input type="range" id="track-width" min="70" max="180" value="120" step="5" />
             </div>
             <div class="control-row">
-              <label for="difficulty">Svårighetsgrad</label>
+              <label for="difficulty">Difficulty</label>
               <select id="difficulty">
                 <option value="chill">Chill</option>
                 <option value="normal" selected>Normal</option>
@@ -532,41 +532,41 @@
               </select>
             </div>
             <div class="switch-row">
-              <span>Visa sensorer</span>
+              <span>Show sensors</span>
               <input type="checkbox" id="toggle-sensors" checked />
             </div>
             <div class="control-row">
-              <label for="sensor-count">Sensorer &amp; räckvidd</label>
+              <label for="sensor-count">Sensors &amp; range</label>
               <input type="range" id="sensor-count" min="5" max="12" value="7" />
               <input type="range" id="sensor-length" min="140" max="320" value="220" step="10" />
             </div>
             <div class="switch-row">
-              <span>Frys / fortsätt</span>
-              <button class="secondary" id="pause-btn">Pausa</button>
+              <span>Freeze / resume</span>
+              <button class="secondary" id="pause-btn">Pause</button>
             </div>
             <div class="switch-row">
               <span>Turbo-start</span>
               <input type="checkbox" id="toggle-boost" checked />
             </div>
             <div class="switch-row">
-              <span>Auto-pausa vid generationsskifte</span>
+              <span>Auto-pause on generation change</span>
               <input type="checkbox" id="toggle-autopause" />
             </div>
             <div class="switch-row">
-              <span>Rita spår</span>
+              <span>Draw traces</span>
               <input type="checkbox" id="toggle-trails" checked />
             </div>
             <div class="control-row">
-              <label for="max-gen-time">Generationslängd</label>
+              <label for="max-gen-time">Generation length</label>
               <input type="range" id="max-gen-time" min="60" max="220" step="10" value="120" />
             </div>
-            <button id="new-track">Ny slumpbana</button>
-            <div class="seed-label">Varv registreras när bilen korsar alla checkpoints i följd.</div>
-            <div class="pill note">Tip: kombinera smal bana + Wild för driftiga rallybanor.</div>
+            <button id="new-track">New random track</button>
+            <div class="seed-label">Laps register when the car crosses every checkpoint in sequence.</div>
+            <div class="pill note">Tip: combine a narrow track + Wild for aggressive rally lines.</div>
           </div>
         </div>
         <div class="panel">
-          <h2>Varv-topplista</h2>
+          <h2>Lap leaderboard</h2>
           <div class="leaderboard" id="lap-list"></div>
           <div class="feed" id="event-feed"></div>
         </div>
@@ -574,20 +574,20 @@
           <h2>Session pulse</h2>
           <div class="chip-grid">
             <div class="meta-chip">
-              <span>Högsta toppfart (teoretisk)</span>
+              <span>Highest top speed (theoretical)</span>
               <strong id="stat-maxspeed">5.6</strong>
             </div>
             <div class="meta-chip">
-              <span>Genomsnittlig fitness</span>
+              <span>Average fitness</span>
               <strong id="stat-avg">0</strong>
             </div>
             <div class="meta-chip">
-              <span>Aktivt tema</span>
+              <span>Active theme</span>
               <strong id="stat-theme">Nightfall</strong>
             </div>
           </div>
           <div class="divider"></div>
-          <div class="pill note">Justera sensorer och bredd för att stress-testa neuronen.</div>
+          <div class="pill note">Adjust sensors and width to stress-test the neuron.</div>
         </div>
       </aside>
     </div>
@@ -749,13 +749,13 @@
 
     pauseBtn.addEventListener('click', () => {
       paused = !paused;
-      pauseBtn.textContent = paused ? 'Fortsätt' : 'Pausa';
-      addEvent(paused ? 'Simuleringen är pausad.' : 'Simuleringen kör igen.');
+    pauseBtn.textContent = paused ? 'Resume' : 'Pause';
+    addEvent(paused ? 'Simulation paused.' : 'Simulation resumed.');
     });
 
     toggleBoost.addEventListener('change', () => {
       boostStart = toggleBoost.checked;
-      addEvent(boostStart ? 'Turbo-start aktiv.' : 'Turbo-start avstängd.');
+    addEvent(boostStart ? 'Turbo start enabled.' : 'Turbo start disabled.');
     });
 
     toggleAutopause.addEventListener('change', () => {
@@ -782,7 +782,7 @@
 
     difficultySelect.addEventListener('change', () => {
       applyDifficulty(difficultySelect.value);
-      addEvent(`Svårighet: ${difficultySelect.value.toUpperCase()}.`);
+    addEvent(`Difficulty: ${difficultySelect.value.toUpperCase()}.`);
     });
 
     sensorCountSlider.addEventListener('input', () => {
@@ -794,7 +794,7 @@
 
     sensorLengthSlider.addEventListener('input', () => {
       config.sensorLength = parseInt(sensorLengthSlider.value, 10);
-      addEvent(`Sensorlängd: ${config.sensorLength}.`);
+    addEvent(`Sensor length: ${config.sensorLength}.`);
     });
 
     maxGenTimeSlider.addEventListener('input', () => {
@@ -810,7 +810,7 @@
         hex: 'hexagon rush',
         nebula: 'nebula-kaos'
       };
-      return labels[mode] || 'okänd bana';
+    return labels[mode] || 'unknown track';
     }
 
     function updateSeedLabel() {
@@ -866,7 +866,7 @@
 
     function renderLeaderboard() {
       if (!leaderboard.length) {
-        lapList.innerHTML = '<div class="leader-item">Ingen har satt varvtid ännu.</div>';
+        lapList.innerHTML = '<div class="leader-item">No lap times recorded yet.</div>';
         statLap.textContent = '—';
         return;
       }
@@ -1586,14 +1586,14 @@
     function nextGeneration() {
       const bestScore = cars.reduce((max, car) => Math.max(max, car.fitness), -Infinity);
       if (isFinite(bestScore)) {
-        addEvent(`Generation ${population.generation} klar – bästa fitness ${bestScore.toFixed(1)}.`);
+        addEvent(`Generation ${population.generation} complete – best fitness ${bestScore.toFixed(1)}.`);
       }
       population.evolve();
       startGeneration();
       statBest.textContent = population.bestFitness.toFixed(1);
       if (autoPause) {
         paused = true;
-        pauseBtn.textContent = 'Fortsätt';
+        pauseBtn.textContent = 'Resume';
         addEvent('Auto-paus aktiverad vid generationsskifte.');
       }
     }

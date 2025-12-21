@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="sv">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <title>AI Volleyball - Reinforcement Learning</title>
@@ -85,27 +85,27 @@
 
     <div id="ui">
         <div class="stat-box" style="color:#FF5722">
-            <h3>AI Vänster</h3>
-            <div id="scoreP1">Poäng: 0</div>
-            <div id="epsilonP1">Utforskning: 100%</div>
+            <h3>AI Left</h3>
+            <div id="scoreP1">Score: 0</div>
+            <div id="epsilonP1">Exploration: 100%</div>
         </div>
         
         <div class="control-panel">
             <div class="stat-box">
                 <h3>Status</h3>
-                <div id="episodeCount">Episod: 0</div>
+                <div id="episodeCount">Episode: 0</div>
             </div>
             <label>
                 <input type="checkbox" id="fastForward">
-                Snabbspola (Träning)
+                Fast-forward (Training)
             </label>
-            <button onclick="resetAI()">Nollställ Hjärnor</button>
+            <button onclick="resetAI()">Reset Brains</button>
         </div>
 
         <div class="stat-box" style="color:#4CAF50">
-            <h3>AI Höger</h3>
-            <div id="scoreP2">Poäng: 0</div>
-            <div id="epsilonP2">Utforskning: 100%</div>
+            <h3>AI Right</h3>
+            <div id="scoreP2">Score: 0</div>
+            <div id="epsilonP2">Exploration: 100%</div>
         </div>
     </div>
 
@@ -113,15 +113,15 @@
 
 <script>
 /**
- * ENKELT NEURALT NÄTVERK & DEEP Q-LEARNING BIBLIOTEK (Vanilla JS)
- * Författat för att vara snabbt och fungera i webbläsaren utan externa bibliotek.
+ * SIMPLE NEURAL NETWORK & DEEP Q-LEARNING LIBRARY (Vanilla JS)
+ * Written to be fast and work in the browser without external libraries.
  */
 
-// Hyperparametrar för inlärning
-const LEARNING_RATE = 0.01; // Hur snabbt de anpassar sig
-const DISCOUNT_FACTOR = 0.95; // Hur mycket de bryr sig om framtida belöningar
-const MEMORY_SIZE = 2000; // Hur många "minnen" de sparar
-const BATCH_SIZE = 32; // Hur många minnen de tränar på åt gången
+// Learning hyperparameters
+const LEARNING_RATE = 0.01; // How quickly the agents adapt
+const DISCOUNT_FACTOR = 0.95; // How much they value future rewards
+const MEMORY_SIZE = 2000; // How many "memories" they store
+const BATCH_SIZE = 32; // How many memories they train on at a time
 
 // Aktiveringsfunktioner
 const sigmoid = x => 1 / (1 + Math.exp(-x));
@@ -135,7 +135,7 @@ class NeuralNetwork {
         this.hiddenNodes = hiddenNodes;
         this.outputNodes = outputNodes;
 
-        // Vikter (Slumpmässiga från början)
+        // Weights (randomized from the start)
         this.weightsIH = new Float32Array(this.hiddenNodes * this.inputNodes).map(() => Math.random() * 2 - 1);
         this.weightsHO = new Float32Array(this.outputNodes * this.hiddenNodes).map(() => Math.random() * 2 - 1);
         
@@ -162,14 +162,14 @@ class NeuralNetwork {
             for (let j = 0; j < this.hiddenNodes; j++) {
                 sum += hidden[i] * this.weightsHO[i * this.hiddenNodes + j];
             }
-            output[i] = sum + this.biasO[i]; // Ingen aktivering på sista lagret för Q-värden (Linear)
+            output[i] = sum + this.biasO[i]; // No activation on the final layer for Q-values (linear)
         }
         return output;
     }
 
-    // Enkel Backpropagation (Stokastisk Gradient Descent)
+    // Simple backpropagation (stochastic gradient descent)
     train(inputs, targets) {
-        // Feedforward (samma som predict men vi sparar hidden states)
+        // Feedforward (same as predict but we keep hidden states)
         let hidden = new Float32Array(this.hiddenNodes);
         for (let i = 0; i < this.hiddenNodes; i++) {
             let sum = 0;
@@ -188,13 +188,13 @@ class NeuralNetwork {
             outputs[i] = sum + this.biasO[i];
         }
 
-        // Beräkna output errors
+        // Calculate output errors
         let outputErrors = new Float32Array(this.outputNodes);
         for (let i = 0; i < this.outputNodes; i++) {
             outputErrors[i] = targets[i] - outputs[i];
         }
 
-        // Beräkna hidden gradients
+        // Calculate hidden gradients
         let hiddenErrors = new Float32Array(this.hiddenNodes);
         for (let i = 0; i < this.hiddenNodes; i++) {
             let sum = 0;
@@ -212,7 +212,7 @@ class NeuralNetwork {
             this.biasO[i] += LEARNING_RATE * outputErrors[i];
         }
 
-        // Uppdatera Hidden Weights
+        // Update hidden weights
         for (let i = 0; i < this.hiddenNodes; i++) {
             let gradient = dRelu(hidden[i]) * hiddenErrors[i];
             for (let j = 0; j < this.inputNodes; j++) {
@@ -225,9 +225,9 @@ class NeuralNetwork {
 
 class Agent {
     constructor(isLeft) {
-        this.brain = new NeuralNetwork(6, 16, 3); // Input: 6 (pos, ball), Hidden: 16, Output: 3 (Vänster, Höger, Hopp)
+        this.brain = new NeuralNetwork(6, 16, 3); // Input: 6 (pos, ball), Hidden: 16, Output: 3 (Left, Right, Jump)
         this.memory = [];
-        this.epsilon = 1.0; // Utforskning (100% random i början)
+        this.epsilon = 1.0; // Exploration (100% random at the start)
         this.epsilonDecay = 0.9995;
         this.epsilonMin = 0.05;
         this.isLeft = isLeft;
@@ -239,7 +239,7 @@ class Agent {
             return Math.floor(Math.random() * 3); // 0, 1, 2
         } else {
             let outputs = this.brain.predict(state);
-            // Hitta index för högsta värdet (argmax)
+            // Find index of the highest value (argmax)
             let maxIndex = 0;
             if (outputs[1] > outputs[0]) maxIndex = 1;
             if (outputs[2] > outputs[maxIndex]) maxIndex = 2;
@@ -255,7 +255,7 @@ class Agent {
     replay() {
         if (this.memory.length < BATCH_SIZE) return;
         
-        // Träna på en slumpmässig batch av minnen
+        // Train on a random batch of memories
         for (let i = 0; i < BATCH_SIZE; i++) {
             let idx = Math.floor(Math.random() * this.memory.length);
             let mem = this.memory[idx];
@@ -268,7 +268,7 @@ class Agent {
             }
 
             let currentQs = this.brain.predict(mem.state);
-            // Vi vill bara ändra Q-värdet för den aktion vi tog, mot target
+            // Only adjust the Q-value for the action we took, toward the target
             let targets = Float32Array.from(currentQs);
             targets[mem.action] = target;
 
@@ -304,7 +304,7 @@ const ball = { x: 200, y: 200, vx: 0, vy: 0, r: 15 };
 let agent1 = new Agent(true);
 let agent2 = new Agent(false);
 
-// Tillståndshanterare
+// State manager
 let currentStateP1, currentStateP2;
 let lastActionP1 = 0, lastActionP2 = 0;
 
@@ -320,17 +320,17 @@ function resetBall(winner) {
     // UI Uppdatering
     if (!document.getElementById('fastForward').checked) {
         document.getElementById('episodeCount').innerText = `Episod: ${episodes}`;
-        document.getElementById('scoreP1').innerText = `Poäng: ${p1Score}`;
-        document.getElementById('scoreP2').innerText = `Poäng: ${p2Score}`;
+        document.getElementById('scoreP1').innerText = `Score: ${p1Score}`;
+        document.getElementById('scoreP2').innerText = `Score: ${p2Score}`;
         document.getElementById('epsilonP1').innerText = `Utforskning: ${(agent1.epsilon*100).toFixed(1)}%`;
         document.getElementById('epsilonP2').innerText = `Utforskning: ${(agent2.epsilon*100).toFixed(1)}%`;
     }
 }
 
 function getState(p, opponent, b) {
-    // Normalisera värden mellan -1 och 1 för neurala nätverket
+    // Normalize values between -1 and 1 for the neural network
     return [
-        (p.x - NET_X) / 400, // Relativ position till nät
+        (p.x - NET_X) / 400, // Relative position to the net
         (p.y) / 450,
         (p.vx) / 10,
         (p.vy) / 15,
@@ -344,14 +344,14 @@ function updatePhysics() {
     currentStateP1 = getState(p1, p2, ball);
     lastActionP1 = agent1.act(currentStateP1);
 
-    // Utför Action (0: Stilla, 1: Vänster, 2: Höger, Hoppa om möjligt)
+    // Execute action (0: Stay, 1: Left, 2: Right, jump if possible)
     if (lastActionP1 === 1) p1.vx = -SPEED;
     else if (lastActionP1 === 2) p1.vx = SPEED;
     else p1.vx = 0;
     
-    // Hoppa alltid om AI väljer "Hopp" (action 0 kan vara hoppa också i vissa tolkningar, men låt oss säga att action 0 är "inget/hopp")
-    // För enkelhetens skull i RL: 0=Vänster, 1=Höger, 2=Hopp
-    // Låt oss mappa om:
+    // Always jump if the AI chooses "Jump" (action 0 can also mean jump in some interpretations, but here action 0 is stay/jump)
+    // For simplicity in RL: 0=Left, 1=Right, 2=Jump
+    // Let's remap:
     if (lastActionP1 === 0) p1.vx = -SPEED; 
     if (lastActionP1 === 1) p1.vx = SPEED;
     if (lastActionP1 === 2 && p1.grounded) { p1.vy = JUMP_FORCE; p1.grounded = false; }
@@ -364,11 +364,11 @@ function updatePhysics() {
     if (lastActionP2 === 1) p2.vx = SPEED;
     if (lastActionP2 === 2 && p2.grounded) { p2.vy = JUMP_FORCE; p2.grounded = false; }
 
-    // Applicera fysik på spelare
+    // Apply physics to players
     applyPlayerPhysics(p1);
     applyPlayerPhysics(p2);
 
-    // Begränsa spelare till sin planhalva
+    // Keep players on their half of the court
     if (p1.x > NET_X - p1.r) p1.x = NET_X - p1.r;
     if (p1.x < p1.r) p1.x = p1.r;
     if (p2.x < NET_X + p2.r) p2.x = NET_X + p2.r;
@@ -383,12 +383,12 @@ function updatePhysics() {
     let r1 = checkCollision(p1, ball);
     let r2 = checkCollision(p2, ball);
 
-    // Väggstuds
+    // Wall bounce
     if (ball.x < ball.r) { ball.x = ball.r; ball.vx *= -0.8; }
     if (ball.x > 800 - ball.r) { ball.x = 800 - ball.r; ball.vx *= -0.8; }
     if (ball.y < ball.r) { ball.y = ball.r; ball.vy *= -0.8; }
 
-    // Nätkollision
+    // Net collision
     if (ball.x > NET_X - ball.r && ball.x < NET_X + ball.r && ball.y > 450 - NET_H) {
         // Studsa bort
         if (ball.y < 450 - NET_H + 10) {
@@ -400,21 +400,21 @@ function updatePhysics() {
         }
     }
 
-    /* --- BELÖNING & TRÄNING --- */
-    // Standardbelöning för att överleva (liten)
+    /* --- REWARD & TRAINING --- */
+    // Small survival reward
     let reward1 = 0.01; 
     let reward2 = 0.01;
     let done = false;
 
-    // Belöning för att nudda boll
+    // Reward for touching the ball
     if (r1) reward1 += 0.5;
     if (r2) reward2 += 0.5;
 
-    // Straff för att gå för långt från bollen (Shaping)
+    // Penalty for going too far from the ball (shaping)
     reward1 -= Math.abs(ball.x - p1.x) * 0.0001;
     reward2 -= Math.abs(ball.x - p2.x) * 0.0001;
 
-    // Poäng / Game Over
+    // Scoring / Game Over
     if (ball.y + ball.r > 450) {
         done = true;
         if (ball.x < NET_X) {
@@ -432,7 +432,7 @@ function updatePhysics() {
         }
     }
 
-    // Träna Agenterna
+    // Train the agents
     let nextStateP1 = getState(p1, p2, ball);
     let nextStateP2 = getState(p2, p1, ball);
 
@@ -462,7 +462,7 @@ function checkCollision(p, b) {
     let dist = Math.sqrt(dx*dx + dy*dy);
 
     if (dist < p.r + b.r) {
-        // Vektorlogik för studs
+        // Vector logic for bounces
         let angle = Math.atan2(dy, dx);
         let sin = Math.sin(angle);
         let cos = Math.cos(angle);
@@ -472,7 +472,7 @@ function checkCollision(p, b) {
         b.x += cos * overlap;
         b.y += sin * overlap;
 
-        // Enkel momentumöverföring (Smash-känsla)
+        // Simple momentum transfer (smash feel)
         b.vx = cos * 14 + p.vx * 0.5;
         b.vy = sin * 14 + p.vy * 0.5 - 2; // Extra lyft
         
@@ -482,7 +482,7 @@ function checkCollision(p, b) {
             b.vx = (b.vx/s)*18;
             b.vy = (b.vy/s)*18;
         }
-        return true; // Träff
+        return true; // Hit
     }
     return false;
 }
@@ -499,7 +499,7 @@ function draw() {
     ctx.fillStyle = '#e0e0e0';
     ctx.fillRect(0, 350, 800, 100);
 
-    // Nät
+    // Net
     ctx.fillStyle = '#fff';
     ctx.fillRect(NET_X - 2, 450 - NET_H, 4, NET_H);
 
@@ -524,14 +524,14 @@ function drawSlime(p, agent) {
     ctx.fill();
     ctx.stroke();
     
-    // Ögon
+    // Eyes
     let eyeOff = p === p1 ? 12 : -12;
     ctx.fillStyle = 'white';
     ctx.beginPath();
     ctx.arc(p.x + eyeOff, p.y - 20, 10, 0, Math.PI*2);
     ctx.fill();
     
-    // Pupill (Tittar på bollen)
+    // Pupil (looks at the ball)
     let dx = ball.x - (p.x + eyeOff);
     let dy = ball.y - (p.y - 20);
     let angle = Math.atan2(dy, dx);
@@ -552,7 +552,7 @@ function drawSlime(p, agent) {
 function loop() {
     const fastForward = document.getElementById('fastForward').checked;
     
-    // Om snabbspolning är på, kör vi fysikloopen många gånger per frame
+    // If fast-forward is on, run the physics loop many times per frame
     const loops = fastForward ? 100 : 1;
 
     for(let i=0; i<loops; i++) {
