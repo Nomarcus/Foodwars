@@ -218,6 +218,10 @@
       <div class="legend-item"><span class="legend-dot" style="color:#00eaff"></span>Problem</div>
     </div>
     <div class="mini-callouts">
+      <div class="callout"><strong>Snabb guide:</strong> Plocka en biljett, kör mot zonen med samma färg, undvik fel ring.</div>
+      <div class="callout">Håll agenterna i rörelse. Om det står still: höj hastigheten eller energin och tryck Restart.</div>
+    </div>
+    <div class="mini-callouts">
       <div class="callout">Exploration spikes surface new routes. <strong>Keep epsilon dynamic.</strong></div>
       <div class="callout">Gamma anchors long-term credit. <strong>Watch Q-score stability.</strong></div>
     </div>
@@ -263,8 +267,8 @@
     <h2>RL/Policy Parameters</h2>
     
     <div class="control-group">
-      <label title="Hur snabbt nätverkets vikter uppdateras">Learning Rate (Alpha): <span id="valAlpha">0.05</span></label>
-      <input type="range" id="slAlpha" min="1" max="100" value="5" step="1">
+      <label title="Hur snabbt nätverkets vikter uppdateras">Learning Rate (Alpha): <span id="valAlpha">0.010</span></label>
+      <input type="range" id="slAlpha" min="1" max="100" value="10" step="1">
     </div>
 
     <div class="control-group">
@@ -273,8 +277,8 @@
     </div>
     
     <div class="control-group">
-        <label title="Andelen slumpmässiga drag för utforskning">Exploration Rate (Epsilon): <span id="valEpsilon">10%</span></label>
-        <input type="range" id="slEpsilon" min="0" max="50" value="10" step="1">
+        <label title="Andelen slumpmässiga drag för utforskning">Exploration Rate (Epsilon): <span id="valEpsilon">15%</span></label>
+        <input type="range" id="slEpsilon" min="0" max="50" value="15" step="1">
     </div>
     
     <div class="control-group">
@@ -310,8 +314,8 @@
       <label class="checkbox-row"><input type="checkbox" id="chkParticles" checked> Show Particles (Feedback)</label>
       <label class="checkbox-row"><input type="checkbox" id="chkTrail"> Show Best Agent Trail</label>
       <div class="pulse-grid" style="margin-top:10px;">
-        <div class="pulse-row"><span class="pulse-label">Exploration (ε)</span><div class="pulse-bar"><span id="barEpsilon"></span></div><span class="pulse-value" id="valEpsilonPulse">10%</span></div>
-        <div class="pulse-row"><span class="pulse-label">Learning Rate (α)</span><div class="pulse-bar"><span id="barAlpha"></span></div><span class="pulse-value" id="valAlphaPulse">0.005</span></div>
+        <div class="pulse-row"><span class="pulse-label">Exploration (ε)</span><div class="pulse-bar"><span id="barEpsilon"></span></div><span class="pulse-value" id="valEpsilonPulse">15%</span></div>
+        <div class="pulse-row"><span class="pulse-label">Learning Rate (α)</span><div class="pulse-bar"><span id="barAlpha"></span></div><span class="pulse-value" id="valAlphaPulse">0.010</span></div>
         <div class="pulse-row"><span class="pulse-label">Discount (γ)</span><div class="pulse-bar"><span id="barGamma"></span></div><span class="pulse-value" id="valGammaPulse">0.90</span></div>
       </div>
   </div>
@@ -341,9 +345,9 @@
 // --- CONFIGURATION OBJECT (Mutable) ---
 const CFG = {
   popSize: 40,
-  RL_ALPHA: 0.005, // Learning Rate
+  RL_ALPHA: 0.01, // Learning Rate
   RL_GAMMA: 0.90,  // Discount Factor
-  RL_EPSILON: 0.1, // Exploration Rate
+  RL_EPSILON: 0.15, // Exploration Rate
   
   ticketCount: 15,
   sensorRange: 180, 
@@ -956,15 +960,28 @@ class Agent {
     if(mouse.dragAgent === this || mouse.dragNest || mouse.dragZone) return; 
 
     const prevState = this.getState();
+    let prevProgressDist = null;
     
     // --- Policy Prediction & Exploration (Epsilon-Greedy) ---
     let policyOutputs;
     let hiddens;
     let reward = 0;
 
-    const targetPheromone = this.carrying ? this.carrying.def.id : 'food'; 
+    const targetPheromone = this.carrying ? this.carrying.def.id : 'food';
     const targetGrad = senseGrad(targetPheromone, this.x, this.y);
     const foodGrad = senseGrad('food', this.x, this.y);
+
+    if(this.carrying) {
+        const targetZone = getZones().find(z => z.id === this.carrying.def.id);
+        if(targetZone) prevProgressDist = dist(this.x, this.y, targetZone.x, targetZone.y);
+    } else {
+        let closestTicket = Infinity;
+        tickets.forEach(t => {
+            if(t.x < 0) return;
+            closestTicket = Math.min(closestTicket, dist(this.x, this.y, t.x, t.y));
+        });
+        prevProgressDist = closestTicket;
+    }
 
     if (Math.random() < CFG.RL_EPSILON) {
         // Exploration: Random Action
@@ -988,8 +1005,28 @@ class Agent {
     const postX = this.x, postY = this.y;
     
     // --- Calculate Reward ($R_t$) ---
-    const movementReward = dist(prevX, prevY, postX, postY) * 0.15; 
-    reward += movementReward; 
+    const movementReward = dist(prevX, prevY, postX, postY) * 0.15;
+    reward += movementReward;
+
+    // Dense shaping: reward moving toward target ticket/zone
+    if(Number.isFinite(prevProgressDist)) {
+        let newProgressDist = prevProgressDist;
+        if(this.carrying) {
+            const targetZone = getZones().find(z => z.id === this.carrying.def.id);
+            if(targetZone) newProgressDist = dist(this.x, this.y, targetZone.x, targetZone.y);
+        } else {
+            let closestTicket = Infinity;
+            tickets.forEach(t => {
+                if(t.x < 0) return;
+                closestTicket = Math.min(closestTicket, dist(this.x, this.y, t.x, t.y));
+            });
+            newProgressDist = closestTicket;
+        }
+
+        const progressDelta = (prevProgressDist - newProgressDist) || 0;
+        const progressBoost = this.carrying ? 0.6 : 0.35;
+        reward += progressDelta * progressBoost;
+    }
     
     // Bounds (Wall Bounce)
     if(this.x < this.r || this.x > W-this.r || this.y < this.r || this.y > H-this.r) {
