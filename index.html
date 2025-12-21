@@ -5,12 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Foodwars Machine Learning Lab</title>
   <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;600;700&display=swap');
     :root {
-      --bg1: #050516;
-      --bg2: #0f1536;
-      --bg3: #182041;
-      --ink: #f5f7ff;
-      --muted: #a0accf;
+      --bg1: #040814;
+      --bg2: #0a1028;
+      --bg3: #0f1536;
+      --ink: #f8fbff;
+      --muted: #a7b4d6;
       --accent: #38bdf8;
       --accent-2: #f472b6;
       --accent-3: #a855f7;
@@ -26,11 +27,12 @@
     body {
       margin: 0;
       min-height: 100vh;
-      font-family: "Inter", system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
-      background: radial-gradient(circle at 20% -8%, rgba(56, 189, 248, 0.22), transparent 48%),
-                  radial-gradient(circle at 84% 6%, rgba(244, 114, 182, 0.18), transparent 56%),
-                  radial-gradient(circle at 12% 78%, rgba(120, 242, 157, 0.14), transparent 60%),
-                  linear-gradient(160deg, var(--bg1) 0%, var(--bg2) 50%, var(--bg3) 100%);
+      font-family: "Inter", "Space Grotesk", system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+      background:
+        radial-gradient(circle at 15% 10%, rgba(56, 189, 248, 0.2), transparent 35%),
+        radial-gradient(circle at 80% 12%, rgba(168, 85, 247, 0.18), transparent 40%),
+        radial-gradient(circle at 50% 80%, rgba(124, 242, 157, 0.12), transparent 42%),
+        linear-gradient(160deg, var(--bg1) 0%, var(--bg2) 48%, var(--bg3) 100%);
       color: var(--ink);
       display: flex;
       flex-direction: column;
@@ -40,7 +42,7 @@
       top: 0;
       z-index: 100;
       backdrop-filter: blur(18px);
-      background: linear-gradient(120deg, rgba(8, 11, 29, 0.92) 0%, rgba(20, 12, 45, 0.7) 55%, rgba(37, 20, 89, 0.32) 100%);
+      background: linear-gradient(120deg, rgba(6, 10, 29, 0.92) 0%, rgba(14, 9, 40, 0.8) 55%, rgba(26, 14, 70, 0.4) 100%);
       border-bottom: 1px solid var(--border);
     }
     .nav {
@@ -57,27 +59,29 @@
       gap: 14px;
       text-decoration: none;
       color: inherit;
-      padding: 8px 12px;
-      border-radius: 999px;
-      background: linear-gradient(130deg, rgba(96, 213, 255, 0.18), rgba(168, 85, 247, 0.12));
-      border: 1px solid rgba(96, 213, 255, 0.16);
+      padding: 10px 14px;
+      border-radius: 16px;
+      background: linear-gradient(130deg, rgba(96, 213, 255, 0.2), rgba(168, 85, 247, 0.14));
+      border: 1px solid rgba(96, 213, 255, 0.2);
+      box-shadow: 0 10px 30px rgba(56, 189, 248, 0.12);
     }
     .brand-icon {
-      width: 44px;
-      height: 44px;
-      border-radius: 14px;
-      background: linear-gradient(140deg, rgba(96, 213, 255, 0.55), rgba(168, 85, 247, 0.65));
+      width: 48px;
+      height: 48px;
+      border-radius: 16px;
+      background: linear-gradient(140deg, rgba(96, 213, 255, 0.65), rgba(168, 85, 247, 0.7));
       display: grid;
       place-items: center;
       font-size: 20px;
-      font-weight: 600;
-      box-shadow: 0 20px 40px rgba(56, 189, 248, 0.15);
+      font-weight: 700;
+      box-shadow: 0 20px 40px rgba(56, 189, 248, 0.18);
     }
     .brand h1 {
       margin: 0;
       font-size: clamp(1.1rem, 2.2vw, 1.6rem);
-      font-weight: 600;
+      font-weight: 700;
       letter-spacing: 0.02em;
+      font-family: "Space Grotesk", "Inter", sans-serif;
     }
     .nav-links {
       display: flex;
@@ -90,35 +94,63 @@
       text-decoration: none;
       padding: 10px 18px;
       border-radius: 999px;
-      background: rgba(16, 22, 54, 0.4);
-      border: 1px solid rgba(96, 213, 255, 0.2);
-      box-shadow: 0 12px 28px rgba(15, 23, 75, 0.28);
+      background: rgba(16, 22, 54, 0.45);
+      border: 1px solid rgba(96, 213, 255, 0.24);
+      box-shadow: 0 12px 28px rgba(15, 23, 75, 0.32);
       transition: transform 0.3s ease, background 0.3s ease, border-color 0.3s ease;
     }
     .nav-links a:hover {
-      background: linear-gradient(130deg, rgba(96, 213, 255, 0.3), rgba(168, 85, 247, 0.25));
-      border-color: rgba(168, 85, 247, 0.4);
+      background: linear-gradient(130deg, rgba(96, 213, 255, 0.32), rgba(168, 85, 247, 0.28));
+      border-color: rgba(168, 85, 247, 0.45);
       transform: translateY(-2px);
     }
     main {
       flex: 1;
     }
     .hero {
-      max-width: 1100px;
+      position: relative;
+      max-width: 1200px;
       margin: 88px auto 64px;
       padding: 0 32px;
     }
+    .hero::before,
+    .hero::after {
+      content: "";
+      position: absolute;
+      border-radius: 50%;
+      filter: blur(70px);
+      opacity: 0.7;
+      z-index: -1;
+    }
+    .hero::before {
+      width: 420px;
+      height: 420px;
+      background: rgba(56, 189, 248, 0.16);
+      top: -40px;
+      left: -120px;
+    }
+    .hero::after {
+      width: 360px;
+      height: 360px;
+      background: rgba(168, 85, 247, 0.18);
+      bottom: -60px;
+      right: -90px;
+    }
     .hero-inner {
       display: grid;
-      grid-template-columns: minmax(0, 1fr);
-      justify-items: center;
-      text-align: center;
-      gap: 32px;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 36px;
+      align-items: center;
+    }
+    .hero-copy {
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
     }
     .hero-visual {
       position: relative;
-      width: min(960px, 90vw);
-      margin: 0;
+      width: min(620px, 90vw);
+      margin: 0 auto;
       border-radius: 28px;
       padding: 16px;
       background: radial-gradient(circle at 20% 20%, rgba(255, 255, 255, 0.08), rgba(96, 213, 255, 0.05));
@@ -143,8 +175,9 @@
       border: 2px solid rgba(232, 239, 255, 0.8);
     }
     .hero-badge-title {
+      align-self: flex-start;
       font-size: clamp(0.85rem, 1vw, 1rem);
-      letter-spacing: 0.36em;
+      letter-spacing: 0.22em;
       text-transform: uppercase;
       color: var(--muted);
       display: inline-flex;
@@ -152,8 +185,8 @@
       gap: 12px;
       padding: 10px 18px;
       border-radius: 999px;
-      background: rgba(148, 163, 209, 0.1);
-      border: 1px solid rgba(148, 163, 209, 0.28);
+      background: rgba(148, 163, 209, 0.12);
+      border: 1px solid rgba(148, 163, 209, 0.32);
       backdrop-filter: blur(12px);
     }
     .hero-badge-title::before,
@@ -168,12 +201,13 @@
     }
     .hero-title {
       margin: 0;
-      font-size: clamp(2.5rem, 6vw, 3.6rem);
+      font-size: clamp(2.6rem, 6vw, 3.9rem);
       line-height: 1.05;
+      font-family: "Space Grotesk", "Inter", sans-serif;
     }
     .hero-description {
-      max-width: 720px;
-      margin: 0 auto;
+      max-width: 640px;
+      margin: 0;
       color: var(--muted);
       font-size: 1.08rem;
       line-height: 1.75;
@@ -181,43 +215,92 @@
     .hero-list {
       display: flex;
       flex-wrap: wrap;
-      justify-content: center;
-      gap: 16px;
+      gap: 12px;
       padding: 0;
-      margin: 12px 0 32px;
+      margin: 6px 0 8px;
       list-style: none;
       color: var(--ink);
     }
     .hero-list li {
       padding: 10px 18px;
-      border-radius: 999px;
-      background: rgba(96, 213, 255, 0.18);
+      border-radius: 12px;
+      background: rgba(96, 213, 255, 0.14);
       border: 1px solid rgba(96, 213, 255, 0.28);
       font-weight: 600;
       letter-spacing: 0.04em;
       text-transform: uppercase;
       font-size: 0.85rem;
     }
+    .cta-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: center;
+      margin: 8px 0 4px;
+    }
     .hero-cta {
       display: inline-flex;
       align-items: center;
       justify-content: center;
       gap: 12px;
-      padding: 16px 30px;
-      border-radius: 999px;
-      font-weight: 600;
+      padding: 16px 28px;
+      border-radius: 14px;
+      font-weight: 700;
       text-decoration: none;
-      background: linear-gradient(135deg, rgba(255, 139, 61, 0.95), rgba(255, 176, 102, 0.9));
+      background: linear-gradient(135deg, rgba(255, 139, 61, 0.98), rgba(255, 176, 102, 0.95));
       color: #0b0d1f;
       box-shadow: 0 20px 48px rgba(255, 139, 61, 0.4);
-      transition: transform 0.3s ease, box-shadow 0.3s ease;
+      transition: transform 0.3s ease, box-shadow 0.3s ease, filter 0.3s ease;
     }
     .hero-cta:hover {
       transform: translateY(-3px);
       box-shadow: 0 24px 56px rgba(255, 139, 61, 0.48);
+      filter: brightness(1.05);
+    }
+    .hero-ghost {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 14px 22px;
+      border-radius: 14px;
+      text-decoration: none;
+      font-weight: 600;
+      color: var(--ink);
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(148, 163, 209, 0.35);
+      backdrop-filter: blur(10px);
+      transition: transform 0.3s ease, border-color 0.3s ease, background 0.3s ease;
+    }
+    .hero-ghost:hover {
+      transform: translateY(-3px);
+      background: rgba(255, 255, 255, 0.1);
+      border-color: rgba(96, 213, 255, 0.45);
+    }
+    .hero-stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 12px;
+      margin-top: 8px;
+    }
+    .hero-stat-card {
+      padding: 14px 16px;
+      border-radius: 14px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(148, 163, 209, 0.22);
+      box-shadow: 0 15px 45px rgba(10, 15, 38, 0.4);
+    }
+    .hero-stat-card strong {
+      display: block;
+      font-size: 1.2rem;
+      margin-bottom: 4px;
+      color: #fff;
+    }
+    .hero-stat-card span {
+      color: var(--muted);
+      font-size: 0.95rem;
     }
     .section-heading {
-      max-width: 760px;
+      max-width: 860px;
       margin: 0 auto;
       padding: 0 32px;
       display: flex;
@@ -227,14 +310,16 @@
       gap: 16px;
     }
     .section-heading h3 {
-      font-size: clamp(1.9rem, 4vw, 2.5rem);
+      font-size: clamp(2rem, 4vw, 2.6rem);
       margin: 0;
+      font-family: "Space Grotesk", "Inter", sans-serif;
     }
     .section-heading p {
       margin: 0;
       color: var(--muted);
-      max-width: 520px;
+      max-width: 620px;
       line-height: 1.7;
+      font-size: 1.02rem;
     }
     .card-grid {
       max-width: 1200px;
@@ -242,19 +327,19 @@
       padding: 0 32px;
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-      gap: 32px;
+      gap: 28px;
     }
     .card {
       position: relative;
-      border-radius: 22px;
-      padding: 30px;
-      background: linear-gradient(160deg, rgba(220, 231, 255, 0.18), rgba(148, 163, 209, 0.08));
-      border: 1px solid rgba(255, 255, 255, 0.22);
+      border-radius: 24px;
+      padding: 28px;
+      background: linear-gradient(160deg, rgba(220, 231, 255, 0.16), rgba(148, 163, 209, 0.08));
+      border: 1px solid rgba(255, 255, 255, 0.2);
       box-shadow: 0 25px 70px rgba(15, 20, 45, 0.45), inset 0 0 0 1px rgba(96, 213, 255, 0.18);
       transition: transform 0.35s ease, box-shadow 0.35s ease, border-color 0.35s ease;
       display: flex;
       flex-direction: column;
-      gap: 18px;
+      gap: 14px;
       overflow: hidden;
     }
     .card::before {
@@ -281,6 +366,7 @@
     .card h4 {
       margin: 0;
       font-size: 1.35rem;
+      font-family: "Space Grotesk", "Inter", sans-serif;
     }
     .card p {
       margin: 0;
@@ -290,19 +376,31 @@
     }
     .card a {
       align-self: flex-start;
-      padding: 10px 18px;
-      border-radius: 999px;
-      background: rgba(5, 8, 26, 0.55);
+      padding: 12px 18px;
+      border-radius: 12px;
+      background: rgba(5, 8, 26, 0.62);
       color: var(--ink);
       text-decoration: none;
       border: 1px solid rgba(96, 213, 255, 0.35);
-      font-weight: 600;
+      font-weight: 700;
       transition: background 0.3s ease, transform 0.3s ease, border-color 0.3s ease;
     }
     .card a:hover {
-      background: rgba(12, 18, 46, 0.85);
+      background: rgba(12, 18, 46, 0.9);
       border-color: rgba(168, 85, 247, 0.45);
       transform: translateY(-3px);
+    }
+    .card-tag {
+      align-self: flex-start;
+      padding: 8px 12px;
+      border-radius: 12px;
+      background: rgba(56, 189, 248, 0.16);
+      color: #e7f7ff;
+      border: 1px solid rgba(56, 189, 248, 0.32);
+      font-size: 0.85rem;
+      font-weight: 700;
+      letter-spacing: 0.03em;
+      z-index: 1;
     }
     footer {
       border-top: 1px solid var(--border);
@@ -364,16 +462,35 @@
   <main>
     <section class="hero">
       <div class="hero-inner">
-        <span class="hero-badge-title">Choose your journey</span>
-        <h2 class="hero-title">Explore, train, and understand machine learning and reinforcement learning.</h2>
-        <p class="hero-description">Foodwars Machine Learning Lab is created to guide you through practical experiments in ML and RL. Here, you'll see how agents think, how models are shaped, and how you can train various AI systems in interactive simulations. Each experience is designed to provide both insight and inspiration</p>
-        <ul class="hero-list">
-          <li>Reinforcement Learning</li>
-          <li>Neuroevolution</li>
-          <li>Interactive simulations</li>
-          <li>Build your own AI training lab</li>
-        </ul>
-        <a class="hero-cta" href="#experiments">Explore simulations →</a>
+        <div class="hero-copy">
+          <span class="hero-badge-title">Choose your journey</span>
+          <h2 class="hero-title">Explore, train, and understand machine learning and reinforcement learning.</h2>
+          <p class="hero-description">Foodwars Machine Learning Lab guides you through hands-on experiments in ML and RL. See how agents think, how models are shaped, and how you can train AI systems through interactive simulations crafted for clarity and curiosity.</p>
+          <ul class="hero-list">
+            <li>Reinforcement Learning</li>
+            <li>Neuroevolution</li>
+            <li>Interactive simulations</li>
+            <li>Build your own AI training lab</li>
+          </ul>
+          <div class="cta-row">
+            <a class="hero-cta" href="#experiments">Utforska simuleringar →</a>
+            <a class="hero-ghost" href="https://github.com/" target="_blank" rel="noreferrer">Visa koden</a>
+          </div>
+          <div class="hero-stats">
+            <div class="hero-stat-card">
+              <strong>8+</strong>
+              <span>Interaktiva demo-upplevelser</span>
+            </div>
+            <div class="hero-stat-card">
+              <strong>Live</strong>
+              <span>Träning av RL &amp; NEAT-agenter</span>
+            </div>
+            <div class="hero-stat-card">
+              <strong>Guidat</strong>
+              <span>Pedagogiska flöden och UI</span>
+            </div>
+          </div>
+        </div>
         <figure class="hero-visual">
           <img src="assets/network-glow.svg" alt="Two luminous neural constellations linked across a starry interface" loading="lazy">
         </figure>
@@ -387,44 +504,46 @@
       </div>
       <div class="card-grid">
         <article class="card">
+          <span class="card-tag">Neuroevolution</span>
           <h4>BallLab</h4>
           <p>Let the NEAT algorithm evolve bouncing agents that juggle spheres inside a neon-lit laboratory.</p>
           <a href="balllab.html">Launch BallLab</a>
         </article>
         <article class="card">
+          <span class="card-tag">Multi-agent</span>
           <h4>Foodwars Arena</h4>
           <p>Watch collective intelligence emerge as agent teams gather fruit, defend territory, and optimise their tactics.</p>
           <a href="foodwars.html">Enter Foodwars Arena</a>
         </article>
         <article class="card">
+          <span class="card-tag">Automation</span>
           <h4>Data Sorting Demo</h4>
           <p>See NEAT-powered worms spawn from a nest, haul paper tickets, and learn to route Incidents, Service Requests, and Problems to the right destinations.</p>
           <a href="foodwars_data_sorting.html">Open Data Sorting</a>
         </article>
         <article class="card">
+          <span class="card-tag">Racing</span>
           <h4>Retro Rally Lab</h4>
           <p>Evolve neon RC racers with NEAT as they chase faster lap times on procedurally generated circuits.</p>
           <a href="retro-rally.html">Race Retro Rally</a>
         </article>
         <article class="card">
+          <span class="card-tag">Co-op play</span>
           <h4>Vollyball Showdown</h4>
           <p>Train cooperative teams to keep rallies alive in a fast-paced arcade court tailored for evolutionary play.</p>
           <a href="Vollyball.html">Open Vollyball lab</a>
         </article>
         <article class="card">
+          <span class="card-tag">Reinforcement Learning</span>
           <h4>Volleyball RL</h4>
           <p>Enter a focused training mode where neural networks learn volleyball through reinforcement learning.</p>
           <a href="volleyball-rl.html">Start Volleyball RL</a>
         </article>
         <article class="card">
+          <span class="card-tag">Classic AI</span>
           <h4>Snake AI</h4>
           <p>Watch classic Snake mastered by an evolutionary agent that refines strategy with every run.</p>
           <a href="https://nomarcus.github.io/SnakeAI/" target="_blank" rel="noreferrer">Open Snake AI</a>
-        </article>
-        <article class="card">
-          <h4>Snake Machine Learning</h4>
-          <p>Step through a detailed walkthrough of training approaches that teach Snake agents to thrive.</p>
-          <a href="snake-ml.html">Open Snake ML (lokalt)</a>
         </article>
       </div>
     </section>
