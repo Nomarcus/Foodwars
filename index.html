@@ -118,8 +118,8 @@
       margin: 64px auto 48px;
       padding: 0 22px;
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-      gap: 32px;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 36px;
       align-items: center;
     }
 
@@ -245,13 +245,14 @@
     .visual {
       background: linear-gradient(165deg, rgba(18, 23, 51, 0.95), rgba(10, 14, 33, 0.92));
       border-radius: var(--radius);
-      padding: 24px;
+      padding: 32px;
       border: 1px solid var(--stroke);
       box-shadow: var(--shadow);
       display: grid;
-      gap: 14px;
+      gap: 16px;
       position: relative;
       overflow: hidden;
+      min-height: 420px;
     }
 
     .visual::before {
@@ -263,26 +264,27 @@
       pointer-events: none;
     }
 
-    .visual strong { font-size: 1.05rem; letter-spacing: -0.01em; }
+    .visual strong { font-size: 1.08rem; letter-spacing: -0.01em; }
     .visual p { margin: 0; color: var(--muted); }
 
     .visual img {
       width: 100%;
-      border-radius: 12px;
+      border-radius: 14px;
       border: 1px solid var(--stroke);
       background: rgba(255, 255, 255, 0.02);
+      min-height: 260px;
+      object-fit: cover;
     }
 
     .section {
       max-width: 1100px;
       margin: 0 auto;
-      padding: 0 22px 80px;
+      padding: 0 22px 64px;
       display: grid;
-      gap: 28px;
+      gap: 24px;
     }
 
     .section h2 { margin: 0; font-size: 1.6rem; letter-spacing: -0.01em; }
-    .section p { margin: 0; color: var(--muted); }
 
     .section-header { display: flex; flex-direction: column; gap: 8px; max-width: 760px; }
 
@@ -303,6 +305,7 @@
       transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
       position: relative;
       overflow: hidden;
+      min-height: 140px;
     }
 
     .card::after {
@@ -332,7 +335,6 @@
     }
 
     .card h3 { margin: 0; font-size: 1.2rem; letter-spacing: -0.01em; }
-    .card p { margin: 0; color: var(--muted); font-size: 0.98rem; }
 
     .card a {
       text-decoration: none;
@@ -363,28 +365,26 @@
 </head>
 <body>
   <header>
-    <nav class="nav">
-      <a class="brand" href="#top">
-        <span class="brand-mark">ML</span>
-        <span class="brand-title">
-          <strong>Machine Learning Lab</strong>
-          <span>Interactive simulations</span>
-        </span>
-      </a>
-      <div class="nav-links">
-        <a href="#experiments">Experiments</a>
-        <a href="#om">About the lab</a>
-        <a href="https://github.com/Nomarcus/Foodwars" target="_blank" rel="noreferrer">GitHub</a>
-      </div>
-    </nav>
-  </header>
+      <nav class="nav">
+        <a class="brand" href="#top">
+          <span class="brand-mark">ML</span>
+          <span class="brand-title">
+            <strong>Machine Learning Lab</strong>
+            <span>Interactive simulations</span>
+          </span>
+        </a>
+        <div class="nav-links">
+          <a href="#experiments">Experiments</a>
+          <a href="https://github.com/Nomarcus/Foodwars" target="_blank" rel="noreferrer">GitHub</a>
+        </div>
+      </nav>
+    </header>
 
   <main id="top">
     <section class="hero">
       <div class="hero-card">
         <span class="pill">New release</span>
         <h1>Machine Learning HUB</h1>
-        <p></p
         <div class="hero-actions">
           <a class="btn btn-primary" href="#experiments">Explore simulations</a>
           <a class="btn btn-ghost" href="https://github.com/Nomarcus/Foodwars" target="_blank" rel="noreferrer">View the code</a>
@@ -412,69 +412,55 @@
       </div>
       <div class="visual">
         <strong>Visual preview</strong>
-        <p></p>
+        <p>Open a simulation to see the live visuals and controls.</p>
         <img src="assets/network-glow.svg" alt="Minimalistic illustration of connected neural networks" loading="lazy">
       </div>
     </section>
 
-    <section id="experiments" class="section">
-      <div class="section-header">
-        <h2>Simulations & experiences</h2>
-        <p>Choose simulation</p>
-      </div>
-      <div class="cards">
-        <article class="card">
-          <span class="tag">Neuroevolution</span>
-          <h3>BallLab</h3>
-          <p>Evolve bouncing balls with NEAT and see behaviors refine over generations.</p>
-          <a href="balllab.html">Launch BallLab</a>
-        </article>
-        <article class="card">
-          <span class="tag">Multi-agent</span>
-          <h3>Foodwars Arena</h3>
-          <p>Let teams gather fruit, defend territory, and improve tactics in real time.</p>
-          <a href="foodwars.html">Open Foodwars</a>
-        </article>
-        <article class="card">
-          <span class="tag">Automation</span>
-          <h3>Data Sorting</h3>
-          <p>Machine-learning “worms” that sort tickets smarter every round.</p>
-          <a href="foodwars_data_sorting.html">Try Data Sorting</a>
-        </article>
-        <article class="card">
-          <span class="tag">Racing</span>
-          <h3>Retro Rally</h3>
-          <p>Grow neon race cars with NEAT and chase faster lap times.</p>
-          <a href="retro-rally.html">Drive Retro Rally</a>
-        </article>
-        <article class="card">
-          <span class="tag">Co-op</span>
-          <h3>Vollyball Showdown</h3>
-          <p>Train cooperative agents for long volley rallies.</p>
-          <a href="Vollyball.html">Open Vollyball</a>
-        </article>
-        <article class="card">
-          <span class="tag">Klassiker</span>
-          <h3>Snake AI</h3>
-          <p>An evolutionary agent masters classic Snake step by step.</p>
-          <a href="https://nomarcus.github.io/SnakeAI/" target="_blank" rel="noreferrer">Launch Snake AI</a>
-        </article>
-      </div>
-    </section>
-
-    <section id="om" class="section">
-      <div class="section-header">
-        <h2>About the lab</h2>
-        <p>Machine Learning Lab</p>
-      </div>
-    </section>
+      <section id="experiments" class="section">
+        <div class="section-header">
+          <h2>Simulations & experiences</h2>
+        </div>
+        <div class="cards">
+          <article class="card">
+            <span class="tag">Neuroevolution</span>
+            <h3>BallLab</h3>
+            <a href="balllab.html">Launch BallLab</a>
+          </article>
+          <article class="card">
+            <span class="tag">Multi-agent</span>
+            <h3>Foodwars Arena</h3>
+            <a href="foodwars.html">Open Foodwars</a>
+          </article>
+          <article class="card">
+            <span class="tag">Automation</span>
+            <h3>Data Sorting</h3>
+            <a href="foodwars_data_sorting.html">Try Data Sorting</a>
+          </article>
+          <article class="card">
+            <span class="tag">Racing</span>
+            <h3>Retro Rally</h3>
+            <a href="retro-rally.html">Drive Retro Rally</a>
+          </article>
+          <article class="card">
+            <span class="tag">Co-op</span>
+            <h3>Vollyball Showdown</h3>
+            <a href="Vollyball.html">Open Vollyball</a>
+          </article>
+          <article class="card">
+            <span class="tag">Klassiker</span>
+            <h3>Snake AI</h3>
+            <a href="https://nomarcus.github.io/SnakeAI/" target="_blank" rel="noreferrer">Launch Snake AI</a>
+          </article>
+        </div>
+      </section>
   </main>
 
-  <footer>
-    <div class="inner">
-      <div>© 2025 Machine Learning Lab. Created by Marcus Petersson (Nomarcus@hotmail.com) for curious builders who want to experiment with ML.</div>
-      <div>Start a simulation above and follow the clear controls to explore the behavior. View the full source on <a href="https://github.com/Nomarcus/Foodwars" target="_blank" rel="noreferrer">GitHub</a>.</div>
-    </div>
-  </footer>
-</body>
+    <footer>
+      <div class="inner">
+        <div>© 2025 Machine Learning Lab — Marcus Petersson.</div>
+        <div><a href="https://github.com/Nomarcus/Foodwars" target="_blank" rel="noreferrer">GitHub</a></div>
+      </div>
+    </footer>
+  </body>
 </html>
