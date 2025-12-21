@@ -1227,25 +1227,25 @@ footer{
     </div>
     <div class="field block curriculum-field">
       <div class="curriculum-toggle">
-        <label class="toggle" for="curriculumToggle" title="Tränar masken i längre former för att förbättra sen-spel-beteende.">
+        <label class="toggle" for="curriculumToggle" title="Trains the snake in longer shapes to improve late-game behavior.">
           <input type="checkbox" id="curriculumToggle">
-          <span>Aktivera Late-Game Curriculum</span>
+          <span>Enable Late-Game Curriculum</span>
         </label>
       </div>
       <div class="curriculum-controls">
-        <label for="curriculumLength">Startlängd</label>
+        <label for="curriculumLength">Starting length</label>
         <input type="range" id="curriculumLength" min="1" max="200" step="1" value="3">
         <span class="mono" id="curriculumLengthReadout">3</span>
-        <label for="startPattern">Startmönster</label>
+        <label for="startPattern">Starting pattern</label>
         <select id="startPattern">
-          <option value="line" selected>I rad (standard)</option>
-          <option value="block">Kub (2×2)</option>
-          <option value="edge">Vid kanten</option>
-          <option value="spiral">Spiral inåt</option>
-          <option value="random">Slumpa varje gång</option>
+          <option value="line" selected>In line (default)</option>
+          <option value="block">Cube (2×2)</option>
+          <option value="edge">At the edge</option>
+          <option value="spiral">Spiral inward</option>
+          <option value="random">Random each run</option>
         </select>
       </div>
-      <span class="hint">Ställer in startlängden; med curriculum aktiverat används längre startformer genom hela körningen.</span>
+      <span class="hint">Sets the starting length; with the curriculum enabled longer start shapes are used throughout the run.</span>
     </div>
     <div class="field block auto-ppo-field hidden" id="autoPpoField">
       <label class="toggle" for="autoPpoToggle">
@@ -1272,24 +1272,24 @@ footer{
       <div class="ai-auto-tune__header">
         <div>
           <h3>AI Auto-Tune</h3>
-          <p class="hint">LLM-analys justerar belöningar och hyperparametrar för att maximera överlevnad och frukt.</p>
+          <p class="hint">LLM analysis adjusts rewards and hyperparameters to maximize survival and fruit.</p>
         </div>
       </div>
 
-      <div class="ai-auto-tune__controls" role="group" aria-label="AI Auto-Tune inställningar">
+      <div class="ai-auto-tune__controls" role="group" aria-label="AI Auto-Tune settings">
         <section class="ai-auto-tune__column" aria-labelledby="aiAutoTuneAiHeading">
-          <h4 id="aiAutoTuneAiHeading">AI-analys</h4>
+          <h4 id="aiAutoTuneAiHeading">AI analysis</h4>
           <div class="field compact ai-interval-field">
             <div class="field-header">
-              <label for="aiIntervalSlider">Analysintervall</label>
-              <div class="ai-toggle-group" role="group" aria-label="AI Auto-Tune växlare">
+              <label for="aiIntervalSlider">Analysis interval</label>
+              <div class="ai-toggle-group" role="group" aria-label="AI Auto-Tune toggles">
                 <label class="toggle" for="aiAutoTuneToggle">
-                  <input type="checkbox" id="aiAutoTuneToggle" aria-label="Aktivera AI Auto-Tune">
-                  <span>Aktivera</span>
+                  <input type="checkbox" id="aiAutoTuneToggle" aria-label="Enable AI Auto-Tune">
+                  <span>Enable</span>
                 </label>
                 <label class="toggle" for="aiAutoAdjustToggle">
-                  <input type="checkbox" id="aiAutoAdjustToggle" aria-label="Justera parametrar med AI">
-                  <span>Justera parametrar med AI</span>
+                  <input type="checkbox" id="aiAutoAdjustToggle" aria-label="Adjust parameters with AI">
+                  <span>Adjust parameters with AI</span>
                 </label>
               </div>
             </div>
@@ -1300,19 +1300,19 @@ footer{
         </section>
         <section class="ai-auto-tune__column" aria-labelledby="aiAutoTuneAutoHeading">
 
-        <h4 id="aiAutoTuneAutoHeading">Auto-körning</h4>
+        <h4 id="aiAutoTuneAutoHeading">Auto-run</h4>
 <div class="field compact">
-  <label for="aiRunLimit">Rundor att köra</label>
+  <label for="aiRunLimit">Rounds to run</label>
   <input type="number" id="aiRunLimit" min="0" step="100" inputmode="numeric" placeholder="0"
          style="width: 70px; padding: 2px; font-size: 14px;">
   <span class="hint" id="aiRunLimitHint">0 = unlimited auto-run cycles.</span>
 </div>
          <div class="field">
             <span class="hint">Adjustment tempo</span>
-            <div class="pill-group" id="aiStyleGroup" role="group" aria-label="Justeringstempo">
-              <button type="button" class="pill" data-style="calm">Lugn</button>
-              <button type="button" class="pill active" data-style="balanced">Medel</button>
-              <button type="button" class="pill" data-style="aggressive">Aggressiv</button>
+            <div class="pill-group" id="aiStyleGroup" role="group" aria-label="Adjustment pace">
+              <button type="button" class="pill" data-style="calm">Calm</button>
+              <button type="button" class="pill active" data-style="balanced">Balanced</button>
+              <button type="button" class="pill" data-style="aggressive">Aggressive</button>
             </div>
           </div>
         </section>
@@ -1330,14 +1330,14 @@ footer{
     <div class="progress-chart" id="progressChartPanel">
       <div class="progress-chart__header">
         <div>
-          <h3>Träningsprogress</h3>
-          <span class="hint">Medel per 100 episoder</span>
+          <h3>Training progress</h3>
+          <span class="hint">Average per 100 episodes</span>
         </div>
-        <button type="button" class="secondary micro" id="progressChartToggle" aria-expanded="true" aria-controls="progressChartBody">Dölj diagram</button>
+        <button type="button" class="secondary micro" id="progressChartToggle" aria-expanded="true" aria-controls="progressChartBody">Hide chart</button>
       </div>
       <div class="progress-chart__body" id="progressChartBody">
         <div class="progress-chart__canvas" id="progressChartCanvas">
-          <svg id="progressChartSvg" viewBox="0 0 360 160" role="img" aria-label="Linje-diagram över medelbelöning och frukt per 100 episoder">
+          <svg id="progressChartSvg" viewBox="0 0 360 160" role="img" aria-label="Line chart of average reward and fruit per 100 episodes">
             <g id="progressChartGrid" class="progress-chart__grid"></g>
             <path id="progressRewardPath" class="line reward" d=""></path>
             <path id="progressFruitPath" class="line fruit" d=""></path>
@@ -1345,15 +1345,15 @@ footer{
             <path id="progressGreedyFruitPath" class="line greedy-fruit" d=""></path>
           </svg>
         </div>
-        <div class="progress-chart__empty" id="progressChartEmpty">Kör minst 100 episoder för att se trenderna.</div>
+        <div class="progress-chart__empty" id="progressChartEmpty">Run at least 100 episodes to see the trends.</div>
         <div class="progress-chart__legend" id="progressChartLegend">
-          <span class="legend-item"><span class="legend-swatch reward"></span>Medelbelöning</span>
-          <span class="legend-item"><span class="legend-swatch fruit"></span>Medel frukt</span>
+          <span class="legend-item"><span class="legend-swatch reward"></span>Average reward</span>
+          <span class="legend-item"><span class="legend-swatch fruit"></span>Average fruit</span>
           <span class="legend-item"><span class="legend-swatch greedy-reward"></span>Greedy Reward</span>
           <span class="legend-item"><span class="legend-swatch greedy-fruit"></span>Greedy Fruit</span>
         </div>
         <div class="progress-chart__meta" id="progressChartMeta">
-          <span class="hint">Episoder</span>
+          <span class="hint">Episodes</span>
           <span class="mono" id="progressChartRange">—</span>
         </div>
       </div>
@@ -1693,22 +1693,22 @@ footer{
   </div>
 
   <div class="card">
-    <h2>AI Auto-Tune data &amp; loggning</h2>
-    <p>Auto-Tune skickar inte bara senaste episoden till LLM: varje avslutad episod lagras i ett lokalt minne (<code>aiEpisodeHistory</code>) med plats för 6&nbsp;000 poster innan de äldsta kastas. Därifrån byggs flera vyer upp <em>innan</em> telemetrin serialiseras:</p>
+    <h2>AI Auto-Tune data &amp; logging</h2>
+    <p>Auto-Tune sends far more than the latest episode to the LLM: every finished episode is stored in a local memory (<code>aiEpisodeHistory</code>) with room for 6,000 entries before the oldest are dropped. From there several views are built <em>before</em> the telemetry is serialized:</p>
     <ul>
-      <li><strong>Intervallfönster:</strong> ett glidande fönster på <span class="mono">interval</span> episoder (standard 500) sammanfattar medelvärden, spridning, trender och kraschningsfördelning.</li>
-      <li><strong>Rollup:</strong> en separat summering över upp till 1&nbsp;000 episoder används som långtidsreferens.</li>
-      <li><strong>Senaste körningar:</strong> de 32 färskaste episoderna samt den allra senaste episodens detaljer tas med för att visa kortsiktiga svängningar.</li>
+      <li><strong>Interval window:</strong> a sliding window of <span class="mono">interval</span> episodes (default 500) summarizes averages, spread, trends, and crash distribution.</li>
+      <li><strong>Rollup:</strong> a separate summary over up to 1,000 episodes acts as long-term reference.</li>
+      <li><strong>Recent runs:</strong> the 32 freshest episodes plus the details from the very latest episode are included to show short-term swings.</li>
     </ul>
-    <p>Resultatet packas i samma <code>messagePayload</code> tillsammans med aktuell belöningskonfiguration och hyperparametrar, så modellen kan väga både långsiktiga trender och senaste händelserna.</p>
-    <p>Varje prompt/svar-par och checkpoint markerade episoder loggas dessutom till <code>api/logs/snake-history.jsonl</code> via proxyn. Filen roteras automatiskt när den närmar sig 8&nbsp;MB, så du får en komplett historik utan risk att den checkas in i Git (filtypen ignoreras i <code>.gitignore</code>).</p>
-    <h3>Så tolkas modellens svar</h3>
+    <p>The result is packed into the same <code>messagePayload</code> together with the current reward configuration and hyperparameters, so the model can weigh both long-term trends and the most recent events.</p>
+    <p>Every prompt/response pair and checkpoint-tagged episode is also logged to <code>api/logs/snake-history.jsonl</code> via the proxy. The file rotates automatically when it approaches 8 MB, giving you a full history without risk of it being checked into Git (the type is ignored in <code>.gitignore</code>).</p>
+    <h3>How the model responses are interpreted</h3>
     <ul>
-      <li>LLM:en instrueras att svara med JSON som innehåller <code>rewardConfig</code>, <code>hyper</code> och <code>analysisText</code>.</li>
-      <li>Klienten plockar ut första JSON-objektet i svaret och försöker reparera vanliga formateringsfel (t.ex. felciterade nycklar, snygga citattecken eller släpande kommatecken) innan det parsas.</li>
-      <li>Endast giltiga numeriska förändringar appliceras. Allt annat loggas i Auto adjustments-flödet, så du ser exakt vilka justeringar som användes eller avvisades.</li>
+      <li>The LLM is instructed to reply with JSON containing <code>rewardConfig</code>, <code>hyper</code>, and <code>analysisText</code>.</li>
+      <li>The client extracts the first JSON object in the reply and tries to repair common formatting issues (e.g., misquoted keys, smart quotes, or trailing commas) before parsing.</li>
+      <li>Only valid numeric changes are applied. Everything else is logged in the Auto adjustments flow so you see exactly which tweaks were used or rejected.</li>
     </ul>
-    <p>Vill du låta modellen analysera längre spann? Dra reglaget <strong>Avslutade episoder</strong> i AI Auto-Tune-panelen. Reglaget stegar i hundratal och går mellan 100 och 5&nbsp;000 episoder.</p>
+    <p>Want the model to analyze longer spans? Drag the <strong>Completed episodes</strong> slider in the AI Auto-Tune panel. The slider steps in hundreds and ranges between 100 and 5,000 episodes.</p>
   </div>
 
   <div class="card">
@@ -1873,7 +1873,7 @@ footer{
 <footer class="hint">© Marcus — Snake learns with multiple RL strategies and cinematic movement.</footer>
 
 <script>
-  // Viktigt: ange Render-basen här
+// Important: set the Render base here
   window.API_BASE_URL = "https://snake-ml.onrender.com";
 </script>
 <script type="module" src="hf-tuner.js"></script>
@@ -2174,7 +2174,7 @@ class SnakeEnv{
     switch(pattern){
       case 'block': return 'Kub (2×2)';
       case 'edge': return 'Vid kanten';
-      case 'spiral': return 'Spiral inåt';
+      case 'spiral': return 'Spiral inward';
       case 'line':
       default:
         return 'I rad (standard)';
@@ -6228,8 +6228,8 @@ function setAiAutoStyle(style,{announce=true}={}){
   autoPilot?.setTuningStyle?.(aiAutoTuneStyle);
   if(announce){
     logAutoEvent({
-      title:'Auto-läge uppdaterat',
-      detail:`${preset.label} justeringar`,
+      title:'Auto mode updated',
+      detail:`${preset.label} adjustments`,
       tone:'ai',
       episode:autoPilot?.episode||episode||0,
     });
@@ -6590,10 +6590,10 @@ function parseAITunerContent(aiResult){
       try{
         return JSON.parse(snippet);
       }catch(innerErr){
-        console.warn('[handleGroqResponse] kunde inte tolka JSON-blob efter sanering',innerErr,{snippet});
+        console.warn('[handleGroqResponse] could not parse JSON blob after cleanup',innerErr,{snippet});
       }
     }
-    console.warn('[handleGroqResponse] AI-svar saknar giltig JSON',parseErr,{raw:aiResult});
+    console.warn('[handleGroqResponse] AI response is missing valid JSON',parseErr,{raw:aiResult});
     return null;
   }
 }
@@ -6602,7 +6602,7 @@ async function handleGroqResponse(responseJson){
   try{
     const aiResult=responseJson?.data?.choices?.[0]?.message?.content;
     if(!aiResult){
-      console.warn("⚠️ Ingen AI-output hittades i svaret");
+      console.warn("⚠️ No AI output found in the response");
       return;
     }
 
@@ -6625,7 +6625,7 @@ async function handleGroqResponse(responseJson){
         }
       }else{
         adjustmentsDeferred=true;
-        console.log('💡 AI föreslog belöningsändringar (autojustering är avstängd):',parsed.rewardConfig);
+        console.log('💡 AI suggested reward changes (auto-adjust is off):',parsed.rewardConfig);
       }
     }
 
@@ -6641,7 +6641,7 @@ async function handleGroqResponse(responseJson){
         }
       }else{
         adjustmentsDeferred=true;
-        console.log('💡 AI föreslog hyperparameter-ändringar (autojustering är avstängd):',parsed.hyper);
+        console.log('💡 AI suggested hyperparameter changes (auto-adjust is off):',parsed.hyper);
       }
     }
 
@@ -6649,24 +6649,24 @@ async function handleGroqResponse(responseJson){
       try{
         logAITunerEvent?.({
           title:'AI Auto-Tune',
-          detail:'Förslag mottogs – aktivera "Justera parametrar med AI" för att tillämpa dem automatiskt.',
+          detail:'Suggestions received—enable "Adjust parameters with AI" to apply them automatically.',
           tone:'ai',
           episodeNumber:episode,
         });
       }catch(err){
-        console.warn('[handleGroqResponse] kunde inte logga notifiering om manuella justeringar',err);
+        console.warn('[handleGroqResponse] could not log notification about manual adjustments',err);
       }
     }
 
     if(parsed.analysisText){
-      console.log("🤖 AI analys:", parsed.analysisText);
+      console.log("🤖 AI analysis:", parsed.analysisText);
       try{
-        logAITunerEvent?.({title:'AI analys',detail:parsed.analysisText,tone:'ai',episodeNumber:episode});
+        logAITunerEvent?.({title:'AI analysis',detail:parsed.analysisText,tone:'ai',episodeNumber:episode});
       }catch(err){
-        console.warn('[handleGroqResponse] kunde inte logga analys',err);
+        console.warn('[handleGroqResponse] could not log analysis',err);
       }
     }else{
-      console.log("🤖 AI analys:", parsed.analysisText);
+      console.log("🤖 AI analysis:", parsed.analysisText);
     }
   }catch(err){
     console.error("Fel vid parsing av AI-svar:", err);
@@ -6760,26 +6760,26 @@ function bindUI(){
     aiAutoAdjustEnabled=ui.aiAutoAdjustToggle.checked;
     ui.aiAutoAdjustToggle.addEventListener('change',()=>{
       aiAutoAdjustEnabled=ui.aiAutoAdjustToggle.checked;
-      const detail=aiAutoAdjustEnabled?'Autojustering aktiverad':'Autojustering avstängd';
+      const detail=aiAutoAdjustEnabled?'Auto-adjust enabled':'Auto-adjust disabled';
       logAITunerEvent({title:'AI Auto-Tune',detail,tone:'ai',episodeNumber:episode});
     });
     syncAiAutoAdjustToggle();
   }
   ui.aiAutoTuneToggle?.addEventListener('change',()=>{
     if(ui.aiAutoTuneToggle.checked){
-      const code=prompt('Ange säkerhetskod för att aktivera AI Auto-Tune:');
+      const code=prompt('Enter the security code to enable AI Auto-Tune:');
       if(code!=='1234554321'){
         ui.aiAutoTuneToggle.checked=false;
         aiAutoTuneEnabled=false;
         syncAiAutoAdjustToggle();
-        flash('Fel kod. AI Auto-Tune förblir avstängd.',true);
+        flash('Wrong code. AI Auto-Tune remains disabled.',true);
         return;
       }
     }
     aiAutoTuneEnabled=ui.aiAutoTuneToggle.checked;
     syncAiAutoAdjustToggle();
     if(aiTuner) aiTuner.setEnabled(aiAutoTuneEnabled);
-    const detail=aiAutoTuneEnabled?'Aktiverad':'Avstängd';
+    const detail=aiAutoTuneEnabled?'Enabled':'Disabled';
     logAITunerEvent({title:'AI Auto-Tune',detail,tone:'ai',episodeNumber:episode});
     updateAutoLogVisibility();
   });
@@ -8535,7 +8535,7 @@ function setProgressChartCollapsed(collapsed){
     ui.progressChartBody.removeAttribute('hidden');
   }
   ui.progressChartToggle.setAttribute('aria-expanded',String(!collapsed));
-  ui.progressChartToggle.textContent=collapsed?'Visa diagram':'Dölj diagram';
+  ui.progressChartToggle.textContent=collapsed?'Show chart':'Hide chart';
 }
 function updateProgressChart(){
   if(!ui.progressChartSvg) return;
@@ -8780,11 +8780,11 @@ async function finalizeContextEpisode(ctx,envIndex){
       const preset=AUTO_TUNING_STYLES[aiAutoTuneStyle]||AUTO_TUNING_STYLES[DEFAULT_AUTO_STYLE];
       logAutoEvent({
         title:'Auto-run pausad',
-        detail:`${autoRunLimit} episoder i ${preset.label.toLowerCase()} läge`,
+        detail:`${autoRunLimit} episodes in ${preset.label.toLowerCase()} mode`,
         tone:'summary',
         episode:autoPilot?.episode||episode,
       });
-      flash('Mål nått – AI Auto-Tune pausad.');
+      flash('Goal reached – AI Auto-Tune paused.');
       stopTraining({reachedTarget:true});
       autoRunStopEpisode=null;
     }else if(autoRunStopEpisode){
@@ -9247,7 +9247,7 @@ function scoreActionOutcome(outcome,strategy,{preferModel=false,nearEndgame=fals
 }
 // ======== BEGIN: PATH HELPERS (single source of truth) ========
 
-// Hamilton-cycle (serpentin) för fallback & overlay
+// Hamilton-cycle (serpentine) for fallback & overlay
 function generateHamiltonCycle(sizeOrCols, maybeRows){
   const cols = Number.isFinite(maybeRows) ? sizeOrCols|0 : (sizeOrCols?.cols|0) || sizeOrCols|0;
   const rows = Number.isFinite(maybeRows) ? maybeRows|0 : (sizeOrCols?.rows|0) || cols;
@@ -9262,9 +9262,9 @@ function generateHamiltonCycle(sizeOrCols, maybeRows){
   return path;
 }
 
-// BFS vägplanerare: bfsPath(grid:{cols,rows}, start:{x,y}, goal:{x,y}, snake:Array<{x,y}>)
+// BFS path planner: bfsPath(grid:{cols,rows}, start:{x,y}, goal:{x,y}, snake:Array<{x,y}>)
 function bfsPath(grid, start, goal, snake) {
-  // 🛡 input-guards för att undvika runtime-fel i Watch
+  // 🛡 input guards to avoid runtime errors in Watch
   if (!grid || !Number.isFinite(grid.cols) || !Number.isFinite(grid.rows)) return null;
   if (!start || !Number.isFinite(start.x) || !Number.isFinite(start.y)) return null;
   if (!goal  || !Number.isFinite(goal.x)  || !Number.isFinite(goal.y))  return null;
@@ -9285,7 +9285,7 @@ function bfsPath(grid, start, goal, snake) {
   while (queue.length) {
     const cur = queue.shift();
     if (cur.x === (goal.x|0) && cur.y === (goal.y|0)) {
-      // rekonstruera actions (0/1/2/3) från parent-länkar
+      // reconstruct actions (0/1/2/3) from parent links
       const actions = [];
       let key = `${cur.x},${cur.y}`;
       while (parent[key]) {
@@ -9309,9 +9309,9 @@ function bfsPath(grid, start, goal, snake) {
   return null;
 }
 
-// Tail-follow action med BFS-försök mot frukten och säkra fallbacks
+// Tail-follow action with a BFS attempt toward the fruit and safe fallbacks
 function planTailFollowAction(snake, fruit, grid) {
-  // 🛡 robusta guards mot tomt snake/fruit/grid i Watch
+  // 🛡 robust guards against empty snake/fruit/grid in Watch
   if (!Array.isArray(snake) || snake.length === 0) return Math.floor(Math.random() * 4);
   if (!grid || !Number.isFinite(grid.cols) || !Number.isFinite(grid.rows)) return Math.floor(Math.random() * 4);
   if (!fruit || !Number.isFinite(fruit.x) || !Number.isFinite(fruit.y)) return Math.floor(Math.random() * 4);
@@ -9319,11 +9319,11 @@ function planTailFollowAction(snake, fruit, grid) {
   const head = snake[0];
   if (!head || !Number.isFinite(head.x) || !Number.isFinite(head.y)) return Math.floor(Math.random() * 4);
 
-  // 1) BFS direkt mot frukten
+  // 1) BFS directly toward the fruit
   const path = bfsPath(grid, head, fruit, snake);
   if (path && path.length > 0) return path[0];
 
-  // 2) Annars välj ett säkert drag nära huvudet
+  // 2) Otherwise choose a safe move near the head
   const dirs = [
     { x: 0, y: -1, action: 0 }, // up
     { x: 1, y:  0, action: 1 }, // right
@@ -9337,7 +9337,7 @@ function planTailFollowAction(snake, fruit, grid) {
     if (safe) return d.action;
   }
 
-  // 3) Sista utväg – slump
+  // 3) Last resort – random
   return Math.floor(Math.random() * 4);
 }
 

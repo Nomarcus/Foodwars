@@ -218,8 +218,8 @@
       <div class="legend-item"><span class="legend-dot" style="color:#00eaff"></span>Problem</div>
     </div>
     <div class="mini-callouts">
-      <div class="callout"><strong>Snabb guide:</strong> Plocka en biljett, kör mot zonen med samma färg, undvik fel ring.</div>
-      <div class="callout">Håll agenterna i rörelse. Om det står still: höj hastigheten eller energin och tryck Restart.</div>
+      <div class="callout"><strong>Quick guide:</strong> Pick up a ticket, drive toward the zone with the same color, avoid the wrong ring.</div>
+      <div class="callout">Keep the agents moving. If they stall: raise the speed or energy and press Restart.</div>
     </div>
     <div class="mini-callouts">
       <div class="callout">Exploration spikes surface new routes. <strong>Keep epsilon dynamic.</strong></div>
@@ -247,7 +247,7 @@
     </div>
 
     <div class="control-group">
-      <label title="Antal biljetter i spelområdet">Ticket Count: <span id="valTickets">15</span></label>
+      <label title="Number of tickets in the play area">Ticket Count: <span id="valTickets">15</span></label>
       <input type="range" id="slTicketCount" min="5" max="50" value="15">
     </div>
     
@@ -267,17 +267,17 @@
     <h2>RL/Policy Parameters</h2>
     
     <div class="control-group">
-      <label title="Hur snabbt nätverkets vikter uppdateras">Learning Rate (Alpha): <span id="valAlpha">0.010</span></label>
+      <label title="How quickly the network weights update">Learning Rate (Alpha): <span id="valAlpha">0.010</span></label>
       <input type="range" id="slAlpha" min="1" max="100" value="10" step="1">
     </div>
 
     <div class="control-group">
-        <label title="Vikt för framtida belöningar. Högre = mer långsiktigt tänkande">Discount Factor (Gamma): <span id="valGamma">0.90</span></label>
+        <label title="Weight for future rewards. Higher = more long-term planning">Discount Factor (Gamma): <span id="valGamma">0.90</span></label>
         <input type="range" id="slGamma" min="50" max="99" value="90" step="1">
     </div>
     
     <div class="control-group">
-        <label title="Andelen slumpmässiga drag för utforskning">Exploration Rate (Epsilon): <span id="valEpsilon">15%</span></label>
+        <label title="Share of random moves for exploration">Exploration Rate (Epsilon): <span id="valEpsilon">15%</span></label>
         <input type="range" id="slEpsilon" min="0" max="50" value="15" step="1">
     </div>
     
@@ -291,17 +291,17 @@
     <h2>Game Physics / ACO</h2>
     
     <div class="control-group">
-      <label title="Hur långt agenterna kan se">Sensor Range: <span id="valSensor">180px</span></label>
+      <label title="How far the agents can see">Sensor Range: <span id="valSensor">180px</span></label>
       <input type="range" id="slSensor" min="50" max="400" value="180">
     </div>
     
     <div class="control-group">
-      <label title="Högre = Batterier dör snabbare">Battery Drain: <span id="valDrain">Normal</span></label>
+      <label title="Higher = batteries drain faster">Battery Drain: <span id="valDrain">Normal</span></label>
       <input type="range" id="slDrain" min="1" max="20" value="8">
     </div>
 
     <div class="control-group">
-      <label title="Avdunstningshastighet för feromoner. 0.99 = långsam">Pheromone Decay: <span id="valDecay">0.990</span></label>
+      <label title="Evaporation rate for pheromones. 0.99 = slow">Pheromone Decay: <span id="valDecay">0.990</span></label>
       <input type="range" id="slDecay" min="980" max="999" value="990">
     </div>
   </div>
@@ -479,7 +479,7 @@ function deposit(type, x, y, amt, opts = {}){
     }
 }
 
-// Beräknar feromongradienten (doftriktningen) på en position
+// Calculates the pheromone gradient (scent direction) at a position
 function senseGrad(type, x, y){
     const field = grid?.[type];
     if(!field) return { gx: 0, gy: 0, mag: 0 };
@@ -1954,7 +1954,7 @@ document.getElementById('slEpsilon').oninput = (e) => {
 
 document.getElementById('slHidden').oninput = (e) => { 
     document.getElementById('valHidden').innerText = e.target.value; 
-    pushFeed('Hidden Nodes ändrat. Tryck "Hard Reset All" för att uppdatera Policy Networks.', 'warn');
+    pushFeed('Hidden Nodes changed. Press "Hard Reset All" to refresh the Policy Networks.', 'warn');
 };
 
 
