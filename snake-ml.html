@@ -88,7 +88,37 @@
     const ACTIONS = ['Vänster','Rakt','Höger']; // relativt nuvarande riktning
 
     const canvas = document.getElementById('game');
-    const ctx = canvas.getContext('2d');
+    const ctx = canvas.getContext('2d', { alpha:false, desynchronized:true });
+    ctx.imageSmoothingEnabled = false;
+
+    const fastModeToggle = document.getElementById('fastMode');
+
+    const staticLayer = document.createElement('canvas');
+    staticLayer.width = canvas.width;
+    staticLayer.height = canvas.height;
+    const staticCtx = staticLayer.getContext('2d', { alpha:false });
+
+    const GRID_COLOR = 'rgba(255,255,255,0.05)';
+    const FOOD_COLOR = '#f472b6';
+    const BODY_COLOR = '#38bdf8';
+    const HEAD_COLOR = '#7cf29d';
+    const FOOD_PAD = 4;
+    const BODY_PAD = 3;
+    const HEAD_PAD = 2;
+
+    function buildStaticLayer() {
+      const grad = staticCtx.createLinearGradient(0,0,0,staticLayer.height);
+      grad.addColorStop(0,'#0e122b');
+      grad.addColorStop(1,'#080a1a');
+      staticCtx.fillStyle = grad;
+      staticCtx.fillRect(0,0,staticLayer.width,staticLayer.height);
+
+      staticCtx.fillStyle = GRID_COLOR;
+      staticCtx.beginPath();
+      for (let x = 0; x <= COLS; x++) staticCtx.rect(x*CELL,0,1,staticLayer.height);
+      for (let y = 0; y <= ROWS; y++) staticCtx.rect(0,y*CELL,staticLayer.width,1);
+      staticCtx.fill();
+    }
 
     // --- Hjälpfunktioner ---
     const randInt = (min, max) => Math.floor(Math.random() * (max - min)) + min;
@@ -240,6 +270,13 @@
     let targetNet = policyNet.clone();
     const memory = new ReplayMemory(8000);
 
+    const episodeEl = document.getElementById('episode');
+    const scoreEl = document.getElementById('score');
+    const bestEl = document.getElementById('best');
+    const epsilonEl = document.getElementById('epsilon');
+    const memoryEl = document.getElementById('memory');
+    const actionEl = document.getElementById('action');
+
     let epsilon = 1.0;
     const EPSILON_MIN = 0.05;
     const EPSILON_DECAY = 0.995;
@@ -374,39 +411,37 @@
     }
 
     function render() {
-      if (document.getElementById('fastMode').checked && totalSteps % 5 !== 0) return; // gles rendering vid snabbträning
-      ctx.clearRect(0,0,canvas.width,canvas.height);
-      ctx.fillStyle = 'rgba(255,255,255,0.05)';
-      for (let x = 0; x <= COLS; x++) {
-        ctx.fillRect(x*CELL,0,1,canvas.height);
+      if (fastModeToggle.checked && totalSteps % 5 !== 0) return; // gles rendering vid snabbträning
+
+      ctx.drawImage(staticLayer, 0, 0);
+
+      ctx.fillStyle = FOOD_COLOR;
+      ctx.fillRect(food.x*CELL+FOOD_PAD, food.y*CELL+FOOD_PAD, CELL-FOOD_PAD*2, CELL-FOOD_PAD*2);
+
+      ctx.fillStyle = BODY_COLOR;
+      ctx.beginPath();
+      for (let i = snake.length-1; i>0; i--) {
+        ctx.rect(snake[i].x*CELL+BODY_PAD, snake[i].y*CELL+BODY_PAD, CELL-BODY_PAD*2, CELL-BODY_PAD*2);
       }
-      for (let y = 0; y <= ROWS; y++) ctx.fillRect(0,y*CELL,canvas.width,1);
+      ctx.fill();
 
-      // food
-      ctx.fillStyle = '#f472b6';
-      ctx.fillRect(food.x*CELL+4, food.y*CELL+4, CELL-8, CELL-8);
-
-      // snake body
-      ctx.fillStyle = '#38bdf8';
-      for (let i = snake.length-1; i>0; i--) ctx.fillRect(snake[i].x*CELL+3, snake[i].y*CELL+3, CELL-6, CELL-6);
-      // head
-      ctx.fillStyle = '#7cf29d';
-      ctx.fillRect(snake[0].x*CELL+2, snake[0].y*CELL+2, CELL-4, CELL-4);
+      ctx.fillStyle = HEAD_COLOR;
+      ctx.fillRect(snake[0].x*CELL+HEAD_PAD, snake[0].y*CELL+HEAD_PAD, CELL-HEAD_PAD*2, CELL-HEAD_PAD*2);
     }
 
     function updateHUD(actionIdx) {
-      document.getElementById('episode').textContent = episode;
-      document.getElementById('score').textContent = score;
-      document.getElementById('best').textContent = best;
-      document.getElementById('epsilon').textContent = epsilon.toFixed(2);
-      document.getElementById('memory').textContent = `${memory.buffer.length} / ${memory.capacity}`;
-      document.getElementById('action').textContent = actionIdx !== undefined ? ACTIONS[actionIdx] : '–';
+      episodeEl.textContent = episode;
+      scoreEl.textContent = score;
+      bestEl.textContent = best;
+      epsilonEl.textContent = epsilon.toFixed(2);
+      memoryEl.textContent = `${memory.buffer.length} / ${memory.capacity}`;
+      actionEl.textContent = actionIdx !== undefined ? ACTIONS[actionIdx] : '–';
     }
 
     // --- Loop ---
     function loop() {
       if (running) {
-        const iterations = document.getElementById('fastMode').checked ? 8 : 1;
+        const iterations = fastModeToggle.checked ? 8 : 1;
         for (let i = 0; i < iterations; i++) step();
       }
       requestAnimationFrame(loop);
@@ -425,6 +460,7 @@
     });
 
     // Initiera
+    buildStaticLayer();
     resetGame();
     render();
     requestAnimationFrame(loop);
