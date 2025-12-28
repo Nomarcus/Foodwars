@@ -859,8 +859,8 @@ class Agent {
         if (!target) return { dx: 0, dy: 0, dist: 1 };
         const dx = clamp((target.x - this.x) / effectiveRange, -1, 1);
         const dy = clamp((target.y - this.y) / effectiveRange, -1, 1);
-        const dist = clamp(dist(this.x, this.y, target.x, target.y) / effectiveRange, 0, 1);
-        return { dx, dy, dist };
+        const normalizedDist = clamp(dist(this.x, this.y, target.x, target.y) / effectiveRange, 0, 1);
+        return { dx, dy, dist: normalizedDist };
     };
 
     const zones = getZones();
