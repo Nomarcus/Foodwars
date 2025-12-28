@@ -348,6 +348,13 @@ const CFG = {
   RL_ALPHA: 0.01, // Learning Rate
   RL_GAMMA: 0.90,  // Discount Factor
   RL_EPSILON: 0.15, // Exploration Rate
+  learningMode: 'evolve', // 'rl' or 'evolve' (Foodwars-style evolution)
+  evolve: {
+    elite: 0.2,
+    mutRate: 0.22,
+    mutStrength: 0.25,
+    fresh: 0.06
+  },
   
   ticketCount: 15,
   sensorRange: 180, 
@@ -557,6 +564,21 @@ class PolicyNetwork {
         return new PolicyNetwork(this.I, this.H, this.O, {
             w1: this.w1, w2: this.w2, bias1: this.bias1, bias2: this.bias2
         });
+    }
+
+    mutate(rate, strength) {
+        for(let i=0; i<this.w1.length; i++) {
+            if(Math.random() < rate) this.w1[i] += rand(-strength, strength);
+        }
+        for(let i=0; i<this.w2.length; i++) {
+            if(Math.random() < rate) this.w2[i] += rand(-strength, strength);
+        }
+        for(let i=0; i<this.bias1.length; i++) {
+            if(Math.random() < rate) this.bias1[i] += rand(-strength, strength);
+        }
+        for(let i=0; i<this.bias2.length; i++) {
+            if(Math.random() < rate) this.bias2[i] += rand(-strength, strength);
+        }
     }
 
     // Forward pass - Maps state (inputs) to action policy (outputs)
@@ -940,7 +962,7 @@ class Agent {
 
   // RL Learning Step (Called after Action Execution)
   learn(prevState, prevAction, reward, newPolicyOutputs) {
-    if (reward === 0) return;
+    if (CFG.learningMode !== 'rl' || reward === 0) return;
     
     const alpha = CFG.RL_ALPHA;
     const gamma = CFG.RL_GAMMA;
@@ -1081,6 +1103,7 @@ class Agent {
     
     this.accumulatedReward = reward; // Store for display/debugging
     this.fitness += reward; // Overall episode fitness (for finding best agent)
+    this.qScore = this.fitness; // Keep Q-score display in sync with fitness for evolve mode
     
     // --- Learning Step (RL) ---
     this.learn(prevState, policyOutputs, reward, policyOutputs); 
@@ -1698,7 +1721,7 @@ function init(resetPolicyWeights = true) {
       bestAgent = agents[0];
   } else {
       // Keep weights, just reset episode state
-      resetEpisode(true);
+      resetEpisode({ evolve: false });
   }
 
   if(resetPolicyWeights) {
@@ -1715,17 +1738,15 @@ function init(resetPolicyWeights = true) {
   }
 }
 
-function resetEpisode(keepPolicy = false) {
-  let maxQ = -Infinity;
-  let currentBest = null;
+function resetEpisode({ evolve = true } = {}) {
+  const ranked = [...agents].sort((a, b) => b.fitness - a.fitness);
+  const eliteCount = Math.max(1, Math.floor(CFG.evolve.elite * ranked.length));
+  const elites = ranked.slice(0, eliteCount);
+  const eliteSet = new Set(elites);
+  const pickElite = () => elites[Math.floor(Math.random() * elites.length)];
+  const bestFitness = ranked[0] ? ranked[0].fitness : 0;
 
   agents.forEach(a => {
-      // Find the agent with the highest long-term Q-Score
-      if (a.qScore > maxQ) {
-          maxQ = a.qScore;
-          currentBest = a;
-      }
-      
       // Reset agent state
       a.x = nest.x;
       a.y = nest.y;
@@ -1735,34 +1756,38 @@ function resetEpisode(keepPolicy = false) {
       a.energy = 1.0;
       a.fitness = 0;
       a.stalled = false;
-      a.trail = []; 
-      
-      if (!keepPolicy) {
-          // If we reset weights, clone the 'best' policy to the new agents
-          if (currentBest && a !== currentBest) {
-              a.policy = currentBest.policy.clone(); 
+      a.trail = [];
+
+      if (evolve && CFG.learningMode === 'evolve') {
+          if (!eliteSet.has(a)) {
+              if (Math.random() < CFG.evolve.fresh) {
+                  a.policy = new PolicyNetwork(CFG.inputs, CFG.hiddens, CFG.outputs);
+              } else {
+                  const parent = pickElite();
+                  a.policy = parent.policy.clone();
+                  a.policy.mutate(CFG.evolve.mutRate, CFG.evolve.mutStrength);
+              }
           }
-          a.qScore = 0;
       }
+      a.qScore = 0;
   });
 
   // Track performance
-  if(bestAgent && bestAgent.qScore > 0) {
-      history.push({ 
-          episode: episode, 
-          best: bestAgent.qScore 
+  if(bestFitness > 0) {
+      history.push({
+          episode: episode,
+          best: bestFitness
       });
   }
 
-  // Set the overall best agent
-  bestAgent = currentBest || agents[0]; 
+  bestAgent = elites[0] || agents[0];
 
   episode++;
   frame = 0;
   stats.solved = 0;
   stats.wrong = 0;
   
-  makeGrid(); 
+  makeGrid();
   tickets.forEach(t => t.respawn());
   pushFeed(`--- NEW EPISODE (${episode}) ---`);
 }
@@ -1777,19 +1802,19 @@ function loop(now) {
     for(let n=0; n<speedMult; n++) {
       frame++;
       
-      if(frame > CFG.episodeDuration) { resetEpisode(true); break; }
+      if(frame > CFG.episodeDuration) { resetEpisode(); break; }
       
       tickets.forEach(t => { t.update(); });
       
       let currentBest = bestAgent;
-      let maxQ = bestAgent ? bestAgent.qScore : -Infinity;
+      let maxFitness = bestAgent ? bestAgent.fitness : -Infinity;
 
       agents.forEach(a => {
         a.update();
-        if(a.qScore > maxQ) { maxQ = a.qScore; currentBest = a; }
+        if(a.fitness > maxFitness) { maxFitness = a.fitness; currentBest = a; }
       });
       
-      // Update bestAgent continuously based on Q-Score
+      // Update bestAgent continuously based on fitness
       bestAgent = currentBest;
       updateParticles();
       
@@ -1874,7 +1899,7 @@ canvas.addEventListener('mouseup', () => {
 // Buttons & Keyboard
 document.getElementById('btnSkip').onclick = () => { 
     if(paused) paused = false; 
-    resetEpisode(true);
+    resetEpisode();
 };
 
 document.getElementById('btnResetAI').onclick = () => { 
