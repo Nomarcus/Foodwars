@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Foodwars Machine Learning Lab</title>
+  <title>Foodwars Lab — Info</title>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
@@ -119,7 +119,7 @@
       padding: 0 22px;
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-      gap: 36px;
+      gap: 30px;
       align-items: center;
     }
 
@@ -161,18 +161,11 @@
 
     .hero h1 {
       margin: 14px 0 10px;
-      font-size: clamp(2rem, 5vw, 2.9rem);
+      font-size: clamp(2rem, 5vw, 2.8rem);
       letter-spacing: -0.02em;
     }
 
     .hero p { margin: 0 0 18px; color: var(--muted); font-size: 1rem; }
-
-    .hero-actions {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 12px;
-      margin-bottom: 12px;
-    }
 
     .btn {
       display: inline-flex;
@@ -203,79 +196,6 @@
 
     .btn-ghost:hover { transform: translateY(-2px); background: rgba(17, 22, 48, 0.95); }
 
-    .list-inline {
-      list-style: none;
-      padding: 0;
-      margin: 12px 0 0;
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px;
-    }
-
-    .list-inline li {
-      padding: 9px 12px;
-      border-radius: 10px;
-      background: rgba(17, 23, 52, 0.85);
-      color: var(--muted);
-      font-weight: 600;
-      font-size: 0.95rem;
-      border: 1px solid var(--stroke);
-    }
-
-    .hero-stats {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-      gap: 12px;
-      margin-top: 16px;
-    }
-
-    .stat {
-      background: rgba(15, 20, 45, 0.9);
-      border-radius: 14px;
-      padding: 14px 16px;
-      border: 1px solid var(--stroke);
-      display: grid;
-      gap: 6px;
-    }
-
-    .stat strong { font-size: 1.2rem; letter-spacing: -0.01em; }
-
-    .stat span { color: var(--muted); font-size: 0.94rem; }
-
-    .visual {
-      background: linear-gradient(165deg, rgba(18, 23, 51, 0.95), rgba(10, 14, 33, 0.92));
-      border-radius: var(--radius);
-      padding: 32px;
-      border: 1px solid var(--stroke);
-      box-shadow: var(--shadow);
-      display: grid;
-      gap: 16px;
-      position: relative;
-      overflow: hidden;
-      min-height: 420px;
-    }
-
-    .visual::before {
-      content: '';
-      position: absolute;
-      inset: 0;
-      background: radial-gradient(circle at 30% 25%, rgba(139,92,246,0.18), transparent 40%),
-                  radial-gradient(circle at 80% 75%, rgba(236,72,153,0.16), transparent 38%);
-      pointer-events: none;
-    }
-
-    .visual strong { font-size: 1.08rem; letter-spacing: -0.01em; }
-    .visual p { margin: 0; color: var(--muted); }
-
-    .visual img {
-      width: 100%;
-      border-radius: 14px;
-      border: 1px solid var(--stroke);
-      background: rgba(255, 255, 255, 0.02);
-      min-height: 260px;
-      object-fit: cover;
-    }
-
     .section {
       max-width: 1100px;
       margin: 0 auto;
@@ -302,7 +222,6 @@
       display: grid;
       gap: 10px;
       box-shadow: 0 18px 44px rgba(4, 6, 18, 0.7);
-      transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
       position: relative;
       overflow: hidden;
       min-height: 140px;
@@ -316,36 +235,17 @@
       pointer-events: none;
     }
 
-    .card:hover {
-      transform: translateY(-3px);
-      box-shadow: 0 24px 50px rgba(4, 6, 18, 0.82);
-      border-color: rgba(139, 92, 246, 0.45);
+    .card h3 { margin: 0; font-size: 1.1rem; letter-spacing: -0.01em; }
+
+    .card p { margin: 0; color: var(--muted); }
+
+    .list {
+      margin: 0;
+      padding-left: 18px;
+      display: grid;
+      gap: 8px;
+      color: var(--muted);
     }
-
-    .tag {
-      display: inline-block;
-      padding: 6px 10px;
-      border-radius: 999px;
-      background: var(--accent-soft);
-      color: #e5ddff;
-      font-weight: 700;
-      font-size: 0.8rem;
-      letter-spacing: 0.04em;
-      border: 1px solid rgba(139, 92, 246, 0.4);
-    }
-
-    .card h3 { margin: 0; font-size: 1.2rem; letter-spacing: -0.01em; }
-
-    .card a {
-      text-decoration: none;
-      font-weight: 700;
-      color: #f8e9ff;
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-    }
-
-    .card a::after { content: '→'; opacity: 0.8; }
 
     footer {
       border-top: 1px solid var(--stroke);
@@ -365,103 +265,95 @@
 </head>
 <body>
   <header>
-      <nav class="nav">
-        <a class="brand" href="#top">
-          <span class="brand-mark">ML</span>
-          <span class="brand-title">
-            <strong>Machine Learning Lab</strong>
-            <span>Interactive simulations</span>
-          </span>
-        </a>
-        <div class="nav-links">
-          <a href="#experiments">Simulations</a>
-          <a href="info.html">Info</a>
-          <a href="https://github.com/Nomarcus/Foodwars" target="_blank" rel="noreferrer">GitHub</a>
-        </div>
-      </nav>
-    </header>
+    <nav class="nav">
+      <a class="brand" href="index.html">
+        <span class="brand-mark">ML</span>
+        <span class="brand-title">
+          <strong>Machine Learning Lab</strong>
+          <span>Interactive simulations</span>
+        </span>
+      </a>
+      <div class="nav-links">
+        <a href="index.html#experiments">Simulations</a>
+        <a href="info.html">Info</a>
+        <a href="https://github.com/Nomarcus/Foodwars" target="_blank" rel="noreferrer">GitHub</a>
+      </div>
+    </nav>
+  </header>
 
-  <main id="top">
+  <main>
     <section class="hero">
       <div class="hero-card">
-        <span class="pill">Machine Learning Playground</span>
-        <h1>Explore playful AI simulations in the Foodwars Lab.</h1>
-        <p>Foodwars is a collection of interactive experiments where agents learn, compete, and adapt in real time. Jump into the arena, tune the parameters, and watch strategies emerge on screen.</p>
+        <span class="pill">About the Lab</span>
+        <h1>Foodwars is a showcase of playful machine learning experiments.</h1>
+        <p>Every page is a live playground. You can launch simulations, tweak parameters, and see agents learn, compete, and cooperate in real time. The lab is designed for quick discovery: open a scene, adjust the controls, and let the systems evolve.</p>
         <div class="hero-actions">
-          <a class="btn btn-primary" href="foodwars.html">Launch Foodwars Arena</a>
-          <a class="btn btn-ghost" href="info.html">Read the site guide</a>
-        </div>
-        <ul class="list-inline">
-          <li>Live controls</li>
-          <li>Multi-agent tactics</li>
-          <li>Neat visualizations</li>
-        </ul>
-        <div class="hero-stats">
-          <div class="stat">
-            <strong>6+</strong>
-            <span>Playable demos</span>
-          </div>
-          <div class="stat">
-            <strong>Realtime</strong>
-            <span>Simulation feedback</span>
-          </div>
-          <div class="stat">
-            <strong>Open</strong>
-            <span>Shareable experiments</span>
-          </div>
+          <a class="btn btn-primary" href="index.html">Back to the homepage</a>
+          <a class="btn btn-ghost" href="foodwars.html">Open Foodwars Arena</a>
         </div>
       </div>
-      <div class="visual">
-        <strong>Foodwars arena snapshot</strong>
-        <p>Watch agents swarm toward resources, learn routes, and compete for territory.</p>
-        <img src="assets/foodwars-hero.svg" alt="Glowing maze arena with colorful agents and score rings" loading="lazy">
+      <div class="hero-card">
+        <span class="pill">What you can do</span>
+        <ul class="list">
+          <li>Start or pause simulations to observe agent behavior.</li>
+          <li>Adjust sliders, toggles, and settings to steer training.</li>
+          <li>Compare multiple learning styles side by side.</li>
+          <li>Share direct links to demos with friends and collaborators.</li>
+        </ul>
       </div>
     </section>
 
-      <section id="experiments" class="section">
-        <div class="section-header">
-          <h2>Simulations & experiences</h2>
-          <p>Pick an experiment to explore different learning styles: neuroevolution, reinforcement learning, cooperative play, and more.</p>
-        </div>
-        <div class="cards">
-          <article class="card">
-            <span class="tag">Classic</span>
-            <h3>Snake AI</h3>
-            <a href="https://nomarcus.github.io/SnakeAI/" target="_blank" rel="noreferrer">Launch Snake AI</a>
-          </article>
-          <article class="card">
-            <span class="tag">Multi-agent</span>
-            <h3>Foodwars Arena</h3>
-            <a href="foodwars.html">Open Foodwars</a>
-          </article>
-          <article class="card">
-            <span class="tag">Neuroevolution</span>
-            <h3>BallLab</h3>
-            <a href="balllab.html">Launch BallLab</a>
-          </article>
-          <article class="card">
-            <span class="tag">Co-op</span>
-            <h3>Volleyball Showdown</h3>
-            <a href="Vollyball.html">Open Vollyball</a>
-          </article>
-          <article class="card">
-            <span class="tag">Automation</span>
-            <h3>Data Sorting</h3>
-            <a href="foodwars_data_sorting.html">Try Data Sorting</a>
-          </article>
-        </div>
-      </section>
+    <section class="section">
+      <div class="section-header">
+        <h2>How the site is organized</h2>
+        <p>Each simulation focuses on a different learning technique or interaction style. Start with the Foodwars Arena for multi-agent competition, then branch out to the other labs to see variations.</p>
+      </div>
+      <div class="cards">
+        <article class="card">
+          <h3>Foodwars Arena</h3>
+          <p>Watch multiple agents navigate a maze, race toward resources, and adapt to dynamic obstacles.</p>
+        </article>
+        <article class="card">
+          <h3>BallLab</h3>
+          <p>See neuroevolution at work as agents learn to move and survive with physics-based controls.</p>
+        </article>
+        <article class="card">
+          <h3>Snake AI</h3>
+          <p>Explore reinforcement learning strategies in a classic grid-based environment.</p>
+        </article>
+        <article class="card">
+          <h3>Volleyball Showdown</h3>
+          <p>Try cooperative and competitive play with two agents sharing a physics-driven court.</p>
+        </article>
+        <article class="card">
+          <h3>Data Sorting</h3>
+          <p>Experiment with automated decision-making in a visual pipeline of moving data.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-header">
+        <h2>Tips for the best experience</h2>
+        <p>Most simulations respond instantly, but giving them a few moments to run reveals richer behavior. If a demo has controls, try changing one value at a time to see clear differences.</p>
+      </div>
+      <ul class="list">
+        <li>Use fullscreen or a wide display for the best view of the arena.</li>
+        <li>Look for control panels and tooltips to understand each metric.</li>
+        <li>Reset the simulation whenever you want to start fresh.</li>
+      </ul>
+    </section>
   </main>
 
-    <footer>
-      <div class="inner">
-        <div>© 2025 Machine Learning Lab — Marcus Petersson.</div>
-        <div>
-          <a href="info.html">Info</a>
-          ·
-          <a href="https://github.com/Nomarcus/Foodwars" target="_blank" rel="noreferrer">GitHub</a>
-        </div>
+  <footer>
+    <div class="inner">
+      <div>© 2025 Machine Learning Lab — Marcus Petersson.</div>
+      <div>
+        <a href="index.html">Home</a>
+        ·
+        <a href="https://github.com/Nomarcus/Foodwars" target="_blank" rel="noreferrer">GitHub</a>
       </div>
-    </footer>
-  </body>
+    </div>
+  </footer>
+</body>
 </html>
