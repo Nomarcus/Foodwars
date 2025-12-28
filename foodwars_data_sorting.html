@@ -104,6 +104,9 @@
     .pulse-bar { flex:1; background: rgba(255,255,255,0.04); border:1px solid rgba(148,163,209,.28); border-radius:12px; height:10px; position:relative; overflow:hidden; }
     .pulse-bar span { position:absolute; inset:0; width:35%; background:linear-gradient(90deg, var(--accent), var(--accent-ok)); box-shadow:0 0 12px rgba(56,189,248,0.8); border-radius:12px; transition:width 0.3s ease; }
     .pulse-value { font-family: var(--font-mono); font-size:11px; color:var(--accent-ok); }
+    .smart-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+    .smart-list li { font-size: 11px; color: var(--text-dim); padding: 6px 8px; border-radius: 6px; border: 1px solid rgba(148,163,209,.2); background: rgba(255,255,255,0.03); }
+    .smart-list li strong { color: var(--accent-ok); }
 
     .episode-progress { position:absolute; top:38px; left:20px; right:20px; height:8px; border-radius:12px; background:rgba(255,255,255,0.08); overflow:hidden; box-shadow:0 0 12px rgba(0,0,0,0.4); }
     .episode-progress .fill { height:100%; background:linear-gradient(90deg, rgba(56,189,248,0.2), rgba(124,242,157,0.5), rgba(244,114,182,0.35)); width:0%; transition:width 0.2s ease; }
@@ -288,6 +291,22 @@
   </div>
 
   <div class="panel-section">
+    <h2>Smart Boosts (10)</h2>
+    <ul class="smart-list">
+      <li><strong>Adaptive ε:</strong> dynamisk exploration som justeras efter precision & stall</li>
+      <li><strong>Reward-volatil α:</strong> lärhastighet växer när signaler blir brusiga</li>
+      <li><strong>Adaptiv feromondekay:</strong> stabiliserar spår när träffsäkerheten dippar</li>
+      <li><strong>Sensor-skalning:</strong> bredare sök när agenten letar, tajtare vid leverans</li>
+      <li><strong>Stuck-escape:</strong> automatisk boost när agenten fastnar</li>
+      <li><strong>Nyfikenhetsbonus:</strong> belönar nya celler för snabbare områdestäckning</li>
+      <li><strong>Progress-streak:</strong> extra reward för stabilt framsteg mot mål</li>
+      <li><strong>Leader beacon:</strong> bästa agenten lämnar starkare vägspår</li>
+      <li><strong>Success reinforcement:</strong> extra feromon vid korrekt sortering</li>
+      <li><strong>Separation steering:</strong> sprider ut agenter för att täcka mer yta</li>
+    </ul>
+  </div>
+
+  <div class="panel-section">
     <h2>Game Physics / ACO</h2>
     
     <div class="control-group">
@@ -368,6 +387,21 @@ const CFG = {
   hiddens: 20, 
   outputs: 6, 
   // Outputs: [Steer_Bias, Speed_Factor, Brake_Factor, NestP_Weight, TargetP_Weight, Deposit_Amount]
+  smart: {
+    epsilonMin: 0.02,
+    epsilonMax: 0.5,
+    alphaMin: 0.002,
+    alphaMax: 0.06,
+    sensorBoostMax: 1.6,
+    carrySensorScale: 0.85,
+    stuckFrames: 45,
+    curiosityReward: 0.3,
+    progressStreakReward: 0.12,
+    leaderDeposit: 0.07,
+    successDeposit: 0.2,
+    separationRadius: 35,
+    separationStrength: 0.6
+  },
   
   categories: [
     { id: 'incident', color: '#ff3366', label: 'Incident' }, /* Red */
@@ -415,6 +449,7 @@ const dist = (x1,y1,x2,y2) => Math.hypot(x2-x1, y2-y1);
 const clamp = (v,min,max) => Math.max(min, Math.min(max, v));
 const rand = (min,max) => Math.random() * (max-min) + min;
 const normDist = (d) => clamp(d / CFG.sensorRange, 0, 1); 
+const normDistWithRange = (d, range) => clamp(d / range, 0, 1);
 const normAngle = (a) => {
     while (a > Math.PI) a -= 2 * Math.PI;
     while (a < -Math.PI) a += 2 * Math.PI;
@@ -440,6 +475,19 @@ let grid = {
     problem: null, 
 };
 const GRID_FIELDS = ['food', 'incident', 'request', 'problem'];
+
+const adaptive = {
+    epsilon: CFG.RL_EPSILON,
+    alpha: CFG.RL_ALPHA,
+    decay: PHEROMONE_DECAY,
+    successEMA: 0,
+    stallEMA: 0,
+    rewardEMA: 0,
+    rewardVar: 0
+};
+
+const getEffectiveEpsilon = () => adaptive.epsilon || CFG.RL_EPSILON;
+const getEffectiveAlpha = () => adaptive.alpha || CFG.RL_ALPHA;
 
 const gi=(x,y)=> y*GW + x;
 const clampi=(v,a,b)=> v<a?a:(v>b?b:v);
@@ -526,9 +574,10 @@ function senseGrad(type, x, y){
 }
 
 function evaporate(){
+    const decay = adaptive.decay || PHEROMONE_DECAY;
     for(let i=0; i<grid.food.length; i++){
         for(const key of GRID_FIELDS){
-            grid[key][i] *= PHEROMONE_DECAY;
+            grid[key][i] *= decay;
         }
     }
 }
@@ -783,12 +832,31 @@ class Agent {
     this.lastAction = new Array(CFG.outputs).fill(0);
     this.accumulatedReward = 0;
     this.qScore = 0; // Accumulated Q-score / long-term fitness
+    this.stuckFrames = 0;
+    this.searchFrames = 0;
+    this.progressStreak = 0;
+    this.visitedCells = new Set();
+    this.lastSensorRange = CFG.sensorRange;
+  }
+
+  getSensorRange() {
+    const baseRange = CFG.sensorRange;
+    let range = baseRange;
+    if (this.carrying) {
+        range *= CFG.smart.carrySensorScale;
+    } else {
+        const boost = clamp(this.searchFrames / 900, 0, CFG.smart.sensorBoostMax - 1);
+        range *= 1 + boost;
+    }
+    return clamp(range, baseRange * 0.7, baseRange * CFG.smart.sensorBoostMax);
   }
   
   // Gets the current state (inputs) for the Policy Network
   getState() {
     let inputs = new Array(CFG.inputs).fill(0);
     let inputIndex = 0;
+    const effectiveRange = this.getSensorRange();
+    this.lastSensorRange = effectiveRange;
     
     let targetPheromone = 'food'; 
     if (this.carrying) {
@@ -813,7 +881,7 @@ class Agent {
     const distToBottom = H - this.y;
     minDistToWall = Math.min(distToLeft, distToRight, distToTop, distToBottom);
     
-    inputs[inputIndex++] = normDist(minDistToWall); 
+    inputs[inputIndex++] = normDistWithRange(minDistToWall, effectiveRange); 
     inputs[inputIndex++] = 0; // Reserved input
     
     // 4. Closest Ticket Sensor (1 input)
@@ -824,7 +892,7 @@ class Agent {
             closestTicketDist = Math.min(closestTicketDist, dist(this.x, this.y, t.x, t.y));
         }
     }
-    inputs[inputIndex++] = normDist(closestTicketDist);
+    inputs[inputIndex++] = normDistWithRange(closestTicketDist, effectiveRange);
 
     // 5. Carrying Info (4 inputs)
     if(this.carrying) {
@@ -849,7 +917,7 @@ class Agent {
     const aNest = Math.atan2(nest.y - this.y, nest.x - this.x);
     const angleDiffNest = aNest - this.angle;
     
-    inputs[inputIndex++] = normDist(dNest);               
+    inputs[inputIndex++] = normDistWithRange(dNest, effectiveRange);               
     inputs[inputIndex++] = normAngle(angleDiffNest);      
 
     // 8. Extra Input (1 input) - Closest Target Zone Distance
@@ -860,7 +928,7 @@ class Agent {
             dTarget = dist(this.x, this.y, targetZone.x, targetZone.y);
         }
     }
-    inputs[inputIndex++] = normDist(dTarget);             
+    inputs[inputIndex++] = normDistWithRange(dTarget, effectiveRange);             
     
     return inputs;
   }
@@ -920,12 +988,28 @@ class Agent {
 
     // Add Policy Steering Bias
     turnMag += steerBias * 0.5; // Policy can push the steering left/right
+
+    // Separation steering to spread agents out
+    let separationTurn = 0;
+    for (const other of agents) {
+        if (other === this) continue;
+        const d = dist(this.x, this.y, other.x, other.y);
+        if (d > 0 && d < CFG.smart.separationRadius) {
+            const awayAngle = Math.atan2(this.y - other.y, this.x - other.x);
+            const diff = normAngle(awayAngle - this.angle) * Math.PI;
+            separationTurn += diff * ((CFG.smart.separationRadius - d) / CFG.smart.separationRadius);
+        }
+    }
+    turnMag += separationTurn * CFG.smart.separationStrength;
     
     // Apply Turning
     this.angle += clamp(turnMag, -CFG.turnRate, CFG.turnRate);
     
     // 2. Propulsion
     let netThrust = speedFactor; // Always try to move forward based on policy output
+    if (this.carrying && targetGrad.mag > 0.2) {
+        netThrust = clamp(netThrust + 0.15, 0, 1);
+    }
 
     if(this.energy > 0) {
         this.vel += netThrust * 0.3;
@@ -964,7 +1048,7 @@ class Agent {
   learn(prevState, prevAction, reward, newPolicyOutputs) {
     if (CFG.learningMode !== 'rl' || reward === 0) return;
     
-    const alpha = CFG.RL_ALPHA;
+    const alpha = getEffectiveAlpha();
     const gamma = CFG.RL_GAMMA;
 
     // The accumulated Q-Score is updated using a simple temporal difference update.
@@ -980,6 +1064,12 @@ class Agent {
 
   update() {
     if(mouse.dragAgent === this || mouse.dragNest || mouse.dragZone) return; 
+
+    if (this.carrying) {
+        this.searchFrames = 0;
+    } else {
+        this.searchFrames += 1;
+    }
 
     const prevState = this.getState();
     let prevProgressDist = null;
@@ -1005,7 +1095,7 @@ class Agent {
         prevProgressDist = closestTicket;
     }
 
-    if (Math.random() < CFG.RL_EPSILON) {
+    if (Math.random() < getEffectiveEpsilon()) {
         // Exploration: Random Action
         policyOutputs = new Array(CFG.outputs).fill(0).map(() => rand(-1, 1));
         hiddens = new Array(CFG.hiddens).fill(0); 
@@ -1030,6 +1120,21 @@ class Agent {
     const movementReward = dist(prevX, prevY, postX, postY) * 0.15;
     reward += movementReward;
 
+    const movedDist = dist(prevX, prevY, postX, postY);
+    if (movedDist < 0.2) {
+        this.stuckFrames += 1;
+    } else {
+        this.stuckFrames = 0;
+    }
+
+    const cellX = clampi((this.x / CS) | 0, 0, GW - 1);
+    const cellY = clampi((this.y / CS) | 0, 0, GH - 1);
+    const cellIdx = gi(cellX, cellY);
+    if (!this.visitedCells.has(cellIdx)) {
+        this.visitedCells.add(cellIdx);
+        reward += CFG.smart.curiosityReward;
+    }
+
     // Dense shaping: reward moving toward target ticket/zone
     if(Number.isFinite(prevProgressDist)) {
         let newProgressDist = prevProgressDist;
@@ -1048,6 +1153,15 @@ class Agent {
         const progressDelta = (prevProgressDist - newProgressDist) || 0;
         const progressBoost = this.carrying ? 0.6 : 0.35;
         reward += progressDelta * progressBoost;
+
+        if (progressDelta > 0.05) {
+            this.progressStreak = clamp(this.progressStreak + 1, -8, 8);
+        } else if (progressDelta < -0.05) {
+            this.progressStreak = clamp(this.progressStreak - 1, -8, 8);
+        } else {
+            this.progressStreak *= 0.95;
+        }
+        reward += this.progressStreak * CFG.smart.progressStreakReward;
     }
     
     // Bounds (Wall Bounce)
@@ -1069,6 +1183,7 @@ class Agent {
         if(dist(this.x, this.y, t.x, t.y) < this.r + 5 && t.x > 0) {
           this.carrying = t;
           t.x = -1000;
+          this.searchFrames = 0;
           pushFeed(`Picked up ${t.def.label}`, 'good');
           reward += 10; 
           zoneHighlight = { id: t.def.id, frame: frame }; 
@@ -1084,6 +1199,9 @@ class Agent {
             const urgencyFactor = 1 / this.carrying.decay; 
             const baseReward = 50 + (this.energy * 10);
             reward += baseReward + (baseReward * urgencyFactor * 0.05);
+            deposit(this.carrying.def.id, this.x, this.y, PHEROMONE_CAP * CFG.smart.successDeposit, { spread: PHEROMONE_SPREAD });
+            deposit('food', this.x, this.y, PHEROMONE_CAP * (CFG.smart.successDeposit * 0.6), { spread: PHEROMONE_SPREAD });
+            this.energy = clamp(this.energy + 0.2, 0, 1);
 
             stats.solved++;
             spawnParticles(this.x, this.y, z.color, 15);
@@ -1099,6 +1217,14 @@ class Agent {
           break;
         }
       }
+    }
+
+    if (this.stuckFrames > CFG.smart.stuckFrames) {
+        this.angle += rand(-1.5, 1.5);
+        this.vel = clamp(this.vel + 1.2, -CFG.maxSpeed, CFG.maxSpeed);
+        this.energy = clamp(this.energy + 0.1, 0, 1);
+        this.stuckFrames = 0;
+        reward += 1;
     }
     
     this.accumulatedReward = reward; // Store for display/debugging
@@ -1124,12 +1250,13 @@ class Agent {
       const inputs = this.lastState;
       const distInput = inputs[4]; 
       const ticketInput = inputs[6]; 
+      const sensorRange = this.lastSensorRange || CFG.sensorRange;
 
       ctx.globalAlpha = 0.5;
       ctx.lineWidth = 1;
 
       if (distInput < 1) {
-        const wallRange = distInput * CFG.sensorRange;
+        const wallRange = distInput * sensorRange;
         ctx.strokeStyle = varStyles.accentBad;
         ctx.beginPath();
         ctx.arc(this.x, this.y, wallRange, 0, Math.PI * 2);
@@ -1137,7 +1264,7 @@ class Agent {
       }
       
       if (ticketInput < 1 && ticketInput > 0) {
-        const ticketRange = ticketInput * CFG.sensorRange;
+        const ticketRange = ticketInput * sensorRange;
         ctx.strokeStyle = varStyles.accentOk;
         ctx.beginPath();
         ctx.arc(this.x, this.y, ticketRange, 0, Math.PI * 2);
@@ -1443,6 +1570,36 @@ function updateFPS(now) {
     lastFrameTime = now;
 }
 
+function updateAdaptiveLearning() {
+    const total = stats.solved + stats.wrong;
+    const successRate = total ? stats.solved / total : 0;
+    adaptive.successEMA = adaptive.successEMA * 0.96 + successRate * 0.04;
+
+    const stalledRatio = agents.length ? agents.filter(a => a.stalled).length / agents.length : 0;
+    adaptive.stallEMA = adaptive.stallEMA * 0.9 + stalledRatio * 0.1;
+
+    const avgReward = agents.length
+        ? agents.reduce((sum, a) => sum + (a.accumulatedReward || 0), 0) / agents.length
+        : 0;
+    adaptive.rewardEMA = adaptive.rewardEMA * 0.9 + avgReward * 0.1;
+    const rewardDelta = avgReward - adaptive.rewardEMA;
+    adaptive.rewardVar = adaptive.rewardVar * 0.9 + rewardDelta * rewardDelta * 0.1;
+
+    let eps = CFG.RL_EPSILON * (1.1 - adaptive.successEMA * 0.6);
+    eps += adaptive.stallEMA * 0.08;
+    adaptive.epsilon = clamp(eps, CFG.smart.epsilonMin, CFG.smart.epsilonMax);
+
+    const volatility = Math.sqrt(adaptive.rewardVar);
+    let alpha = CFG.RL_ALPHA * (1 + clamp(volatility, 0, 1.2));
+    adaptive.alpha = clamp(alpha, CFG.smart.alphaMin, CFG.smart.alphaMax);
+
+    let activeTickets = 0;
+    tickets.forEach(t => { if (t.x > 0) activeTickets += 1; });
+    const loadRatio = activeTickets / Math.max(1, tickets.length);
+    let decay = PHEROMONE_DECAY + (1 - adaptive.successEMA) * 0.004 + (loadRatio - 0.5) * 0.003;
+    adaptive.decay = clamp(decay, 0.980, 0.999);
+}
+
 function updateUI() {
   document.getElementById('hudGen').innerText = `EPISODE ${episode}`;
   document.getElementById('dispGen').innerText = episode;
@@ -1463,8 +1620,8 @@ function updateUI() {
   }
 
   // Learning pulse bars
-  const epsilonPct = Math.round(CFG.RL_EPSILON * 100);
-  const alphaVal = CFG.RL_ALPHA;
+  const epsilonPct = Math.round(getEffectiveEpsilon() * 100);
+  const alphaVal = getEffectiveAlpha();
   const gammaVal = CFG.RL_GAMMA;
 
   const setBar = (id, pct) => {
@@ -1706,6 +1863,10 @@ function init(resetPolicyWeights = true) {
   }
 
   PHEROMONE_DECAY = parseInt(document.getElementById('slDecay').value) / 1000;
+
+  adaptive.epsilon = CFG.RL_EPSILON;
+  adaptive.alpha = CFG.RL_ALPHA;
+  adaptive.decay = PHEROMONE_DECAY;
   
   makeGrid(); 
 
@@ -1757,6 +1918,10 @@ function resetEpisode({ evolve = true } = {}) {
       a.fitness = 0;
       a.stalled = false;
       a.trail = [];
+      a.stuckFrames = 0;
+      a.searchFrames = 0;
+      a.progressStreak = 0;
+      a.visitedCells = new Set();
 
       if (evolve && CFG.learningMode === 'evolve') {
           if (!eliteSet.has(a)) {
@@ -1797,6 +1962,7 @@ function loop(now) {
 
   if(!paused) {
     // 1. Global Pheromone Update
+    updateAdaptiveLearning();
     evaporate();
     
     for(let n=0; n<speedMult; n++) {
@@ -1816,6 +1982,10 @@ function loop(now) {
       
       // Update bestAgent continuously based on fitness
       bestAgent = currentBest;
+      if (bestAgent) {
+          const leadType = bestAgent.carrying ? bestAgent.carrying.def.id : 'food';
+          deposit(leadType, bestAgent.x, bestAgent.y, PHEROMONE_CAP * CFG.smart.leaderDeposit, { spread: PHEROMONE_SPREAD });
+      }
       updateParticles();
       
       // Drag logic
@@ -1955,6 +2125,7 @@ document.getElementById('slDrain').oninput = (e) => {
 document.getElementById('slDecay').oninput = (e) => { 
     let val = parseInt(e.target.value);
     PHEROMONE_DECAY = val / 1000; 
+    adaptive.decay = PHEROMONE_DECAY;
     document.getElementById('valDecay').innerText = PHEROMONE_DECAY.toFixed(3); 
 };
 
@@ -1962,6 +2133,7 @@ document.getElementById('slDecay').oninput = (e) => {
 document.getElementById('slAlpha').oninput = (e) => { 
     let val = parseInt(e.target.value);
     CFG.RL_ALPHA = val / 1000;
+    adaptive.alpha = CFG.RL_ALPHA;
     document.getElementById('valAlpha').innerText = CFG.RL_ALPHA.toFixed(3); 
 };
 
@@ -1974,6 +2146,7 @@ document.getElementById('slGamma').oninput = (e) => {
 document.getElementById('slEpsilon').oninput = (e) => { 
     let val = parseInt(e.target.value);
     CFG.RL_EPSILON = val / 100;
+    adaptive.epsilon = CFG.RL_EPSILON;
     document.getElementById('valEpsilon').innerText = val + '%'; 
 };
 
