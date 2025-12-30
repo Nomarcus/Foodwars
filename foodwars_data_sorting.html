@@ -80,6 +80,15 @@
     label { display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 4px; color: var(--text-dim); }
     label span { color: var(--accent); font-family: var(--font-mono); }
     input[type=range] { width: 100%; accent-color: var(--accent); height: 4px; border-radius: 2px; background: #334; cursor: pointer; }
+    select {
+      width: 100%;
+      padding: 6px 8px;
+      border-radius: 6px;
+      border: 1px solid rgba(148,163,209,.28);
+      background: rgba(0,0,0,0.35);
+      color: var(--text-main);
+      font-size: 11px;
+    }
     
     .btn-group { display: flex; gap: 5px; margin-top: 5px; }
     .btn {
@@ -251,13 +260,32 @@
 
     <div class="control-group">
       <label title="Number of tickets in the play area">Ticket Count: <span id="valTickets">15</span></label>
-      <input type="range" id="slTicketCount" min="5" max="50" value="15">
+      <input type="range" id="slTicketCount" min="5" max="300" value="15">
+    </div>
+
+    <div class="control-group">
+      <label>Ticket Spawn Layout</label>
+      <select id="slTicketLayout">
+        <option value="random">Random (Full Map)</option>
+        <option value="lanes">Three Lanes</option>
+        <option value="corners">Corner Clusters</option>
+      </select>
+    </div>
+
+    <div class="control-group">
+      <label>Ticket Category Grouping</label>
+      <select id="slTicketGrouping">
+        <option value="mixed">Mixed</option>
+        <option value="grouped">Grouped by Category</option>
+      </select>
     </div>
     
     <div class="control-group">
       <label title="Antal frames per episod">Episode Duration (Frames): <span id="valDuration">2500</span></label>
       <input type="range" id="slDuration" min="500" max="10000" step="100" value="2500">
     </div>
+
+    <label class="checkbox-row"><input type="checkbox" id="chkManualEpisode"> Manual Episode (Ends on Restart)</label>
     
     <div class="btn-group">
         <button class="btn alt" id="btnResetAI">Reset Policy Weights</button>
@@ -376,6 +404,11 @@ const CFG = {
   },
   
   ticketCount: 15,
+  manualEpisode: false,
+  ticketSpawn: {
+    layout: 'random',
+    grouping: 'mixed'
+  },
   sensorRange: 180, 
   maxSpeed: 4.0, 
   turnRate: 0.08, 
@@ -778,11 +811,12 @@ class Ticket {
 
     respawn() {
         this.id = Math.random();
-        this.x = rand(50, W-50);
-        this.y = rand(150, H-150);
-        this.life = 1.0;
         this.typeIdx = Math.floor(Math.random() * CFG.categories.length);
         this.def = CFG.categories[this.typeIdx];
+        const spawn = getTicketSpawnPoint(this.typeIdx);
+        this.x = spawn.x;
+        this.y = spawn.y;
+        this.life = 1.0;
         this.decay = rand(0.0002, 0.0008); 
         this.r = 8;
     }
@@ -1556,7 +1590,6 @@ function drawPheromones() {
   }
 
   ctx.globalCompositeOperation = 'source-over';
-  drawZones();
 }
 
 
@@ -1641,7 +1674,7 @@ function updateUI() {
 
   const progress = clamp(frame / CFG.episodeDuration, 0, 1);
   const progressFill = document.getElementById('episodeFill');
-  if(progressFill) progressFill.style.width = `${(progress*100).toFixed(1)}%`;
+  if(progressFill) progressFill.style.width = `${(CFG.manualEpisode ? 100 : progress * 100).toFixed(1)}%`;
 
   // Toggle Policy Visualization visibility based on checkbox
   brainCanvas.style.display = document.getElementById('chkBrainViz').checked ? 'block' : 'none';
@@ -1831,23 +1864,28 @@ function init(resetPolicyWeights = true) {
   brainCanvas.width = 300;
   brainCanvas.height = 150;
   
+  const goalLineY = H * 0.22;
+  const nestY = H * 0.62;
   if (!nest) { 
-      nest = new Nest(W / 2, H / 2);
+      nest = new Nest(W / 2, nestY);
   } else {
-       nest.x = W / 2; nest.y = H / 2;
+       nest.x = W / 2; nest.y = nestY;
   }
   
   // Initialize Goal Zones
   goalZones = [
-      { x: W*0.2, y: H*0.2, r: 40, id: 'incident', color: CFG.categories.find(c=>c.id==='incident').color, label: 'INCIDENT' },
-      { x: W*0.8, y: H*0.2, r: 40, id: 'request', color: CFG.categories.find(c=>c.id==='request').color, label: 'SERVICE' },
-      { x: W*0.5, y: H*0.9, r: 40, id: 'problem', color: CFG.categories.find(c=>c.id==='problem').color, label: 'PROBLEM' }
+      { x: W*0.2, y: goalLineY, r: 40, id: 'incident', color: CFG.categories.find(c=>c.id==='incident').color, label: 'INCIDENT' },
+      { x: W*0.5, y: goalLineY, r: 40, id: 'request', color: CFG.categories.find(c=>c.id==='request').color, label: 'SERVICE' },
+      { x: W*0.8, y: goalLineY, r: 40, id: 'problem', color: CFG.categories.find(c=>c.id==='problem').color, label: 'PROBLEM' }
   ];
   
   // Set CFG from Sliders
   CFG.popSize = parseInt(document.getElementById('slPop').value); 
   CFG.ticketCount = parseInt(document.getElementById('slTicketCount').value); 
+  CFG.ticketSpawn.layout = document.getElementById('slTicketLayout').value;
+  CFG.ticketSpawn.grouping = document.getElementById('slTicketGrouping').value;
   CFG.episodeDuration = parseInt(document.getElementById('slDuration').value); 
+  CFG.manualEpisode = document.getElementById('chkManualEpisode').checked;
   CFG.RL_ALPHA = parseInt(document.getElementById('slAlpha').value) / 1000;
   CFG.RL_GAMMA = parseInt(document.getElementById('slGamma').value) / 100;
   CFG.RL_EPSILON = parseInt(document.getElementById('slEpsilon').value) / 100;
@@ -1956,6 +1994,51 @@ function resetEpisode({ evolve = true } = {}) {
   pushFeed(`--- NEW EPISODE (${episode}) ---`);
 }
 
+function getTicketSpawnAreas() {
+    const margin = 60;
+    const top = 140;
+    const bottom = H - 80;
+    const left = margin;
+    const right = W - margin;
+
+    if (CFG.ticketSpawn.layout === 'lanes') {
+        const laneWidth = (right - left) / 3;
+        return [
+            { xMin: left, xMax: left + laneWidth, yMin: top, yMax: bottom },
+            { xMin: left + laneWidth, xMax: left + laneWidth * 2, yMin: top, yMax: bottom },
+            { xMin: left + laneWidth * 2, xMax: right, yMin: top, yMax: bottom }
+        ];
+    }
+
+    if (CFG.ticketSpawn.layout === 'corners') {
+        const clusterW = (right - left) * 0.32;
+        const clusterH = (bottom - top) * 0.28;
+        return [
+            { xMin: left, xMax: left + clusterW, yMin: top, yMax: top + clusterH },
+            { xMin: right - clusterW, xMax: right, yMin: top, yMax: top + clusterH },
+            { xMin: left, xMax: left + clusterW, yMin: bottom - clusterH, yMax: bottom },
+            { xMin: right - clusterW, xMax: right, yMin: bottom - clusterH, yMax: bottom }
+        ];
+    }
+
+    return [{ xMin: left, xMax: right, yMin: top, yMax: bottom }];
+}
+
+function getTicketSpawnPoint(typeIdx) {
+    const areas = getTicketSpawnAreas();
+    let areaIndex = Math.floor(Math.random() * areas.length);
+
+    if (CFG.ticketSpawn.grouping === 'grouped') {
+        areaIndex = typeIdx % areas.length;
+    }
+
+    const area = areas[areaIndex];
+    return {
+        x: rand(area.xMin, area.xMax),
+        y: rand(area.yMin, area.yMax)
+    };
+}
+
 function loop(now) {
   updateFPS(now);
 
@@ -1967,7 +2050,7 @@ function loop(now) {
     for(let n=0; n<speedMult; n++) {
       frame++;
       
-      if(frame > CFG.episodeDuration) { resetEpisode(); break; }
+      if(!CFG.manualEpisode && frame > CFG.episodeDuration) { resetEpisode(); break; }
       
       tickets.forEach(t => { t.update(); });
       
@@ -2007,6 +2090,7 @@ function loop(now) {
     
     drawAgentTrail(); 
     drawPheromones(); 
+    drawZones();
     nest.draw(); 
     tickets.forEach(t => { t.draw(); });
     agents.forEach(a => { a.draw(); });
@@ -2024,7 +2108,7 @@ window.addEventListener('resize', () => {
     W = canvas.width = canvas.parentElement.offsetWidth; 
     H = canvas.height = canvas.parentElement.offsetHeight; 
     if(nest) {
-        nest.x = W / 2; nest.y = H / 2;
+        nest.x = W / 2; nest.y = H * 0.62;
     } 
     init(false); 
 });
@@ -2113,9 +2197,23 @@ document.getElementById('slTicketCount').oninput = (e) => {
     for(let i=0; i<CFG.ticketCount; i++) tickets.push(new Ticket());
 };
 
+document.getElementById('slTicketLayout').onchange = (e) => {
+    CFG.ticketSpawn.layout = e.target.value;
+    tickets.forEach(t => t.respawn());
+};
+
+document.getElementById('slTicketGrouping').onchange = (e) => {
+    CFG.ticketSpawn.grouping = e.target.value;
+    tickets.forEach(t => t.respawn());
+};
+
 document.getElementById('slDuration').oninput = (e) => { 
     CFG.episodeDuration = parseInt(e.target.value); 
     document.getElementById('valDuration').innerText = CFG.episodeDuration; 
+};
+
+document.getElementById('chkManualEpisode').onchange = (e) => {
+    CFG.manualEpisode = e.target.checked;
 };
 
 document.getElementById('slSensor').oninput = (e) => { 
