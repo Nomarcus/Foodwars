@@ -230,7 +230,7 @@
       <div class="legend-item"><span class="legend-dot" style="color:#00eaff"></span>Problem</div>
     </div>
     <div class="mini-callouts">
-      <div class="callout"><strong>Quick guide:</strong> Pick up a ticket, drive toward the zone with the same color, avoid the wrong ring.</div>
+      <div class="callout"><strong>Quick guide:</strong> Plocka upp en ticket och styr in i rätt sektor i tri-sorten.</div>
       <div class="callout">Keep the agents moving. If they stall: raise the speed or energy and press Restart.</div>
     </div>
     <div class="mini-callouts">
@@ -983,9 +983,9 @@ class Agent {
     inputs[inputIndex++] = ticketVector.dy;
 
     // 2. Goal Zone Vectors (6 inputs)
-    const incidentVector = toVector(incidentZone);
-    const requestVector = toVector(requestZone);
-    const problemVector = toVector(problemZone);
+    const incidentVector = toVector(zoneTargetPoint(incidentZone));
+    const requestVector = toVector(zoneTargetPoint(requestZone));
+    const problemVector = toVector(zoneTargetPoint(problemZone));
     inputs[inputIndex++] = incidentVector.dx;
     inputs[inputIndex++] = incidentVector.dy;
     inputs[inputIndex++] = requestVector.dx;
@@ -1048,8 +1048,8 @@ class Agent {
     if (this.carrying) {
         const correctZone = zones.find(z => z.id === this.carrying.def.id);
         if (correctZone) {
-            targetVec.x = correctZone.x - this.x;
-            targetVec.y = correctZone.y - this.y;
+            targetVec.x = correctZone.targetX - this.x;
+            targetVec.y = correctZone.targetY - this.y;
         }
     } else if (this.currentTargetTicket) {
         targetVec.x = this.currentTargetTicket.x - this.x;
@@ -1167,7 +1167,7 @@ class Agent {
 
     if(this.carrying) {
         const targetZone = getZones().find(z => z.id === this.carrying.def.id);
-        if(targetZone) prevProgressDist = dist(this.x, this.y, targetZone.x, targetZone.y);
+        if(targetZone) prevProgressDist = dist(this.x, this.y, targetZone.targetX, targetZone.targetY);
     } else if (this.currentTargetTicket) {
         prevProgressDist = dist(this.x, this.y, this.currentTargetTicket.x, this.currentTargetTicket.y);
     }
@@ -1217,7 +1217,7 @@ class Agent {
         let newProgressDist = prevProgressDist;
         if(this.carrying) {
             const targetZone = getZones().find(z => z.id === this.carrying.def.id);
-            if(targetZone) newProgressDist = dist(this.x, this.y, targetZone.x, targetZone.y);
+            if(targetZone) newProgressDist = dist(this.x, this.y, targetZone.targetX, targetZone.targetY);
         } else if (this.currentTargetTicket) {
             newProgressDist = dist(this.x, this.y, this.currentTargetTicket.x, this.currentTargetTicket.y);
         }
@@ -1269,7 +1269,7 @@ class Agent {
       // Try to drop off ticket
       const zones = getZones();
       for(let z of zones) {
-        if(dist(this.x, this.y, z.x, z.y) < z.r) {
+        if(pointInZone(z, this.x, this.y)) {
           if(z.id === this.carrying.def.id) {
             const urgencyFactor = 1 / this.carrying.decay; 
             const baseReward = 50 + (this.energy * 10);
@@ -1278,7 +1278,7 @@ class Agent {
 
             stats.solved++;
             spawnParticles(this.x, this.y, z.color, 15);
-            deposit(z.id, z.x, z.y, PHEROMONE_CAP * CFG.smart.successDeposit, { spread: PHEROMONE_SPREAD });
+            deposit(z.id, z.targetX, z.targetY, PHEROMONE_CAP * CFG.smart.successDeposit, { spread: PHEROMONE_SPREAD });
             pushFeed(`Sorted: ${this.carrying.def.label}`, 'good');
           } else {
             reward -= 50; // MUCH stronger penalty for wrong sorting
@@ -1434,7 +1434,7 @@ class Agent {
       const targetZone = zones.find(z => z.id === this.carrying.def.id);
       if(!targetZone) return;
 
-      const gradient = ctx.createLinearGradient(this.x, this.y, targetZone.x, targetZone.y);
+      const gradient = ctx.createLinearGradient(this.x, this.y, targetZone.targetX, targetZone.targetY);
       gradient.addColorStop(0, this.carrying.def.color);
       gradient.addColorStop(1, 'rgba(255,255,255,0.05)');
       
@@ -1446,7 +1446,7 @@ class Agent {
 
       ctx.beginPath();
       ctx.moveTo(this.x, this.y);
-      ctx.lineTo(targetZone.x, targetZone.y);
+      ctx.lineTo(targetZone.targetX, targetZone.targetY);
       ctx.stroke();
 
       ctx.setLineDash([]);
@@ -1484,45 +1484,67 @@ const varStyles = {
 };
 
 
+const TWO_PI = Math.PI * 2;
+const normalizeAngle = (angle) => (angle % TWO_PI + TWO_PI) % TWO_PI;
+const angleInRange = (angle, start, end) => {
+  if (start <= end) return angle >= start && angle <= end;
+  return angle >= start || angle <= end;
+};
+
 function getZones() {
-  return goalZones; 
+  return goalZones;
+}
+
+function zoneTargetPoint(zone) {
+  if (!zone) return null;
+  return { x: zone.targetX, y: zone.targetY };
+}
+
+function pointInZone(zone, x, y) {
+  const dx = x - zone.cx;
+  const dy = y - zone.cy;
+  const radius = Math.hypot(dx, dy);
+  if (radius < zone.innerR || radius > zone.outerR) return false;
+  const angle = normalizeAngle(Math.atan2(dy, dx));
+  return angleInRange(angle, zone.startAngle, zone.endAngle);
 }
 
 function drawZones() {
-    // ... (drawZones remains the same) ...
   getZones().forEach(z => {
-    if (zoneHighlight && z.id === zoneHighlight.id && frame < zoneHighlight.frame + 30) {
-        ctx.globalAlpha = (Math.sin(frame*0.2) + 1.5) * 0.3; 
-        ctx.strokeStyle = '#fff';
-        ctx.lineWidth = 5;
-        ctx.beginPath(); ctx.arc(z.x, z.y, z.r + 5, 0, Math.PI*2); ctx.stroke();
-    }
-    
-    if (mouse.dragZone === z) { 
-        ctx.globalAlpha = 1;
-        ctx.strokeStyle = '#fff';
-        ctx.lineWidth = 4;
-        ctx.beginPath();
-        ctx.arc(z.x, z.y, z.r + 5, 0, Math.PI * 2);
-        ctx.stroke();
-    }
-    
-    const grad = ctx.createRadialGradient(z.x, z.y, z.r*0.2, z.x, z.y, z.r);
-    grad.addColorStop(0, z.color + '80'); 
-    grad.addColorStop(1, 'transparent');
-    ctx.fillStyle = grad; 
-    ctx.globalAlpha = 0.5;
-    ctx.beginPath(); ctx.arc(z.x, z.y, z.r, 0, Math.PI*2); ctx.fill();
-    
-    ctx.globalAlpha = 1; 
-    ctx.strokeStyle = z.color; 
-    ctx.lineWidth = 2; 
-    ctx.beginPath(); ctx.arc(z.x, z.y, z.r, 0, Math.PI*2); ctx.stroke();
+    const highlight = zoneHighlight && z.id === zoneHighlight.id && frame < zoneHighlight.frame + 30;
+    const glowAlpha = highlight ? (Math.sin(frame * 0.2) + 1.5) * 0.35 : 0.25;
 
-    ctx.fillStyle = '#fff'; 
-    ctx.textAlign = 'center'; 
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(z.cx, z.cy, z.outerR, z.startAngle, z.endAngle);
+    ctx.arc(z.cx, z.cy, z.innerR, z.endAngle, z.startAngle, true);
+    ctx.closePath();
+
+    const grad = ctx.createRadialGradient(z.cx, z.cy, z.innerR * 0.6, z.cx, z.cy, z.outerR);
+    grad.addColorStop(0, z.color + '66');
+    grad.addColorStop(1, 'transparent');
+    ctx.fillStyle = grad;
+    ctx.globalAlpha = glowAlpha;
+    ctx.fill();
+
+    ctx.globalAlpha = 1;
+    ctx.strokeStyle = z.color;
+    ctx.lineWidth = highlight ? 5 : 2;
+    ctx.stroke();
+
+    if (highlight) {
+      ctx.strokeStyle = '#fff';
+      ctx.globalAlpha = 0.55;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
+
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = '#fff';
+    ctx.textAlign = 'center';
     ctx.font = '14px ' + varStyles.fontUi;
-    ctx.fillText(z.label, z.x, z.y + 5);
+    ctx.fillText(z.label, z.labelX, z.labelY);
+    ctx.restore();
   });
   ctx.globalAlpha = 1;
 }
@@ -1905,7 +1927,6 @@ function init(resetPolicyWeights = true) {
   brainCanvas.width = 300;
   brainCanvas.height = 150;
   
-  const goalLineY = H * 0.22;
   const nestY = H * 0.62;
   if (!nest) { 
       nest = new Nest(W / 2, nestY);
@@ -1914,11 +1935,35 @@ function init(resetPolicyWeights = true) {
   }
   
   // Initialize Goal Zones
-  goalZones = [
-      { x: W*0.2, y: goalLineY, r: 40, id: 'incident', color: CFG.categories.find(c=>c.id==='incident').color, label: 'INCIDENT' },
-      { x: W*0.5, y: goalLineY, r: 40, id: 'request', color: CFG.categories.find(c=>c.id==='request').color, label: 'SERVICE' },
-      { x: W*0.8, y: goalLineY, r: 40, id: 'problem', color: CFG.categories.find(c=>c.id==='problem').color, label: 'PROBLEM' }
-  ];
+  const outerRadius = Math.min(W, H) * 0.34;
+  const sorterCenter = { x: W * 0.5, y: Math.max(outerRadius + 40, H * 0.32) };
+  const innerRadius = outerRadius * 0.38;
+  const slice = TWO_PI / 3;
+  const baseAngle = -Math.PI / 2 - slice / 2;
+
+  goalZones = CFG.categories.map((cat, idx) => {
+      const startAngle = normalizeAngle(baseAngle + slice * idx);
+      const endAngle = normalizeAngle(baseAngle + slice * (idx + 1));
+      const midAngle = baseAngle + slice * (idx + 0.5);
+      const labelRadius = (innerRadius + outerRadius) * 0.55;
+      const targetRadius = (innerRadius + outerRadius) * 0.7;
+
+      return {
+          id: cat.id,
+          color: cat.color,
+          label: cat.label.replace(' Req', ''),
+          cx: sorterCenter.x,
+          cy: sorterCenter.y,
+          innerR: innerRadius,
+          outerR: outerRadius,
+          startAngle,
+          endAngle,
+          labelX: sorterCenter.x + Math.cos(midAngle) * labelRadius,
+          labelY: sorterCenter.y + Math.sin(midAngle) * labelRadius,
+          targetX: sorterCenter.x + Math.cos(midAngle) * targetRadius,
+          targetY: sorterCenter.y + Math.sin(midAngle) * targetRadius
+      };
+  });
   
   // Set CFG from Sliders
   CFG.popSize = parseInt(document.getElementById('slPop').value); 
@@ -2104,7 +2149,7 @@ function loop(now) {
       });
       
       goalZones.forEach(z => {
-        deposit(z.id, z.x, z.y, PHEROMONE_CAP * CFG.smart.zoneDeposit, { spread: PHEROMONE_SPREAD });
+        deposit(z.id, z.targetX, z.targetY, PHEROMONE_CAP * CFG.smart.zoneDeposit, { spread: PHEROMONE_SPREAD });
       });
 
       agents.forEach(a => {
@@ -2163,13 +2208,8 @@ canvas.addEventListener('mousedown', e => {
   if (dist(nest.x, nest.y, mouse.x, mouse.y) < nest.r) {
     mouse.dragNest = true;
   } else {
-    const hitZone = goalZones.find(z => dist(z.x, z.y, mouse.x, mouse.y) < z.r);
-    if(hitZone) {
-      mouse.dragZone = hitZone; 
-    } else {
-      const hit = agents.find(a => dist(a.x, a.y, mouse.x, mouse.y) < 20);
-      if(hit) mouse.dragAgent = hit;
-    }
+    const hit = agents.find(a => dist(a.x, a.y, mouse.x, mouse.y) < 20);
+    if(hit) mouse.dragAgent = hit;
   }
 });
 
@@ -2182,10 +2222,6 @@ canvas.addEventListener('mousemove', e => {
       nest.x = clamp(mouse.x, nest.r, W - nest.r);
       nest.y = clamp(mouse.y, nest.r, H - nest.r);
       makeGrid(); 
-  } else if (mouse.dragZone) { 
-      const r = mouse.dragZone.r;
-      mouse.dragZone.x = clamp(mouse.x, r, W - r);
-      mouse.dragZone.y = clamp(mouse.y, r, H - r);
   }
   updateHoverTip(e);
 });
