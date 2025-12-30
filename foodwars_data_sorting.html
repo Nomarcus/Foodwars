@@ -398,10 +398,14 @@ const CFG = {
     curiosityReward: 0.3,
     progressStreakReward: 0.12,
     leaderDeposit: 0.07,
+    agentDeposit: 0.04,
+    ticketDeposit: 0.08,
+    zoneDeposit: 0.12,
     successDeposit: 0.2,
     separationRadius: 35,
     separationStrength: 0.6,
-    deliveryAssist: 0.35
+    deliveryAssist: 0.35,
+    pheromoneAssist: 0.55
   },
   
   categories: [
@@ -768,8 +772,8 @@ class Ticket {
             spawnParticles(this.x, this.y, '#555', 5);
             this.respawn();
         }
-        
-        // No pheromone deposition in simplified learning mode
+
+        deposit('food', this.x, this.y, PHEROMONE_CAP * CFG.smart.ticketDeposit, { spread: PHEROMONE_SPREAD });
     }
 
     respawn() {
@@ -950,17 +954,10 @@ class Agent {
 
     let targetVec = { x: 0, y: 0 };
     if (this.carrying) {
-        if (incidentZone) {
-            targetVec.x += (incidentZone.x - this.x) * incidentWeight;
-            targetVec.y += (incidentZone.y - this.y) * incidentWeight;
-        }
-        if (requestZone) {
-            targetVec.x += (requestZone.x - this.x) * requestWeight;
-            targetVec.y += (requestZone.y - this.y) * requestWeight;
-        }
-        if (problemZone) {
-            targetVec.x += (problemZone.x - this.x) * problemWeight;
-            targetVec.y += (problemZone.y - this.y) * problemWeight;
+        const correctZone = zones.find(z => z.id === this.carrying.def.id);
+        if (correctZone) {
+            targetVec.x = correctZone.x - this.x;
+            targetVec.y = correctZone.y - this.y;
         }
     } else {
         let closestTicket = null;
@@ -978,14 +975,13 @@ class Agent {
             targetVec.y = closestTicket.y - this.y;
         }
     }
-    
-    if (this.carrying) {
-        const correctZone = zones.find(z => z.id === this.carrying.def.id);
-        if (correctZone) {
-            const assistWeight = CFG.smart.deliveryAssist;
-            targetVec.x = (1 - assistWeight) * targetVec.x + assistWeight * (correctZone.x - this.x);
-            targetVec.y = (1 - assistWeight) * targetVec.y + assistWeight * (correctZone.y - this.y);
-        }
+
+    const pheromoneType = this.carrying ? this.carrying.def.id : 'food';
+    const pheromoneGrad = senseGrad(pheromoneType, this.x, this.y);
+    if (pheromoneGrad.mag > 0) {
+        const assistScale = CFG.smart.pheromoneAssist * CFG.sensorRange;
+        targetVec.x += pheromoneGrad.gx * assistScale;
+        targetVec.y += pheromoneGrad.gy * assistScale;
     }
 
     const targetMag = Math.hypot(targetVec.x, targetVec.y);
@@ -1207,6 +1203,7 @@ class Agent {
 
             stats.solved++;
             spawnParticles(this.x, this.y, z.color, 15);
+            deposit(z.id, z.x, z.y, PHEROMONE_CAP * CFG.smart.successDeposit, { spread: PHEROMONE_SPREAD });
             pushFeed(`Sorted: ${this.carrying.def.label}`, 'good');
           } else {
             reward -= 50; // MUCH stronger penalty for wrong sorting
@@ -1982,6 +1979,15 @@ function loop(now) {
         if(a.fitness > maxFitness) { maxFitness = a.fitness; currentBest = a; }
       });
       
+      goalZones.forEach(z => {
+        deposit(z.id, z.x, z.y, PHEROMONE_CAP * CFG.smart.zoneDeposit, { spread: PHEROMONE_SPREAD });
+      });
+
+      agents.forEach(a => {
+        const leadType = a.carrying ? a.carrying.def.id : 'food';
+        deposit(leadType, a.x, a.y, PHEROMONE_CAP * CFG.smart.agentDeposit, { spread: PHEROMONE_SPREAD });
+      });
+
       // Update bestAgent continuously based on fitness
       bestAgent = currentBest;
       if (bestAgent) {
