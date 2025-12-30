@@ -400,7 +400,8 @@ const CFG = {
     leaderDeposit: 0.07,
     successDeposit: 0.2,
     separationRadius: 35,
-    separationStrength: 0.6
+    separationStrength: 0.6,
+    deliveryAssist: 0.35
   },
   
   categories: [
@@ -975,6 +976,15 @@ class Agent {
         if (closestTicket) {
             targetVec.x = closestTicket.x - this.x;
             targetVec.y = closestTicket.y - this.y;
+        }
+    }
+    
+    if (this.carrying) {
+        const correctZone = zones.find(z => z.id === this.carrying.def.id);
+        if (correctZone) {
+            const assistWeight = CFG.smart.deliveryAssist;
+            targetVec.x = (1 - assistWeight) * targetVec.x + assistWeight * (correctZone.x - this.x);
+            targetVec.y = (1 - assistWeight) * targetVec.y + assistWeight * (correctZone.y - this.y);
         }
     }
 
