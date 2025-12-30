@@ -254,8 +254,8 @@
     </div>
 
     <div class="control-group">
-      <label>Population Size: <span id="valPop">40</span></label>
-      <input type="range" id="slPop" min="10" max="100" value="40">
+      <label>Population Size: <span id="valPop">1</span></label>
+      <input type="range" id="slPop" min="1" max="100" value="1">
     </div>
 
     <div class="control-group">
@@ -308,8 +308,8 @@
     </div>
     
     <div class="control-group">
-        <label title="Share of random moves for exploration">Exploration Rate (Epsilon): <span id="valEpsilon">15%</span></label>
-        <input type="range" id="slEpsilon" min="0" max="50" value="15" step="1">
+        <label title="Share of random moves for exploration">Exploration Rate (Epsilon): <span id="valEpsilon">8%</span></label>
+        <input type="range" id="slEpsilon" min="0" max="50" value="8" step="1">
     </div>
     
     <div class="control-group">
@@ -361,7 +361,7 @@
       <label class="checkbox-row"><input type="checkbox" id="chkParticles" checked> Show Particles (Feedback)</label>
       <label class="checkbox-row"><input type="checkbox" id="chkTrail"> Show Best Agent Trail</label>
       <div class="pulse-grid" style="margin-top:10px;">
-        <div class="pulse-row"><span class="pulse-label">Exploration (ε)</span><div class="pulse-bar"><span id="barEpsilon"></span></div><span class="pulse-value" id="valEpsilonPulse">15%</span></div>
+        <div class="pulse-row"><span class="pulse-label">Exploration (ε)</span><div class="pulse-bar"><span id="barEpsilon"></span></div><span class="pulse-value" id="valEpsilonPulse">8%</span></div>
         <div class="pulse-row"><span class="pulse-label">Learning Rate (α)</span><div class="pulse-bar"><span id="barAlpha"></span></div><span class="pulse-value" id="valAlphaPulse">0.010</span></div>
         <div class="pulse-row"><span class="pulse-label">Discount (γ)</span><div class="pulse-bar"><span id="barGamma"></span></div><span class="pulse-value" id="valGammaPulse">0.90</span></div>
       </div>
@@ -391,11 +391,11 @@
 <script>
 // --- CONFIGURATION OBJECT (Mutable) ---
 const CFG = {
-  popSize: 40,
+  popSize: 1,
   RL_ALPHA: 0.01, // Learning Rate
   RL_GAMMA: 0.90,  // Discount Factor
-  RL_EPSILON: 0.15, // Exploration Rate
-  learningMode: 'evolve', // 'rl' or 'evolve' (Foodwars-style evolution)
+  RL_EPSILON: 0.08, // Exploration Rate
+  learningMode: 'rl', // 'rl' or 'evolve' (Foodwars-style evolution)
   evolve: {
     elite: 0.2,
     mutRate: 0.22,
@@ -438,7 +438,12 @@ const CFG = {
     separationRadius: 35,
     separationStrength: 0.6,
     deliveryAssist: 0.35,
-    pheromoneAssist: 0.55
+    pheromoneAssist: 0.55,
+    targetLockFrames: 160,
+    targetSwitchMargin: 0.12,
+    targetScoreDistance: 0.65,
+    targetScorePheromone: 0.25,
+    targetScoreUrgency: 0.3
   },
   
   categories: [
@@ -609,6 +614,14 @@ function senseGrad(type, x, y){
     }
 
     return { gx, gy, mag: centerVal }; 
+}
+
+function pheromoneValue(type, x, y){
+    const field = grid?.[type];
+    if(!field) return 0;
+    const cx = clampi((x/CS)|0, 0, GW-1);
+    const cy = clampi((y/CS)|0, 0, GH-1);
+    return field[gi(cx, cy)] || 0;
 }
 
 function evaporate(){
@@ -873,6 +886,9 @@ class Agent {
     this.progressStreak = 0;
     this.visitedCells = new Set();
     this.lastSensorRange = CFG.sensorRange;
+    this.targetTicketId = null;
+    this.targetLockFrames = 0;
+    this.currentTargetTicket = null;
   }
 
   getSensorRange() {
@@ -885,6 +901,60 @@ class Agent {
         range *= 1 + boost;
     }
     return clamp(range, baseRange * 0.7, baseRange * CFG.smart.sensorBoostMax);
+  }
+
+  scoreTicket(ticket) {
+    const distance = dist(this.x, this.y, ticket.x, ticket.y);
+    const distanceScore = 1 - clamp(distance / (CFG.sensorRange * 2.2), 0, 1);
+    const pheromoneScore = clamp(pheromoneValue('food', ticket.x, ticket.y) / PHEROMONE_CAP, 0, 1);
+    const urgencyScore = clamp(1 - ticket.life, 0, 1);
+    return (distanceScore * CFG.smart.targetScoreDistance)
+        + (pheromoneScore * CFG.smart.targetScorePheromone)
+        + (urgencyScore * CFG.smart.targetScoreUrgency);
+  }
+
+  getTargetTicket() {
+    if(this.carrying) return null;
+
+    let lockedTicket = null;
+    if (this.targetTicketId) {
+      lockedTicket = tickets.find(t => t.id === this.targetTicketId && t.x > 0) || null;
+      if (!lockedTicket) {
+        this.targetTicketId = null;
+        this.targetLockFrames = 0;
+      }
+    }
+
+    if (lockedTicket && this.targetLockFrames > 0) {
+      this.targetLockFrames -= 1;
+      return lockedTicket;
+    }
+
+    let bestTicket = null;
+    let bestScore = -Infinity;
+    for (const t of tickets) {
+      if (t.x < 0) continue;
+      const score = this.scoreTicket(t);
+      if (score > bestScore) {
+        bestScore = score;
+        bestTicket = t;
+      }
+    }
+
+    if (lockedTicket && bestTicket && lockedTicket !== bestTicket) {
+      const lockedScore = this.scoreTicket(lockedTicket);
+      if (lockedScore + CFG.smart.targetSwitchMargin >= bestScore) {
+        this.targetLockFrames = Math.max(this.targetLockFrames, 1);
+        return lockedTicket;
+      }
+    }
+
+    if (bestTicket) {
+      this.targetTicketId = bestTicket.id;
+      this.targetLockFrames = CFG.smart.targetLockFrames;
+    }
+
+    return bestTicket;
   }
   
   // Gets the current state (inputs) for the Policy Network
@@ -908,19 +978,7 @@ class Agent {
     const problemZone = zones.find(z => z.id === 'problem');
 
     // 1. Closest Ticket Vector (2 inputs)
-    let closestTicket = null;
-    let closestTicketDist = Infinity;
-    if(!this.carrying) {
-        for(let t of tickets) {
-            if(t.x < 0) continue; 
-            const d = dist(this.x, this.y, t.x, t.y);
-            if (d < closestTicketDist) {
-                closestTicketDist = d;
-                closestTicket = t;
-            }
-        }
-    }
-    const ticketVector = toVector(closestTicket);
+    const ticketVector = toVector(this.currentTargetTicket);
     inputs[inputIndex++] = ticketVector.dx;
     inputs[inputIndex++] = ticketVector.dy;
 
@@ -993,21 +1051,9 @@ class Agent {
             targetVec.x = correctZone.x - this.x;
             targetVec.y = correctZone.y - this.y;
         }
-    } else {
-        let closestTicket = null;
-        let closestTicketDist = Infinity;
-        for(let t of tickets) {
-            if(t.x < 0) continue; 
-            const d = dist(this.x, this.y, t.x, t.y);
-            if (d < closestTicketDist) {
-                closestTicketDist = d;
-                closestTicket = t;
-            }
-        }
-        if (closestTicket) {
-            targetVec.x = closestTicket.x - this.x;
-            targetVec.y = closestTicket.y - this.y;
-        }
+    } else if (this.currentTargetTicket) {
+        targetVec.x = this.currentTargetTicket.x - this.x;
+        targetVec.y = this.currentTargetTicket.y - this.y;
     }
 
     const pheromoneType = this.carrying ? this.carrying.def.id : 'food';
@@ -1105,8 +1151,10 @@ class Agent {
 
     if (this.carrying) {
         this.searchFrames = 0;
+        this.currentTargetTicket = null;
     } else {
         this.searchFrames += 1;
+        this.currentTargetTicket = this.getTargetTicket();
     }
 
     const prevState = this.getState();
@@ -1120,13 +1168,8 @@ class Agent {
     if(this.carrying) {
         const targetZone = getZones().find(z => z.id === this.carrying.def.id);
         if(targetZone) prevProgressDist = dist(this.x, this.y, targetZone.x, targetZone.y);
-    } else {
-        let closestTicket = Infinity;
-        tickets.forEach(t => {
-            if(t.x < 0) return;
-            closestTicket = Math.min(closestTicket, dist(this.x, this.y, t.x, t.y));
-        });
-        prevProgressDist = closestTicket;
+    } else if (this.currentTargetTicket) {
+        prevProgressDist = dist(this.x, this.y, this.currentTargetTicket.x, this.currentTargetTicket.y);
     }
 
     if (Math.random() < getEffectiveEpsilon()) {
@@ -1175,13 +1218,8 @@ class Agent {
         if(this.carrying) {
             const targetZone = getZones().find(z => z.id === this.carrying.def.id);
             if(targetZone) newProgressDist = dist(this.x, this.y, targetZone.x, targetZone.y);
-        } else {
-            let closestTicket = Infinity;
-            tickets.forEach(t => {
-                if(t.x < 0) return;
-                closestTicket = Math.min(closestTicket, dist(this.x, this.y, t.x, t.y));
-            });
-            newProgressDist = closestTicket;
+        } else if (this.currentTargetTicket) {
+            newProgressDist = dist(this.x, this.y, this.currentTargetTicket.x, this.currentTargetTicket.y);
         }
 
         const progressDelta = (prevProgressDist - newProgressDist) || 0;
@@ -1218,6 +1256,9 @@ class Agent {
           this.carrying = t;
           t.x = -1000;
           this.searchFrames = 0;
+          this.targetTicketId = null;
+          this.targetLockFrames = 0;
+          this.currentTargetTicket = null;
           pushFeed(`Picked up ${t.def.label}`, 'good');
           reward += 10; 
           zoneHighlight = { id: t.def.id, frame: frame }; 
