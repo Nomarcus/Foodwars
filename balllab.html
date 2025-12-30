@@ -1057,7 +1057,28 @@ class Terrain {
 
         const roll = Math.random();
 
-        if (roll < 0.3) {
+        if (roll < 0.18) {
+            const leadIn = 120 + Math.random() * 180;
+            nextX += leadIn;
+            this.surfacePoints.push({ x: nextX, y: baseGroundY, type: 'Flat' });
+
+            const holeWidth = 140 + Math.random() * 220 + progressFactor * 120;
+            const holeDepth = 160 + Math.random() * 160 + progressFactor * 80;
+            const holeEnd = nextX + holeWidth;
+
+            this.surfacePoints.push({ x: holeEnd, y: baseGroundY, type: 'Hole' });
+            this.holes.push({
+                start: nextX,
+                end: holeEnd,
+                ground: baseGroundY,
+                depth: holeDepth,
+                hue: 190 + Math.random() * 80
+            });
+
+            const landingGap = 160 + Math.random() * 220;
+            nextX = holeEnd + landingGap;
+            this.surfacePoints.push({ x: nextX, y: baseGroundY, type: 'Flat' });
+        } else if (roll < 0.48) {
             const preObstacleGap = 90 + Math.random() * 160 + Math.random() * 140;
             nextX += preObstacleGap;
             const groundYAtObstacleStart = this.getGroundY(nextX);
@@ -1082,7 +1103,7 @@ class Terrain {
 
             nextX += postObstacleGap;
             this.surfacePoints.push({ x: nextX, y: groundYAtObstacleStart, type: 'Flat' });
-        } else if (roll < 0.65) {
+        } else if (roll < 0.78) {
             nextX += 50 + Math.random() * 50;
             const uphill = Math.random() < 0.5;
             const rampLength = 180 + Math.random() * 220;
@@ -1272,6 +1293,36 @@ class Terrain {
         ctx.closePath();
         ctx.fill();
 
+        for (const hole of this.holes) {
+            const startX = worldToScreen(hole.start);
+            const endX = worldToScreen(hole.end);
+            if (endX < -200 || startX > canvas.width + 200) continue;
+
+            const groundY = hole.ground * config.zoom;
+            const depth = hole.depth * config.zoom;
+            const pitGradient = ctx.createLinearGradient(0, groundY, 0, Math.min(canvasHeight, groundY + depth));
+            pitGradient.addColorStop(0, 'rgba(15, 20, 30, 0.95)');
+            pitGradient.addColorStop(1, 'rgba(5, 8, 15, 1)');
+            ctx.fillStyle = pitGradient;
+            ctx.fillRect(startX, groundY, endX - startX, Math.min(canvasHeight - groundY, depth));
+
+            const glowGradient = ctx.createLinearGradient(startX, groundY, endX, groundY);
+            glowGradient.addColorStop(0, `hsla(${hole.hue}, 80%, 60%, 0.7)`);
+            glowGradient.addColorStop(0.5, `hsla(${hole.hue + 30}, 90%, 65%, 0.4)`);
+            glowGradient.addColorStop(1, `hsla(${hole.hue}, 80%, 60%, 0.7)`);
+            ctx.strokeStyle = glowGradient;
+            ctx.lineWidth = 4 * config.zoom;
+            ctx.beginPath();
+            ctx.moveTo(startX, groundY + 2);
+            ctx.lineTo(endX, groundY + 2);
+            ctx.stroke();
+
+            ctx.fillStyle = `hsla(${hole.hue}, 70%, 50%, 0.25)`;
+            ctx.beginPath();
+            ctx.ellipse((startX + endX) / 2, groundY + depth * 0.55, (endX - startX) * 0.3, depth * 0.2, 0, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
         const grassGradient = ctx.createLinearGradient(0, (500 - 5) * config.zoom, 0, 505 * config.zoom);
         grassGradient.addColorStop(0, '#70A050');
         grassGradient.addColorStop(0.5, '#5C7A3F');
@@ -1304,6 +1355,36 @@ class Terrain {
             if (screenX > canvas.width + 50) break;
         }
         ctx.stroke();
+
+        const markerSpacing = 260;
+        const markerStart = Math.floor((cameraX - 200) / markerSpacing) * markerSpacing;
+        const markerEnd = cameraX + canvas.width / config.zoom + 200;
+        for (let x = markerStart; x <= markerEnd; x += markerSpacing) {
+            const groundY = this.getGroundY(x);
+            if (!Number.isFinite(groundY)) continue;
+            if (this.getHoleAt(x)) continue;
+
+            const screenX = worldToScreen(x);
+            const screenY = groundY * config.zoom;
+            const poleHeight = 30 * config.zoom;
+
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
+            ctx.lineWidth = 2 * config.zoom;
+            ctx.beginPath();
+            ctx.moveTo(screenX, screenY);
+            ctx.lineTo(screenX, screenY - poleHeight);
+            ctx.stroke();
+
+            ctx.fillStyle = 'rgba(56, 189, 248, 0.75)';
+            ctx.beginPath();
+            ctx.arc(screenX, screenY - poleHeight, 6 * config.zoom, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.fillStyle = 'rgba(56, 189, 248, 0.15)';
+            ctx.beginPath();
+            ctx.arc(screenX, screenY - poleHeight, 16 * config.zoom, 0, Math.PI * 2);
+            ctx.fill();
+        }
 
         for (const obs of this.obstacles) {
             const screenX = worldToScreen(obs.x);
