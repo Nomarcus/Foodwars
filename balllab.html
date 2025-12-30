@@ -263,6 +263,20 @@
   <script>
 // ============= HELPERS =============
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+const drawRoundedRect = (ctx, x, y, width, height, radius) => {
+    const r = Math.min(radius, width / 2, height / 2);
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + width - r, y);
+    ctx.quadraticCurveTo(x + width, y, x + width, y + r);
+    ctx.lineTo(x + width, y + height - r);
+    ctx.quadraticCurveTo(x + width, y + height, x + width - r, y + height);
+    ctx.lineTo(x + r, y + height);
+    ctx.quadraticCurveTo(x, y + height, x, y + height - r);
+    ctx.lineTo(x, y + r);
+    ctx.quadraticCurveTo(x, y, x + r, y);
+    ctx.closePath();
+};
 
 // ============= CONFIG =============
 const config = {
@@ -568,20 +582,12 @@ class Ball {
 
             let solidDist = rayLength;
             let solidType = 'None';
-            let holeStart = null;
             const coarseStep = 15;
 
             for (let dist = coarseStep; dist <= rayLength; dist += coarseStep) {
                 const checkX = this.x + dx * dist;
                 const checkY = this.y + dy * dist;
                 const surface = terrain.getSurfaceInfo(checkX);
-
-                if (surface.type === 'Hole') {
-                    if (holeStart === null) {
-                        holeStart = dist;
-                    }
-                    continue;
-                }
 
                 const surfaceY = surface.height;
                 if (checkY >= surfaceY - this.radius) {
@@ -595,7 +601,7 @@ class Ball {
                         const midSurface = terrain.getSurfaceInfo(midX);
                         const midY = this.y + dy * mid;
 
-                        if (midSurface.type !== 'Hole' && midY >= midSurface.height - this.radius) {
+                        if (midY >= midSurface.height - this.radius) {
                             high = mid;
                             resolvedType = midSurface.type === 'Obstacle' ? 'Obstacle' : 'Ground';
                         } else {
@@ -609,26 +615,17 @@ class Ball {
                 }
             }
 
-            let eventDist = solidDist;
-            let landingDist = solidDist;
-            let holeWidth = 0;
-            let eventType = solidType;
+            const eventDist = solidDist;
+            const landingDist = solidDist;
+            const holeWidth = 0;
+            const eventType = solidType;
 
-            if (holeStart !== null) {
-                eventDist = holeStart;
-                landingDist = solidType === 'None' ? rayLength : solidDist;
-                holeWidth = Math.max(0, landingDist - holeStart);
-                eventType = 'Hole';
-            }
-
-            const normalizedEvent = holeStart !== null || solidType !== 'None'
+            const normalizedEvent = solidType !== 'None'
                 ? clamp(1 - (eventDist / rayLength), 0, 1)
                 : 0;
-            const normalizedWidth = clamp(holeWidth / rayLength, 0, 1);
 
-            const primaryValue = holeStart !== null ? -normalizedEvent : normalizedEvent;
-            sensors.push(primaryValue); // Channel A: nearest surface or hole start (negative = hole)
-            sensors.push(normalizedWidth); // Channel B: normalized hole width (0 when none)
+            sensors.push(normalizedEvent); // Channel A: nearest surface
+            sensors.push(0); // Channel B: unused (holes removed)
 
             sensorMeta.push({
                 distance: eventDist,
@@ -660,9 +657,7 @@ class Ball {
         this.vy += config.gravity * dt * 60;
 
         const surface = terrain.getSurfaceInfo(this.x);
-        const holeInfo = terrain.getHoleAt(this.x);
-        const insideHole = !!(holeInfo && this.x >= holeInfo.start && this.x <= holeInfo.end && this.y + this.radius > holeInfo.ground - 4);
-        const terrainY = surface.type === 'Hole' ? Infinity : surface.height;
+        const terrainY = surface.height;
         const slopeAngle = surface.slope || 0;
         const wasOnGround = this.onGround;
         this.onGround = Number.isFinite(terrainY) && this.y >= terrainY - this.radius;
@@ -696,10 +691,6 @@ class Ball {
         this.squash += (1 - this.squash) * 0.1;
         this.stretch += (1 - this.stretch) * 0.1;
 
-        if (insideHole && this.y - this.radius > (holeInfo.ground - 2) && this.vy < 0) {
-            this.vy *= 0.3;
-        }
-
         if (accelerate > 0.2) {
             this.vx += accelerate * 0.3 * dt * 60;
             if (accelerate > 0.8 && Math.random() < 0.3) {
@@ -719,42 +710,6 @@ class Ball {
         this.y += this.vy * dt * 60;
 
         this.rotation += this.vx * 0.03;
-
-        const activeHole = terrain.getHoleAt(this.x);
-        const currentlyInHole = !!(activeHole && this.x >= activeHole.start && this.x <= activeHole.end && this.y + this.radius > activeHole.ground - 4);
-
-        if (currentlyInHole) {
-            const leftLimit = activeHole.start + this.radius * 0.6;
-            const rightLimit = activeHole.end - this.radius * 0.6;
-
-            if (this.x < leftLimit) {
-                this.x = leftLimit;
-                if (this.vx < 0) this.vx *= -0.2;
-            }
-            if (this.x > rightLimit) {
-                this.x = rightLimit;
-                if (this.vx > 0) this.vx *= -0.2;
-            }
-
-            if (this.y - this.radius > activeHole.ground + this.radius * 0.5) {
-                this.vy = Math.max(this.vy, 1.5);
-            }
-        }
-
-        if (currentlyInHole) {
-            const holeWidth = activeHole.end - activeHole.start;
-            const innerStart = activeHole.start + this.radius * 1.1;
-            const innerEnd = activeHole.end - this.radius * 1.1;
-            const fullyInsideHorizontally = holeWidth > 0 && this.x > innerStart && this.x < innerEnd;
-            const deepEnough = this.y + this.radius > activeHole.ground + 140;
-
-            if (fullyInsideHorizontally && deepEnough) {
-                this.alive = false;
-                spawnParticles(this.x, activeHole.ground + 100, `hsla(0, 50%, 30%, 1)`, 15, 3);
-                triggerScreenShake(10);
-                return;
-            }
-        }
 
         if (this.x < camera.x - 200 || this.y > 700) {
             this.alive = false;
@@ -825,61 +780,58 @@ class Ball {
         // Apply squash & stretch
         ctx.scale(this.squash, this.stretch);
 
-        // Drawing routine continues
-        // Enhanced shadow with blur
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
-        ctx.shadowBlur = 8;
-        ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
+        // Soft shadow
+        ctx.fillStyle = 'rgba(5, 10, 25, 0.35)';
+        ctx.shadowBlur = 12;
+        ctx.shadowColor = 'rgba(5, 10, 25, 0.45)';
         ctx.beginPath();
-        // Keep the shadow from stretching
-        ctx.ellipse(0, r * 1.5 / this.stretch, r * 0.9 / this.squash, r * 0.35 / this.stretch, 0, 0, Math.PI * 2);
+        ctx.ellipse(0, r * 1.45 / this.stretch, r * 1.1 / this.squash, r * 0.4 / this.stretch, 0, 0, Math.PI * 2);
         ctx.fill();
         ctx.shadowBlur = 0;
-        
+
         ctx.rotate(this.rotation);
-        
-        // Outer glow
-        const outerGlow = ctx.createRadialGradient(0, 0, r * 0.8, 0, 0, r * 1.3);
-        outerGlow.addColorStop(0, `hsla(${this.hue}, 70%, 50%, 0)`);
-        outerGlow.addColorStop(1, `hsla(${this.hue}, 70%, 50%, 0.4)`);
-        ctx.fillStyle = outerGlow;
+
+        // Iridescent halo
+        const halo = ctx.createRadialGradient(0, 0, r * 0.2, 0, 0, r * 1.6);
+        halo.addColorStop(0, 'rgba(255, 255, 255, 0)');
+        halo.addColorStop(0.6, `hsla(${this.hue + 40}, 70%, 65%, 0.25)`);
+        halo.addColorStop(1, 'rgba(255, 255, 255, 0)');
+        ctx.fillStyle = halo;
         ctx.beginPath();
-        ctx.arc(0, 0, r * 1.3, 0, Math.PI * 2);
+        ctx.arc(0, 0, r * 1.6, 0, Math.PI * 2);
         ctx.fill();
-        
-        // Main ball with enhanced gradient
-        const gradient = ctx.createRadialGradient(-r * 0.35, -r * 0.35, 0, 0, 0, r * 1.2);
-        gradient.addColorStop(0, `hsla(${this.hue}, 85%, 80%, 1)`);
-        gradient.addColorStop(0.3, `hsla(${this.hue}, 75%, 65%, 1)`);
-        gradient.addColorStop(0.7, `hsla(${this.hue}, 70%, 50%, 1)`);
-        gradient.addColorStop(1, `hsla(${this.hue}, 60%, 30%, 1)`);
-        
-        ctx.fillStyle = gradient;
-        ctx.shadowColor = `hsla(${this.hue}, 70%, 50%, 0.8)`;
-        ctx.shadowBlur = 20 * config.zoom;
+
+        // Glassy core
+        const core = ctx.createRadialGradient(-r * 0.3, -r * 0.35, r * 0.2, 0, 0, r * 1.1);
+        core.addColorStop(0, 'rgba(255, 255, 255, 0.95)');
+        core.addColorStop(0.3, `hsla(${this.hue + 20}, 80%, 75%, 0.9)`);
+        core.addColorStop(0.65, `hsla(${this.hue}, 70%, 55%, 0.9)`);
+        core.addColorStop(1, `hsla(${this.hue - 10}, 65%, 35%, 0.95)`);
+        ctx.fillStyle = core;
+        ctx.shadowColor = `hsla(${this.hue}, 80%, 65%, 0.6)`;
+        ctx.shadowBlur = 24 * config.zoom;
         ctx.beginPath();
         ctx.arc(0, 0, r, 0, Math.PI * 2);
         ctx.fill();
         ctx.shadowBlur = 0;
-        
-        // Multiple shine highlights
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+
+        // Inner swirl ring
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
+        ctx.lineWidth = 2 * config.zoom;
         ctx.beginPath();
-        ctx.ellipse(-r * 0.35, -r * 0.35, r * 0.35, r * 0.25, -0.3, 0, Math.PI * 2);
-        ctx.fill();
-        
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
-        ctx.beginPath();
-        ctx.ellipse(-r * 0.2, -r * 0.4, r * 0.15, r * 0.1, -0.3, 0, Math.PI * 2);
-        ctx.fill();
-        
-        // Rotation indicator
-        ctx.strokeStyle = 'rgba(0, 0, 0, 0.6)';
-        ctx.lineWidth = 3 * config.zoom;
-        ctx.beginPath();
-        ctx.moveTo(0, 0);
-        ctx.lineTo(r * 0.7, 0);
+        ctx.ellipse(0, 0, r * 0.55, r * 0.35, Math.sin(this.rotation) * 0.2, 0, Math.PI * 2);
         ctx.stroke();
+
+        // Highlight streaks
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+        ctx.beginPath();
+        ctx.ellipse(-r * 0.35, -r * 0.25, r * 0.4, r * 0.2, -0.4, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.25)';
+        ctx.beginPath();
+        ctx.ellipse(r * 0.15, -r * 0.2, r * 0.2, r * 0.12, 0.4, 0, Math.PI * 2);
+        ctx.fill();
         
         ctx.restore();
     }
@@ -908,23 +860,18 @@ class Ball {
                 ? this.lastSensorMeta[i]
                 : { distance: rayLength, landingDistance: rayLength, holeWidth: 0, type: 'None' };
 
-            const targetDist = reading.type === 'Hole' ? reading.landingDistance : reading.distance;
-            const clampedDist = Math.min(targetDist, rayLength);
+            const clampedDist = Math.min(reading.distance, rayLength);
             const endX = screenX + dx * clampedDist * config.zoom;
             const endY = screenY + dy * clampedDist * config.zoom;
 
             const pulse = Math.sin(time * 3 + i * 0.3) * 0.2 + 0.6;
-            let startColor = `rgba(255, 159, 67, ${0.5 * pulse})`;
-            let midColor = `rgba(255, 159, 67, ${0.2 * pulse})`;
-            let endColor = 'rgba(255, 159, 67, 0)';
+            let startColor = `rgba(80, 210, 255, ${0.55 * pulse})`;
+            let midColor = `rgba(80, 210, 255, ${0.25 * pulse})`;
+            let endColor = 'rgba(80, 210, 255, 0)';
 
-            if (reading.type === 'Hole') {
-                startColor = `rgba(56, 189, 248, ${0.55 * pulse})`;
-                midColor = `rgba(56, 189, 248, ${0.25 * pulse})`;
-                endColor = 'rgba(56, 189, 248, 0)';
-            } else if (reading.type === 'Obstacle') {
-                startColor = `rgba(245, 87, 108, ${0.6 * pulse})`;
-                midColor = `rgba(245, 87, 108, ${0.3 * pulse})`;
+            if (reading.type === 'Obstacle') {
+                startColor = `rgba(255, 117, 163, ${0.6 * pulse})`;
+                midColor = `rgba(255, 117, 163, ${0.3 * pulse})`;
             }
 
             const gradient = ctx.createLinearGradient(screenX, screenY, endX, endY);
@@ -933,7 +880,7 @@ class Ball {
             gradient.addColorStop(1, endColor);
 
             ctx.strokeStyle = gradient;
-            ctx.lineWidth = reading.type === 'Hole' ? 2.2 : 1.8;
+            ctx.lineWidth = 1.8;
             ctx.beginPath();
             ctx.moveTo(screenX, screenY);
             ctx.lineTo(endX, endY);
@@ -941,44 +888,17 @@ class Ball {
 
             const hitAlphaBase = clampedDist < rayLength ? 0.8 : 0.35;
             const hitAlpha = hitAlphaBase * pulse;
-            const markerColor = reading.type === 'Hole'
-                ? `rgba(56, 189, 248, ${hitAlpha})`
-                : reading.type === 'Obstacle'
-                    ? `rgba(245, 87, 108, ${hitAlpha})`
-                    : `rgba(255, 159, 67, ${hitAlpha})`;
+            const markerColor = reading.type === 'Obstacle'
+                ? `rgba(255, 117, 163, ${hitAlpha})`
+                : `rgba(80, 210, 255, ${hitAlpha})`;
 
             ctx.fillStyle = markerColor;
             ctx.shadowColor = markerColor;
-            ctx.shadowBlur = reading.type === 'Hole' ? 8 : 5;
+            ctx.shadowBlur = 6;
             ctx.beginPath();
-            ctx.arc(endX, endY, reading.type === 'Hole' ? 4 : 3, 0, Math.PI * 2);
+            ctx.arc(endX, endY, 3, 0, Math.PI * 2);
             ctx.fill();
             ctx.shadowBlur = 0;
-
-            if (reading.type === 'Hole') {
-                const startDist = Math.min(reading.distance, rayLength);
-                const startX = screenX + dx * startDist * config.zoom;
-                const startY = screenY + dy * startDist * config.zoom;
-
-                ctx.fillStyle = `rgba(56, 189, 248, ${0.7 * pulse})`;
-                ctx.beginPath();
-                ctx.arc(startX, startY, 3, 0, Math.PI * 2);
-                ctx.fill();
-
-                ctx.strokeStyle = 'rgba(56, 189, 248, 0.4)';
-                ctx.setLineDash([4, 6]);
-                ctx.beginPath();
-                ctx.moveTo(startX, startY);
-                ctx.lineTo(endX, endY);
-                ctx.stroke();
-                ctx.setLineDash([]);
-
-                if (reading.holeWidth > 0 && Number.isFinite(reading.holeWidth)) {
-                    ctx.fillStyle = 'rgba(56, 189, 248, 0.45)';
-                    ctx.font = '10px Inter';
-                    ctx.fillText(reading.holeWidth.toFixed(0) + 'px', startX + 6, startY + 12);
-                }
-            }
         }
     }
 }
@@ -989,7 +909,6 @@ class Terrain {
         this.surfacePoints = [];
         this.nextSegmentX = config.firstObstacle;
         this.obstacleIndex = 0;
-        this.holes = [];
         this.generate();
     }
 
@@ -999,20 +918,11 @@ class Terrain {
 
         const { p1, p2 } = segment;
 
-        if (p2.type === 'Hole' && x >= p1.x && x < p2.x) {
-            return 1000;
-        }
-
         if (p2.x !== p1.x) {
             const t = (x - p1.x) / (p2.x - p1.x);
             return p1.y + t * (p2.y - p1.y);
         }
         return p1.y;
-    }
-
-    getHeight(x) {
-        const surface = this.getSurfaceInfo(x);
-        return surface.type === 'Hole' ? 1000 : surface.height;
     }
 
     getSurfaceInfo(x) {
@@ -1029,10 +939,6 @@ class Terrain {
         const { p1, p2 } = segment;
         const dx = p2.x - p1.x || 0.0001;
         const slope = Math.atan2(p2.y - p1.y, dx);
-
-        if (p2.type === 'Hole' && x >= p1.x && x < p2.x) {
-            return { height: Infinity, type: 'Hole', slope };
-        }
 
         const groundY = this.getGroundY(x);
         return { height: groundY, type: p2.type || 'Flat', slope };
@@ -1062,21 +968,19 @@ class Terrain {
             nextX += leadIn;
             this.surfacePoints.push({ x: nextX, y: baseGroundY, type: 'Flat' });
 
-            const holeWidth = 140 + Math.random() * 220 + progressFactor * 120;
-            const holeDepth = 160 + Math.random() * 160 + progressFactor * 80;
-            const holeEnd = nextX + holeWidth;
+            const waveLength = 260 + Math.random() * 220;
+            const crestHeight = 60 + Math.random() * 90 + progressFactor * 60;
+            const crestY = clamp(baseGroundY - crestHeight, 340, 560);
+            nextX += waveLength * 0.5;
+            this.surfacePoints.push({ x: nextX, y: crestY, type: 'Uphill' });
 
-            this.surfacePoints.push({ x: holeEnd, y: baseGroundY, type: 'Hole' });
-            this.holes.push({
-                start: nextX,
-                end: holeEnd,
-                ground: baseGroundY,
-                depth: holeDepth,
-                hue: 190 + Math.random() * 80
-            });
+            const troughHeight = 40 + Math.random() * 80;
+            const troughY = clamp(baseGroundY + troughHeight, 360, 600);
+            nextX += waveLength * 0.5;
+            this.surfacePoints.push({ x: nextX, y: troughY, type: 'Downhill' });
 
-            const landingGap = 160 + Math.random() * 220;
-            nextX = holeEnd + landingGap;
+            const settleGap = 140 + Math.random() * 220;
+            nextX += settleGap;
             this.surfacePoints.push({ x: nextX, y: baseGroundY, type: 'Flat' });
         } else if (roll < 0.48) {
             const preObstacleGap = 90 + Math.random() * 160 + Math.random() * 140;
@@ -1156,7 +1060,6 @@ class Terrain {
         this.surfacePoints = [{ x: 0, y: 500, type: 'Flat' }];
         this.nextSegmentX = config.firstObstacle;
         this.obstacleIndex = 0;
-        this.holes = [];
 
         this.surfacePoints.push({ x: config.firstObstacle, y: 500, type: 'Flat' });
 
@@ -1172,7 +1075,6 @@ class Terrain {
 
         this.obstacles = this.obstacles.filter(obs => obs.x + obs.width > leadX - 800);
         this.surfacePoints = this.surfacePoints.filter(p => p.x > leadX - 1200);
-        this.holes = this.holes.filter(hole => hole.end > leadX - 1200);
 
         if (this.surfacePoints.length && this.surfacePoints[0].x > leadX - 1200) {
             const x = leadX - 1200;
@@ -1220,42 +1122,23 @@ class Terrain {
         return candidate;
     }
 
-    getHoleAt(x) {
-        let low = 0;
-        let high = this.holes.length - 1;
-        let candidate = null;
-
-        while (low <= high) {
-            const mid = Math.floor((low + high) / 2);
-            const hole = this.holes[mid];
-            if (hole.start <= x) {
-                candidate = hole;
-                low = mid + 1;
-            } else {
-                high = mid - 1;
-            }
-        }
-
-        if (candidate && x <= candidate.end) {
-            return candidate;
-        }
-        return null;
-    }
-
     draw(ctx, cameraX) {
         const worldToScreen = (x) => (x - cameraX) * config.zoom;
         const canvasHeight = canvas.height;
 
         ctx.save();
+        ctx.lineJoin = 'round';
+        ctx.lineCap = 'round';
 
-        const groundGradient = ctx.createLinearGradient(0, canvasHeight * 0.8, 0, canvasHeight);
-        groundGradient.addColorStop(0, '#5A4A35');
-        groundGradient.addColorStop(0.2, '#4A3B28');
-        groundGradient.addColorStop(1, '#3A2C1C');
+        const groundGradient = ctx.createLinearGradient(0, canvasHeight * 0.7, 0, canvasHeight);
+        groundGradient.addColorStop(0, '#283554');
+        groundGradient.addColorStop(0.5, '#1f2a44');
+        groundGradient.addColorStop(1, '#141b2f');
         ctx.fillStyle = groundGradient;
 
         ctx.beginPath();
         ctx.moveTo(worldToScreen(this.surfacePoints[0].x), canvasHeight);
+        ctx.lineTo(worldToScreen(this.surfacePoints[0].x), this.surfacePoints[0].y * config.zoom);
 
         for (let i = 1; i < this.surfacePoints.length; i++) {
             const p = this.surfacePoints[i];
@@ -1264,71 +1147,21 @@ class Terrain {
 
             if (screenX > canvas.width + 50) break;
 
-            if (this.surfacePoints[i - 1].type !== 'Hole') {
-                ctx.lineTo(worldToScreen(this.surfacePoints[i - 1].x), this.surfacePoints[i - 1].y * config.zoom);
-            }
-
-            if (p.type === 'Hole' && this.surfacePoints[i - 1].type !== 'Hole') {
-                const startP = this.surfacePoints[i - 1];
-                ctx.lineTo(worldToScreen(startP.x), startP.y * config.zoom);
-                ctx.lineTo(worldToScreen(startP.x), canvasHeight);
-                ctx.lineTo(screenX, canvasHeight);
-                ctx.lineTo(screenX, screenY);
-            } else if (p.type === 'Hole') {
-                const startP = this.surfacePoints[i - 1];
-                ctx.lineTo(worldToScreen(startP.x), canvasHeight);
-                ctx.lineTo(screenX, canvasHeight);
-            } else {
-                ctx.lineTo(screenX, screenY);
-            }
+            ctx.lineTo(screenX, screenY);
         }
 
-        if (this.surfacePoints.length && this.surfacePoints[this.surfacePoints.length - 1].type !== 'Hole') {
-            ctx.lineTo(canvas.width, this.surfacePoints[this.surfacePoints.length - 1].y * config.zoom);
-        } else {
-            ctx.lineTo(canvas.width, canvasHeight);
-        }
+        ctx.lineTo(canvas.width, this.surfacePoints[this.surfacePoints.length - 1].y * config.zoom);
 
         ctx.lineTo(canvas.width, canvasHeight);
         ctx.closePath();
         ctx.fill();
 
-        for (const hole of this.holes) {
-            const startX = worldToScreen(hole.start);
-            const endX = worldToScreen(hole.end);
-            if (endX < -200 || startX > canvas.width + 200) continue;
-
-            const groundY = hole.ground * config.zoom;
-            const depth = hole.depth * config.zoom;
-            const pitGradient = ctx.createLinearGradient(0, groundY, 0, Math.min(canvasHeight, groundY + depth));
-            pitGradient.addColorStop(0, 'rgba(15, 20, 30, 0.95)');
-            pitGradient.addColorStop(1, 'rgba(5, 8, 15, 1)');
-            ctx.fillStyle = pitGradient;
-            ctx.fillRect(startX, groundY, endX - startX, Math.min(canvasHeight - groundY, depth));
-
-            const glowGradient = ctx.createLinearGradient(startX, groundY, endX, groundY);
-            glowGradient.addColorStop(0, `hsla(${hole.hue}, 80%, 60%, 0.7)`);
-            glowGradient.addColorStop(0.5, `hsla(${hole.hue + 30}, 90%, 65%, 0.4)`);
-            glowGradient.addColorStop(1, `hsla(${hole.hue}, 80%, 60%, 0.7)`);
-            ctx.strokeStyle = glowGradient;
-            ctx.lineWidth = 4 * config.zoom;
-            ctx.beginPath();
-            ctx.moveTo(startX, groundY + 2);
-            ctx.lineTo(endX, groundY + 2);
-            ctx.stroke();
-
-            ctx.fillStyle = `hsla(${hole.hue}, 70%, 50%, 0.25)`;
-            ctx.beginPath();
-            ctx.ellipse((startX + endX) / 2, groundY + depth * 0.55, (endX - startX) * 0.3, depth * 0.2, 0, 0, Math.PI * 2);
-            ctx.fill();
-        }
-
-        const grassGradient = ctx.createLinearGradient(0, (500 - 5) * config.zoom, 0, 505 * config.zoom);
-        grassGradient.addColorStop(0, '#70A050');
-        grassGradient.addColorStop(0.5, '#5C7A3F');
-        grassGradient.addColorStop(1, '#4A5F3A');
+        const grassGradient = ctx.createLinearGradient(0, (500 - 8) * config.zoom, 0, 508 * config.zoom);
+        grassGradient.addColorStop(0, '#6fdcff');
+        grassGradient.addColorStop(0.5, '#4cc3f0');
+        grassGradient.addColorStop(1, '#368bbd');
         ctx.strokeStyle = grassGradient;
-        ctx.lineWidth = 5 * config.zoom;
+        ctx.lineWidth = 6 * config.zoom;
 
         ctx.beginPath();
         if (this.surfacePoints.length) {
@@ -1340,17 +1173,7 @@ class Terrain {
             const screenX = worldToScreen(p.x);
             const screenY = p.y * config.zoom;
 
-            if (p.type === 'Hole' && this.surfacePoints[i - 1].type !== 'Hole') {
-                const startP = this.surfacePoints[i - 1];
-                ctx.lineTo(worldToScreen(startP.x), startP.y * config.zoom);
-                ctx.stroke();
-                ctx.beginPath();
-                ctx.moveTo(screenX, screenY);
-            } else if (p.type === 'Hole' && this.surfacePoints[i - 1].type === 'Hole') {
-                // Skip drawing inside hole
-            } else {
-                ctx.lineTo(screenX, screenY);
-            }
+            ctx.lineTo(screenX, screenY);
 
             if (screenX > canvas.width + 50) break;
         }
@@ -1362,7 +1185,6 @@ class Terrain {
         for (let x = markerStart; x <= markerEnd; x += markerSpacing) {
             const groundY = this.getGroundY(x);
             if (!Number.isFinite(groundY)) continue;
-            if (this.getHoleAt(x)) continue;
 
             const screenX = worldToScreen(x);
             const screenY = groundY * config.zoom;
@@ -1375,12 +1197,12 @@ class Terrain {
             ctx.lineTo(screenX, screenY - poleHeight);
             ctx.stroke();
 
-            ctx.fillStyle = 'rgba(56, 189, 248, 0.75)';
+            ctx.fillStyle = 'rgba(111, 220, 255, 0.75)';
             ctx.beginPath();
             ctx.arc(screenX, screenY - poleHeight, 6 * config.zoom, 0, Math.PI * 2);
             ctx.fill();
 
-            ctx.fillStyle = 'rgba(56, 189, 248, 0.15)';
+            ctx.fillStyle = 'rgba(111, 220, 255, 0.15)';
             ctx.beginPath();
             ctx.arc(screenX, screenY - poleHeight, 16 * config.zoom, 0, Math.PI * 2);
             ctx.fill();
@@ -1394,23 +1216,21 @@ class Terrain {
             const h = obs.height * config.zoom;
             const y = obs.y * config.zoom;
 
-            const obsGradient = ctx.createLinearGradient(screenX, y, screenX + w, y);
-            obsGradient.addColorStop(0, '#6d4c2a');
-            obsGradient.addColorStop(0.3, '#8B4513');
-            obsGradient.addColorStop(0.6, '#A0522D');
-            obsGradient.addColorStop(1, '#654321');
+            const obsGradient = ctx.createLinearGradient(screenX, y, screenX + w, y + h);
+            obsGradient.addColorStop(0, '#ff8fd1');
+            obsGradient.addColorStop(0.4, '#c77dff');
+            obsGradient.addColorStop(1, '#6f86ff');
             ctx.fillStyle = obsGradient;
-            ctx.fillRect(screenX, y, w, h);
+            const radius = 8 * config.zoom;
+            drawRoundedRect(ctx, screenX, y, w, h, radius);
+            ctx.fill();
 
-            ctx.strokeStyle = '#3E2723';
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
             ctx.lineWidth = 2;
-            ctx.strokeRect(screenX, y, w, h);
+            ctx.stroke();
 
-            const topGradient = ctx.createLinearGradient(screenX, y, screenX, y + 6);
-            topGradient.addColorStop(0, '#D2691E');
-            topGradient.addColorStop(1, '#A0522D');
-            ctx.fillStyle = topGradient;
-            ctx.fillRect(screenX, y, w, 6);
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.25)';
+            ctx.fillRect(screenX + 4 * config.zoom, y + 6 * config.zoom, w * 0.5, h * 0.08);
         }
 
         ctx.restore();
@@ -1423,6 +1243,8 @@ class Terrain {
 
 const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d');
+ctx.imageSmoothingEnabled = true;
+ctx.imageSmoothingQuality = 'high';
 
 // Neural network canvas
 const nnCanvas = document.getElementById('nnCanvas');
@@ -1794,65 +1616,75 @@ function draw() {
     const shakeY = (Math.random() - 0.5) * screenShake;
     ctx.translate(shakeX, shakeY);
 
-    // Multi-layer sky gradient
-    const skyGradient1 = ctx.createLinearGradient(0, 0, 0, canvas.height * 0.4);
-    skyGradient1.addColorStop(0, '#2d1b4e');
-    skyGradient1.addColorStop(1, '#1a1f3a');
-    ctx.fillStyle = skyGradient1;
-    ctx.fillRect(0, 0, canvas.width, canvas.height * 0.4);
-    
-    const skyGradient2 = ctx.createLinearGradient(0, canvas.height * 0.4, 0, canvas.height);
-    skyGradient2.addColorStop(0, '#1a1f3a');
-    skyGradient2.addColorStop(0.5, '#0f1419');
-    skyGradient2.addColorStop(1, '#0a0c10');
-    ctx.fillStyle = skyGradient2;
-    ctx.fillRect(0, canvas.height * 0.4, canvas.width, canvas.height * 0.6);
-    
-    // Stars
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
-    for (let i = 0; i < 100; i++) {
-        const x = (i * 137 + camera.x * 0.05) % canvas.width;
-        const y = (i * 211) % (canvas.height * 0.5);
-        const twinkle = Math.sin(performance.now() * 0.001 + i) * 0.3 + 0.7;
-        ctx.globalAlpha = twinkle;
-        ctx.fillRect(x, y, 2, 2);
+    // Soft sunrise sky
+    const skyGradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+    skyGradient.addColorStop(0, '#0f1b4c');
+    skyGradient.addColorStop(0.35, '#4c2f7b');
+    skyGradient.addColorStop(0.6, '#d66aa8');
+    skyGradient.addColorStop(1, '#f7d8a6');
+    ctx.fillStyle = skyGradient;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Sun glow
+    const sunX = canvas.width * 0.18;
+    const sunY = canvas.height * 0.22;
+    const sunGlow = ctx.createRadialGradient(sunX, sunY, 10, sunX, sunY, canvas.height * 0.5);
+    sunGlow.addColorStop(0, 'rgba(255, 240, 200, 0.9)');
+    sunGlow.addColorStop(0.4, 'rgba(255, 200, 160, 0.35)');
+    sunGlow.addColorStop(1, 'rgba(255, 200, 160, 0)');
+    ctx.fillStyle = sunGlow;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Aurora ribbons
+    const ribbonTime = performance.now() * 0.0002;
+    ctx.strokeStyle = 'rgba(120, 240, 255, 0.25)';
+    ctx.lineWidth = 28;
+    ctx.lineCap = 'round';
+    for (let i = 0; i < 3; i++) {
+        ctx.beginPath();
+        for (let x = -50; x <= canvas.width + 50; x += 40) {
+            const y = canvas.height * 0.28
+                + Math.sin(x * 0.01 + ribbonTime * (2 + i)) * (18 + i * 6)
+                + i * 24;
+            if (x === -50) {
+                ctx.moveTo(x, y);
+            } else {
+                ctx.lineTo(x, y);
+            }
+        }
+        ctx.stroke();
     }
-    ctx.globalAlpha = 1;
-    
-    // Distant mountains (parallax)
-    ctx.fillStyle = 'rgba(30, 40, 60, 0.6)';
+
+    // Distant rolling hills
+    ctx.fillStyle = 'rgba(33, 45, 80, 0.55)';
     ctx.beginPath();
-    ctx.moveTo(0, canvas.height * 0.6);
-    for (let x = 0; x < canvas.width; x += 20) {
-        const mountainX = x + camera.x * 0.1;
-        const y = canvas.height * 0.6 - Math.abs(Math.sin(mountainX * 0.01) * 60) - 40;
+    ctx.moveTo(0, canvas.height * 0.62);
+    for (let x = 0; x < canvas.width; x += 22) {
+        const hillX = x + camera.x * 0.08;
+        const y = canvas.height * 0.62 - Math.sin(hillX * 0.008) * 40 - 30;
         ctx.lineTo(x, y);
     }
     ctx.lineTo(canvas.width, canvas.height);
     ctx.lineTo(0, canvas.height);
     ctx.closePath();
     ctx.fill();
-    
-    // Clouds
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.15)';
-    for (let i = 0; i < 12; i++) {
-        const cloudX = ((i * 300 + camera.x * 0.2) % (canvas.width + 200)) - 100;
-        const cloudY = 40 + (i % 3) * 60;
-        const cloudSize = 40 + (i % 3) * 15;
-        
+
+    // Floating haze particles
+    for (let i = 0; i < 40; i++) {
+        const pX = (i * 157 + camera.x * 0.15) % canvas.width;
+        const pY = 80 + (i % 10) * 36;
+        ctx.fillStyle = `rgba(255, 255, 255, ${0.04 + (i % 5) * 0.015})`;
         ctx.beginPath();
-        ctx.arc(cloudX, cloudY, cloudSize, 0, Math.PI * 2);
-        ctx.arc(cloudX + cloudSize * 0.7, cloudY, cloudSize * 0.9, 0, Math.PI * 2);
-        ctx.arc(cloudX + cloudSize * 1.4, cloudY, cloudSize * 0.8, 0, Math.PI * 2);
+        ctx.arc(pX, pY, 10 + (i % 4) * 6, 0, Math.PI * 2);
         ctx.fill();
     }
-    
-    // Fog
-    const fogGradient = ctx.createLinearGradient(0, canvas.height * 0.7, 0, canvas.height);
-    fogGradient.addColorStop(0, 'rgba(15, 20, 25, 0)');
-    fogGradient.addColorStop(1, 'rgba(15, 20, 25, 0.3)');
-    ctx.fillStyle = fogGradient;
-    ctx.fillRect(0, canvas.height * 0.7, canvas.width, canvas.height * 0.3);
+
+    // Soft horizon mist
+    const hazeGradient = ctx.createLinearGradient(0, canvas.height * 0.55, 0, canvas.height);
+    hazeGradient.addColorStop(0, 'rgba(255, 230, 210, 0)');
+    hazeGradient.addColorStop(1, 'rgba(180, 210, 255, 0.2)');
+    ctx.fillStyle = hazeGradient;
+    ctx.fillRect(0, canvas.height * 0.55, canvas.width, canvas.height * 0.45);
     
     ctx.save();
     terrain.draw(ctx, camera.x);
@@ -1881,7 +1713,7 @@ function draw() {
     
     // Animated grass
     const time = performance.now() * 0.001;
-    ctx.strokeStyle = 'rgba(92, 122, 63, 0.6)';
+    ctx.strokeStyle = 'rgba(90, 180, 210, 0.6)';
     ctx.lineWidth = 1;
     for (let x = 0; x < canvas.width; x += 12) {
         const worldX = x / config.zoom + camera.x;
