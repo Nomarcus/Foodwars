@@ -1484,13 +1484,6 @@ const varStyles = {
 };
 
 
-const TWO_PI = Math.PI * 2;
-const normalizeAngle = (angle) => (angle % TWO_PI + TWO_PI) % TWO_PI;
-const angleInRange = (angle, start, end) => {
-  if (start <= end) return angle >= start && angle <= end;
-  return angle >= start || angle <= end;
-};
-
 function getZones() {
   return goalZones;
 }
@@ -1500,13 +1493,15 @@ function zoneTargetPoint(zone) {
   return { x: zone.targetX, y: zone.targetY };
 }
 
+function getZoneBandBounds() {
+  if (!goalZones.length) return { top: 140, bottom: 220 };
+  const top = Math.min(...goalZones.map(z => z.y));
+  const bottom = Math.max(...goalZones.map(z => z.y + z.h));
+  return { top, bottom };
+}
+
 function pointInZone(zone, x, y) {
-  const dx = x - zone.cx;
-  const dy = y - zone.cy;
-  const radius = Math.hypot(dx, dy);
-  if (radius < zone.innerR || radius > zone.outerR) return false;
-  const angle = normalizeAngle(Math.atan2(dy, dx));
-  return angleInRange(angle, zone.startAngle, zone.endAngle);
+  return x >= zone.x && x <= zone.x + zone.w && y >= zone.y && y <= zone.y + zone.h;
 }
 
 function drawZones() {
@@ -1516,12 +1511,11 @@ function drawZones() {
 
     ctx.save();
     ctx.beginPath();
-    ctx.arc(z.cx, z.cy, z.outerR, z.startAngle, z.endAngle);
-    ctx.arc(z.cx, z.cy, z.innerR, z.endAngle, z.startAngle, true);
+    ctx.roundRectPolyfill(z.x, z.y, z.w, z.h, 16);
     ctx.closePath();
 
-    const grad = ctx.createRadialGradient(z.cx, z.cy, z.innerR * 0.6, z.cx, z.cy, z.outerR);
-    grad.addColorStop(0, z.color + '66');
+    const grad = ctx.createLinearGradient(z.x, z.y, z.x + z.w, z.y + z.h);
+    grad.addColorStop(0, z.color + '77');
     grad.addColorStop(1, 'transparent');
     ctx.fillStyle = grad;
     ctx.globalAlpha = glowAlpha;
@@ -1934,34 +1928,35 @@ function init(resetPolicyWeights = true) {
        nest.x = W / 2; nest.y = nestY;
   }
   
-  // Initialize Goal Zones
-  const outerRadius = Math.min(W, H) * 0.34;
-  const sorterCenter = { x: W * 0.5, y: Math.max(outerRadius + 40, H * 0.32) };
-  const innerRadius = outerRadius * 0.38;
-  const slice = TWO_PI / 3;
-  const baseAngle = -Math.PI / 2 - slice / 2;
+  // Initialize Goal Zones (horizontal sorting line)
+  const zoneMargin = 40;
+  const zoneGap = 24;
+  const zoneHeight = Math.max(110, Math.min(150, H * 0.18));
+  const zoneTop = 60;
+  const zoneCount = CFG.categories.length;
+  const availableWidth = W - zoneMargin * 2 - zoneGap * (zoneCount - 1);
+  const zoneWidth = Math.max(140, availableWidth / zoneCount);
+  const totalWidth = zoneWidth * zoneCount + zoneGap * (zoneCount - 1);
+  const startX = Math.max(zoneMargin, (W - totalWidth) / 2);
 
   goalZones = CFG.categories.map((cat, idx) => {
-      const startAngle = normalizeAngle(baseAngle + slice * idx);
-      const endAngle = normalizeAngle(baseAngle + slice * (idx + 1));
-      const midAngle = baseAngle + slice * (idx + 0.5);
-      const labelRadius = (innerRadius + outerRadius) * 0.55;
-      const targetRadius = (innerRadius + outerRadius) * 0.7;
+      const x = startX + idx * (zoneWidth + zoneGap);
+      const y = zoneTop;
+      const labelX = x + zoneWidth / 2;
+      const labelY = y + zoneHeight / 2 + 4;
 
       return {
           id: cat.id,
           color: cat.color,
           label: cat.label.replace(' Req', ''),
-          cx: sorterCenter.x,
-          cy: sorterCenter.y,
-          innerR: innerRadius,
-          outerR: outerRadius,
-          startAngle,
-          endAngle,
-          labelX: sorterCenter.x + Math.cos(midAngle) * labelRadius,
-          labelY: sorterCenter.y + Math.sin(midAngle) * labelRadius,
-          targetX: sorterCenter.x + Math.cos(midAngle) * targetRadius,
-          targetY: sorterCenter.y + Math.sin(midAngle) * targetRadius
+          x,
+          y,
+          w: zoneWidth,
+          h: zoneHeight,
+          labelX,
+          labelY,
+          targetX: x + zoneWidth / 2,
+          targetY: y + zoneHeight / 2
       };
   });
   
@@ -2082,7 +2077,8 @@ function resetEpisode({ evolve = true } = {}) {
 
 function getTicketSpawnAreas() {
     const margin = 60;
-    const top = 140;
+    const zoneBand = getZoneBandBounds();
+    const top = Math.min(zoneBand.bottom + 40, H * 0.55);
     const bottom = H - 80;
     const left = margin;
     const right = W - margin;
