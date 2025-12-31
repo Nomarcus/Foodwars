@@ -247,6 +247,23 @@
       color: var(--muted);
     }
 
+    .details-grid {
+      display: grid;
+      gap: 16px;
+    }
+
+    .details-grid .card {
+      min-height: unset;
+    }
+
+    .card ul {
+      margin: 0;
+      padding-left: 18px;
+      display: grid;
+      gap: 6px;
+      color: var(--muted);
+    }
+
     footer {
       border-top: 1px solid var(--stroke);
       background: var(--panel-strong);
@@ -374,6 +391,60 @@
 
     <section class="section">
       <div class="section-header">
+        <h2>Deep dives into the core experiments</h2>
+        <p>These are the most popular simulations. Each summary explains the algorithm, how to work with the controls, and what to explore while the agents learn.</p>
+      </div>
+      <div class="details-grid">
+        <article class="card">
+          <h3>Snake AI</h3>
+          <p>Snake AI uses reinforcement learning on a grid. The agent senses the food, its own body, and nearby walls, then picks actions that maximize reward over time.</p>
+          <ul>
+            <li><strong>Algorithm:</strong> value-based reinforcement learning with rewards for eating and penalties for collisions.</li>
+            <li><strong>Work with it:</strong> adjust speed or reset to compare how quickly the policy improves.</li>
+            <li><strong>Explore:</strong> watch how the snake shifts from random wandering to path planning as rewards accumulate.</li>
+          </ul>
+        </article>
+        <article class="card">
+          <h3>Foodwars Arena</h3>
+          <p>Foodwars is a multi-agent NEAT arena. Teams evolve neural networks that compete for food, avoid hazards, and develop emergent tactics.</p>
+          <ul>
+            <li><strong>Algorithm:</strong> NEAT (NeuroEvolution of Augmenting Topologies) with population fitness scoring.</li>
+            <li><strong>Work with it:</strong> toggle obstacles, reset generations, and compare team fitness charts.</li>
+            <li><strong>Explore:</strong> look for specialization—scouts, blockers, and harvesters appear as evolution runs longer.</li>
+          </ul>
+        </article>
+        <article class="card">
+          <h3>Data Sorting Lab</h3>
+          <p>The Data Sorting demo visualizes agents routing items to the correct lanes, showing how learned policies organize data streams.</p>
+          <ul>
+            <li><strong>Algorithm:</strong> hybrid policy learning that blends heuristic routing with learned action selection.</li>
+            <li><strong>Work with it:</strong> feed more items, slow the simulation, and watch the routing decisions per lane.</li>
+            <li><strong>Explore:</strong> inspect how the policy adapts as the input distribution changes.</li>
+          </ul>
+        </article>
+        <article class="card">
+          <h3>BallLab</h3>
+          <p>BallLab evolves bouncing agents that must keep moving without crashing. It is a compact physics sandbox for neuroevolution.</p>
+          <ul>
+            <li><strong>Algorithm:</strong> NEAT-based evolution with survival time and stability as fitness signals.</li>
+            <li><strong>Work with it:</strong> reset the population, then tweak gravity or damping if controls are available.</li>
+            <li><strong>Explore:</strong> observe how agents learn to conserve momentum and avoid chaotic collisions.</li>
+          </ul>
+        </article>
+        <article class="card">
+          <h3>Vollyball Showdown</h3>
+          <p>Vollyball pits cooperative agents against physics and timing challenges. The goal is to keep the ball in play and coordinate movement.</p>
+          <ul>
+            <li><strong>Algorithm:</strong> NEAT-style cooperative evolution with shared rewards for successful volleys.</li>
+            <li><strong>Work with it:</strong> run multiple matches, then compare how coordination improves over generations.</li>
+            <li><strong>Explore:</strong> look for synchronized jumps and positioning as the agents learn spacing.</li>
+          </ul>
+        </article>
+      </div>
+    </section>
+
+    <section id="explore" class="section">
+      <div class="section-header">
         <h2>Tips for the best experience</h2>
         <p>Most simulations respond instantly, but giving them a few moments to run reveals richer behavior. If a demo has controls, try changing one value at a time to see clear differences.</p>
       </div>
@@ -381,6 +452,7 @@
         <li>Use fullscreen or a wide display for the best view of the arena.</li>
         <li>Look for control panels and tooltips to understand each metric.</li>
         <li>Reset the simulation whenever you want to start fresh.</li>
+        <li>Compare short runs to long runs to see the impact of training time.</li>
       </ul>
     </section>
   </main>
