@@ -12,10 +12,10 @@
       --ink:#f5f7ff;
       --muted:#a0accf;
       --accent:#38bdf8;
-      --accent-hot:#f472b6;
+      --accent-hot:#f5576c;
       --accent-cyan:#38bdf8;
       --silver:rgba(148,163,209,.35);
-      --shadow:0 24px 55px rgba(10,14,38,.55);
+      --shadow:0 18px 36px rgba(10,14,38,.55);
     }
     *{box-sizing:border-box;}
     body{
@@ -57,7 +57,7 @@
     .field-area{flex:1 1 auto; display:flex; flex-direction:column; gap:18px; min-width:0;}
     .playfield-frame{position:relative; padding:20px; border-radius:30px; background:rgba(4,8,26,.85); box-shadow:var(--shadow); border:1px solid rgba(148,163,209,.22);}
 
-    canvas{border-radius:24px; background:#04091f; box-shadow:0 0 45px rgba(15,23,61,.65), inset 0 0 22px rgba(118,133,255,.12); border:1px solid rgba(148,163,209,.25); width:100%; height:auto; display:block;}
+    canvas{border-radius:24px; background:linear-gradient(180deg, #1a1f2e 0%, #0d1117 100%); box-shadow:0 0 45px rgba(15,23,61,.65), inset 0 0 22px rgba(118,133,255,.12); border:1px solid rgba(148,163,209,.25); width:100%; height:auto; display:block;}
 
     .stats{display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:16px; padding:18px 22px; border-radius:22px; background:rgba(11,16,44,.78); border:1px solid rgba(148,163,209,.28); box-shadow:0 18px 32px rgba(5,9,25,.45);}
     .stat-box{display:flex; flex-direction:column; gap:6px; text-align:left; padding:6px 0;}
@@ -89,7 +89,9 @@
     .chart{margin-top:14px; height:110px; background:rgba(4,8,26,.85); border-radius:16px; padding:10px; border:1px solid rgba(148,163,209,.18); box-shadow:inset 0 0 18px rgba(59,130,246,.12);}
     .chart-bar{display:inline-block; width:4px; margin-right:2px; vertical-align:bottom; border-radius:3px 3px 0 0; background:linear-gradient(to top, var(--accent), var(--accent-hot));}
 
-    #nnCanvas{width:100%; height:200px; background:rgba(4,8,26,.85); border-radius:16px; border:1px solid rgba(148,163,209,.2); box-shadow:inset 0 0 18px rgba(59,130,246,.12);}
+    #nnCanvas{width:100%; max-width:420px; height:auto; aspect-ratio:7 / 4; margin:0 auto; background:rgba(4,8,26,.85); border-radius:16px; border:1px solid rgba(148,163,209,.2); box-shadow:inset 0 0 18px rgba(59,130,246,.12); display:block;}
+    .toggle-row{display:flex; align-items:center; justify-content:space-between; gap:12px; font-size:13px; color:var(--muted);}
+    .toggle-row input{width:18px; height:18px; accent-color:var(--accent);}
 
     @media (max-width:1200px){
       .wrap{flex-direction:column; align-items:center;}
@@ -150,7 +152,7 @@
         <div class="insight-panels">
           <section class="insight-panel">
             <h3>🧠 Neural Network (Top Agent)</h3>
-            <canvas id="nnCanvas" width="300" height="180"></canvas>
+            <canvas id="nnCanvas" width="420" height="240"></canvas>
           </section>
           <section class="insight-panel">
             <h3>📊 Training History</h3>
@@ -217,6 +219,12 @@
           <div class="control-group">
             <label>First Obstacle At <span class="value-display" id="firstObstacleVal">800</span></label>
             <input type="range" id="firstObstacle" min="300" max="1500" step="50" value="800">
+          </div>
+          <div class="control-group">
+            <div class="toggle-row">
+              <span>Show Hills</span>
+              <input type="checkbox" id="showHills">
+            </div>
           </div>
         </section>
 
@@ -304,7 +312,8 @@ const config = {
     obstacleHeight: 1.0,
     firstObstacle: 800,
     progressTimeout: 5,
-    slopeEffect: 0.3
+    slopeEffect: 0.3,
+    showHills: false
 };
 
 let paused = false;
@@ -1312,6 +1321,14 @@ function setupControls() {
             }
         });
     }
+
+    const showHillsToggle = document.getElementById('showHills');
+    if (showHillsToggle) {
+        showHillsToggle.checked = config.showHills;
+        showHillsToggle.addEventListener('change', (e) => {
+            config.showHills = e.target.checked;
+        });
+    }
 }
 
 function resetGeneration() {
@@ -1662,19 +1679,21 @@ function draw() {
         ctx.stroke();
     }
 
-    // Distant rolling hills
-    ctx.fillStyle = 'rgba(33, 45, 80, 0.55)';
-    ctx.beginPath();
-    ctx.moveTo(0, canvas.height * 0.62);
-    for (let x = 0; x < canvas.width; x += 22) {
-        const hillX = x + camera.x * 0.08;
-        const y = canvas.height * 0.62 - Math.sin(hillX * 0.008) * 40 - 30;
-        ctx.lineTo(x, y);
+    if (config.showHills) {
+        // Distant rolling hills
+        ctx.fillStyle = 'rgba(33, 45, 80, 0.55)';
+        ctx.beginPath();
+        ctx.moveTo(0, canvas.height * 0.62);
+        for (let x = 0; x < canvas.width; x += 22) {
+            const hillX = x + camera.x * 0.08;
+            const y = canvas.height * 0.62 - Math.sin(hillX * 0.008) * 40 - 30;
+            ctx.lineTo(x, y);
+        }
+        ctx.lineTo(canvas.width, canvas.height);
+        ctx.lineTo(0, canvas.height);
+        ctx.closePath();
+        ctx.fill();
     }
-    ctx.lineTo(canvas.width, canvas.height);
-    ctx.lineTo(0, canvas.height);
-    ctx.closePath();
-    ctx.fill();
 
     // Floating haze particles
     for (let i = 0; i < 40; i++) {
