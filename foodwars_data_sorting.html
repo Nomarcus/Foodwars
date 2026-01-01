@@ -316,6 +316,14 @@
       <label title="Antal noder i dolda lagret.">Hidden Nodes: <span id="valHidden">20</span></label>
       <input type="range" id="slHidden" min="8" max="40" step="4" value="20">
     </div>
+
+    <div class="control-group">
+      <label title="Switch between evolution and RL">Learning Mode: <span id="valLearningMode">Evolve</span></label>
+      <select id="slLearningMode">
+        <option value="evolve" selected>Evolve</option>
+        <option value="rl">RL</option>
+      </select>
+    </div>
   </div>
 
   <div class="panel-section">
@@ -332,6 +340,25 @@
       <li><strong>Success reinforcement:</strong> extra feromon vid korrekt sortering</li>
       <li><strong>Separation steering:</strong> sprider ut agenter för att täcka mer yta</li>
     </ul>
+  </div>
+
+  <div class="panel-section">
+    <h2>Penalties</h2>
+
+    <div class="control-group">
+      <label title="Penalty when agents hit the wall">Wall Penalty: <span id="valPenaltyWall">-10</span></label>
+      <input type="range" id="slPenaltyWall" min="0" max="50" value="10" step="1">
+    </div>
+
+    <div class="control-group">
+      <label title="Penalty when agents are stalled">Stalled Penalty: <span id="valPenaltyStalled">-0.5</span></label>
+      <input type="range" id="slPenaltyStalled" min="0" max="50" value="5" step="1">
+    </div>
+
+    <div class="control-group">
+      <label title="Penalty for dropping a ticket in the wrong zone">Wrong Zone Penalty: <span id="valPenaltyWrong">-50</span></label>
+      <input type="range" id="slPenaltyWrong" min="0" max="100" value="50" step="1">
+    </div>
   </div>
 
   <div class="panel-section">
@@ -401,6 +428,11 @@ const CFG = {
     mutRate: 0.22,
     mutStrength: 0.25,
     fresh: 0.06
+  },
+  penalties: {
+    wall: 10,
+    stalled: 0.5,
+    wrongSort: 50
   },
   
   ticketCount: 15,
@@ -1225,11 +1257,11 @@ class Agent {
       this.x = clamp(this.x, this.r, W-this.r);
       this.y = clamp(this.y, this.r, H-this.r);
       this.vel *= -0.5;
-      reward -= 10; // Stronger wall penalty
+      reward -= CFG.penalties.wall;
     }
 
     if(this.stalled) {
-        reward -= 0.5;
+        reward -= CFG.penalties.stalled;
     }
     
     // --- Interactions (Source of Major Rewards/Penalties) ---
@@ -1264,7 +1296,7 @@ class Agent {
             deposit(z.id, z.targetX, z.targetY, PHEROMONE_CAP * CFG.smart.successDeposit, { spread: PHEROMONE_SPREAD });
             pushFeed(`Sorted: ${this.carrying.def.label}`, 'good');
           } else {
-            reward -= 50; // MUCH stronger penalty for wrong sorting
+            reward -= CFG.penalties.wrongSort;
             stats.wrong++;
             spawnParticles(this.x, this.y, varStyles.accentBad, 8);
             pushFeed(`Wrong Zone!`, 'bad');
@@ -1953,6 +1985,15 @@ function init(resetPolicyWeights = true) {
   CFG.RL_ALPHA = parseInt(document.getElementById('slAlpha').value) / 1000;
   CFG.RL_GAMMA = parseInt(document.getElementById('slGamma').value) / 100;
   CFG.RL_EPSILON = parseInt(document.getElementById('slEpsilon').value) / 100;
+  CFG.learningMode = document.getElementById('slLearningMode').value;
+  CFG.penalties.wall = parseInt(document.getElementById('slPenaltyWall').value);
+  CFG.penalties.stalled = parseInt(document.getElementById('slPenaltyStalled').value) / 10;
+  CFG.penalties.wrongSort = parseInt(document.getElementById('slPenaltyWrong').value);
+
+  document.getElementById('valLearningMode').innerText = CFG.learningMode === 'rl' ? 'RL' : 'Evolve';
+  document.getElementById('valPenaltyWall').innerText = `-${CFG.penalties.wall}`;
+  document.getElementById('valPenaltyStalled').innerText = `-${CFG.penalties.stalled.toFixed(1)}`;
+  document.getElementById('valPenaltyWrong').innerText = `-${CFG.penalties.wrongSort}`;
 
   // Check for Topology Change (Hidden Nodes)
   const newHiddens = parseInt(document.getElementById('slHidden').value);
@@ -2315,6 +2356,27 @@ document.getElementById('slEpsilon').oninput = (e) => {
 document.getElementById('slHidden').oninput = (e) => { 
     document.getElementById('valHidden').innerText = e.target.value; 
     pushFeed('Hidden Nodes changed. Press "Hard Reset All" to refresh the Policy Networks.', 'warn');
+};
+
+document.getElementById('slLearningMode').onchange = (e) => {
+    CFG.learningMode = e.target.value;
+    document.getElementById('valLearningMode').innerText = CFG.learningMode === 'rl' ? 'RL' : 'Evolve';
+    pushFeed(`Learning mode set to ${CFG.learningMode.toUpperCase()}.`, 'warn');
+};
+
+document.getElementById('slPenaltyWall').oninput = (e) => {
+    CFG.penalties.wall = parseInt(e.target.value);
+    document.getElementById('valPenaltyWall').innerText = `-${CFG.penalties.wall}`;
+};
+
+document.getElementById('slPenaltyStalled').oninput = (e) => {
+    CFG.penalties.stalled = parseInt(e.target.value) / 10;
+    document.getElementById('valPenaltyStalled').innerText = `-${CFG.penalties.stalled.toFixed(1)}`;
+};
+
+document.getElementById('slPenaltyWrong').oninput = (e) => {
+    CFG.penalties.wrongSort = parseInt(e.target.value);
+    document.getElementById('valPenaltyWrong').innerText = `-${CFG.penalties.wrongSort}`;
 };
 
 
