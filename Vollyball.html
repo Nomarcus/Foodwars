@@ -97,8 +97,19 @@
       <aside class="side">
         <section class="panel" aria-labelledby="controls-heading">
           <h2 id="controls-heading">Training controls</h2>
-          <p>Adjust parameters and restart to explore different cooperative behaviours. Mutation auto-decays slightly every generation.</p>
+          <p>Adjust parameters and restart to explore different cooperative behaviours. Population size drives exploration while elitism keeps strong genomes stable as training progresses. Mutation auto-decays slightly every generation.</p>
           <div class="control-grid">
+            <div class="control">
+              <div class="control-header">
+                <label class="label" for="selPreset">Training preset</label>
+              </div>
+              <select id="selPreset">
+                <option value="start">Start (warm-up)</option>
+                <option value="mid">Mid (stabilise)</option>
+                <option value="end">Endgame (polish)</option>
+                <option value="custom">Custom</option>
+              </select>
+            </div>
             <div class="control">
               <div class="control-header">
                 <label class="label" for="slPopulation">Population size</label>
@@ -248,6 +259,7 @@
           </div>
 
           <button id="btnRestart" class="btn">Restart training</button>
+          <button id="btnResetDefaults" class="btn">Reset to defaults</button>
         </section>
         <section class="legend">
           <strong>Objective</strong>
@@ -264,6 +276,8 @@
           <div class="stat-card"><span class="stat-label">Generation</span><span class="stat-value" id="stat-generation">1</span></div>
           <div class="stat-card"><span class="stat-label">Genome</span><span class="stat-value" id="stat-genome">1 / 1</span></div>
           <div class="stat-card"><span class="stat-label">Best fitness</span><span class="stat-value" id="stat-best">0</span></div>
+          <div class="stat-card"><span class="stat-label">Mode</span><span class="stat-value" id="stat-mode">Cooperation</span></div>
+          <div class="stat-card"><span class="stat-label">Preset</span><span class="stat-value" id="stat-preset">Custom</span></div>
           <div class="stat-card"><span class="stat-label">Longest rally</span><span class="stat-value" id="stat-longest">0.0 s</span></div>
           <div class="stat-card"><span class="stat-label">Crossings</span><span class="stat-value" id="stat-crossings">0</span></div>
           <div class="stat-card"><span class="stat-label">Species</span><span class="stat-value" id="stat-species">1</span></div>
@@ -783,7 +797,15 @@
 
     evolve(config){
       this.speciate();
-      const totalAdjusted = this.prepareFitness();
+      let totalAdjusted = this.prepareFitness();
+      if(this.species.length > 1){
+        const bestSpecies = this.species.reduce((best, species)=> {
+          if(!best) return species;
+          return species.bestFitness > best.bestFitness ? species : best;
+        }, null);
+        this.species = this.species.filter((species)=> species === bestSpecies || species.staleness <= STALE_SPECIES_LIMIT);
+        totalAdjusted = this.species.reduce((sum, species)=> sum + species.adjustedSum, 0);
+      }
       const nextGen = [];
       if(!this.species.length){
         return;
@@ -942,6 +964,90 @@ const EDGE_PENALTY = 0.004;       // half of 0.008
     showSensors: DEFAULT_SHOW_SENSORS
   };
 
+  const DEFAULT_CONFIG = Object.freeze({
+    populationSize: config.populationSize,
+    mutationRate: config.mutationRate,
+    addConnectionRate: config.addConnectionRate,
+    addNodeRate: config.addNodeRate,
+    initialHidden: config.initialHidden,
+    elitism: config.elitism,
+    simSpeed: config.simSpeed,
+    ballCount: config.ballCount,
+    ballRadius: config.ballRadius,
+    armReward: config.armReward,
+    kickReward: config.kickReward,
+    headPenalty: config.headPenalty,
+    playerScale: config.playerScale,
+    jumpScale: config.jumpScale,
+    playersPerTeam: config.playersPerTeam,
+    mode: config.mode,
+    showSensors: config.showSensors
+  });
+
+  const PRESETS = {
+    start: {
+      populationSize: 30,
+      mutationRate: 24,
+      addConnectionRate: 9,
+      addNodeRate: 3,
+      initialHidden: 4,
+      elitism: 0.22,
+      simSpeed: 2,
+      ballCount: 1,
+      ballRadius: 20,
+      armReward: 6,
+      kickReward: 4,
+      headPenalty: 1.5,
+      playerScale: 1,
+      jumpScale: 1,
+      playersPerTeam: 2,
+      mode: DEFAULT_MODE,
+      showSensors: false
+    },
+    mid: {
+      populationSize: 36,
+      mutationRate: 20,
+      addConnectionRate: 8,
+      addNodeRate: 3,
+      initialHidden: 5,
+      elitism: 0.25,
+      simSpeed: 3,
+      ballCount: 2,
+      ballRadius: 18,
+      armReward: 7,
+      kickReward: 5,
+      headPenalty: 1.4,
+      playerScale: 1,
+      jumpScale: 1.05,
+      playersPerTeam: 2,
+      mode: DEFAULT_MODE,
+      showSensors: false
+    },
+    end: {
+      populationSize: 50,
+      mutationRate: 12,
+      addConnectionRate: 6,
+      addNodeRate: 2,
+      initialHidden: 7,
+      elitism: 0.35,
+      simSpeed: 4,
+      ballCount: 3,
+      ballRadius: 16,
+      armReward: 8,
+      kickReward: 6,
+      headPenalty: 1.0,
+      playerScale: 1,
+      jumpScale: 1.1,
+      playersPerTeam: 3,
+      mode: DEFAULT_MODE,
+      showSensors: false
+    }
+  };
+
+  let currentPreset = 'custom';
+  let suppressPresetSync = false;
+  let ignoreNextPresetSync = false;
+
   function updatePlayerDimensions(){
     const scaled = clamp(config.playerScale ?? 1, 0.5, 1.6);
     playerScale = scaled;
@@ -976,6 +1082,26 @@ const EDGE_PENALTY = 0.004;       // half of 0.008
   }
 
   updateJumpPhysics();
+
+  const STALE_SPECIES_LIMIT = 8;
+  const MUTATION_MIN = 8;
+  const MUTATION_MAX = 80;
+  const MUTATION_STAGNATION_WINDOW = 3;
+  const MUTATION_IMPROVEMENT_THRESHOLD = 1.2;
+  const PASS_BONUS = 5.5;
+  const FORMATION_REWARD = 0.015;
+  const DIVERSITY_BONUS_SCALE = 3.5;
+
+  const CURRICULUM_STEPS = [
+    {threshold: 45, changes: {ballCount: 2, ballRadius: 18}},
+    {threshold: 90, changes: {ballCount: 3, ballRadius: 17, jumpScale: 1.05}},
+    {threshold: 140, changes: {ballCount: 4, ballRadius: 16, jumpScale: 1.1}}
+  ];
+
+  let curriculumStage = 0;
+  let lastGenerationBest = 0;
+  let stagnationGenerations = 0;
+  const behaviorStats = {count: 0, sumX: 0, sumJump: 0, sumTouch: 0};
 
   function predictLandingWithBounce(ball){
     if(!ball) return null;
@@ -1073,6 +1199,25 @@ const EDGE_PENALTY = 0.004;       // half of 0.008
     const span = Math.max(0, maxX - minX);
     const step = clampedCount > 1 ? span / (clampedCount - 1) : 0;
     return Array.from({length: clampedCount}, (_, idx)=> clamp(maxX - step * idx, minX, maxX));
+  }
+
+  function getFormationReward(team, side){
+    if(team.length < 2) return 0;
+    const desired = computeSpawnPositions(side, team.length);
+    let spacingPenalty = 0;
+    let minGap = Infinity;
+    for(let i=0;i<team.length;i++){
+      for(let j=i+1;j<team.length;j++){
+        const gap = Math.abs(team[i].x - team[j].x);
+        if(gap < minGap) minGap = gap;
+      }
+    }
+    for(let i=0;i<team.length;i++){
+      spacingPenalty += Math.abs(team[i].x - (desired[i] ?? team[i].x));
+    }
+    const gapScore = minGap > PLAYER_RADIUS * 2.4 ? 1 : 0;
+    const alignScore = Math.max(0, 1 - spacingPenalty / (team.length * 280));
+    return (gapScore * 0.6 + alignScore * 0.4) * FORMATION_REWARD;
   }
 
   function buildIOLayout(playersPerTeam){
@@ -1503,6 +1648,9 @@ const EDGE_PENALTY = 0.004;       // half of 0.008
       this.currentRallyDuration = 0;
       this.longestRallyDuration = 0;
       this.balls = [];
+      this.behavior = {sumX: 0, steps: 0, jumps: 0};
+      this.lastTouchSlot = null;
+      this.lastTouchTime = 0;
       this.resetPlayers();
       this.resetBalls(this.spawnSide);
       this.lastTouchSide = this.spawnSide;
@@ -1588,6 +1736,8 @@ const EDGE_PENALTY = 0.004;       // half of 0.008
         this.longestRallyDuration = this.currentRallyDuration;
       }
       this.currentRallyDuration = 0;
+      this.lastTouchSlot = null;
+      this.lastTouchTime = 0;
     }
 
     // apply competition victory bonus based on team scores
@@ -1689,11 +1839,17 @@ const EDGE_PENALTY = 0.004;       // half of 0.008
       this.leftTeam.forEach((player, idx)=>{
         const cmd = activeLeft[idx] ?? {dx: 0, jump: 0};
         const focusBall = this.getClosestBall(player);
+        if(cmd.jump > 0.55 && player.grounded){
+          this.behavior.jumps++;
+        }
         player.update(cmd.dx, cmd.jump, dt, focusBall);
       });
       this.rightTeam.forEach((player, idx)=>{
         const cmd = activeRight[idx] ?? {dx: 0, jump: 0};
         const focusBall = this.getClosestBall(player);
+        if(cmd.jump > 0.55 && player.grounded){
+          this.behavior.jumps++;
+        }
         player.update(cmd.dx, cmd.jump, dt, focusBall);
       });
     }
@@ -1711,6 +1867,10 @@ const EDGE_PENALTY = 0.004;       // half of 0.008
       }
 
       let reward = TOUCH_REWARD + angleBonus;
+      const timeSinceTouch = this.currentRallyDuration - (this.lastTouchTime ?? 0);
+      if(this.lastTouchSide === player.side && this.lastTouchSlot !== null && this.lastTouchSlot !== player.slot && timeSinceTouch <= 1.2){
+        reward += PASS_BONUS;
+      }
 
       // <<< CHANGE 6: Bonus for being airborne
       if (!player.grounded) {
@@ -1726,6 +1886,8 @@ const EDGE_PENALTY = 0.004;       // half of 0.008
       }
       this.fitness += reward;
       this.lastTouchSide = player.side;
+      this.lastTouchSlot = player.slot;
+      this.lastTouchTime = this.currentRallyDuration;
       this.coordinationTouched[player.side].add(player.slot);
       this.touches++;
       ball.lastSide = player.side;
@@ -1885,6 +2047,11 @@ const EDGE_PENALTY = 0.004;       // half of 0.008
       if(this.primaryBall){
         this.currentRallyDuration += dt;
       }
+      if(this.players.length){
+        this.behavior.steps++;
+        const avgX = this.players.reduce((sum, player)=> sum + player.x, 0) / this.players.length;
+        this.behavior.sumX += avgX;
+      }
 
       // <<< CHANGE 9: Dynamic maxSteps now handled by this.maxSteps
       // const maxSteps = MAX_STEPS_BASE + (generation - 1) * 50;
@@ -1948,6 +2115,16 @@ const EDGE_PENALTY = 0.004;       // half of 0.008
             this.teamScores[player.side] = (this.teamScores[player.side] || 0) + scaledReward;
           }
         });
+        const leftFormation = getFormationReward(this.leftTeam, 'left');
+        const rightFormation = getFormationReward(this.rightTeam, 'right');
+        const formationReward = leftFormation + rightFormation;
+        if(formationReward > 0){
+          this.fitness += formationReward;
+          if(config.mode === 'competition'){
+            this.teamScores.left = (this.teamScores.left || 0) + leftFormation;
+            this.teamScores.right = (this.teamScores.right || 0) + rightFormation;
+          }
+        }
       }
 
       if(this.steps >= this.maxSteps){ // <<< CHANGE 9
@@ -1972,6 +2149,165 @@ const EDGE_PENALTY = 0.004;       // half of 0.008
   }
 
   function scheduleConfigRefresh(){ needsConfigRefresh = true; }
+
+  function clampToInput(id, value){
+    const input = Q(id);
+    if(!input) return value;
+    const min = Number(input.min);
+    const max = Number(input.max);
+    const safe = Number.isFinite(value) ? value : Number(input.value);
+    if(Number.isFinite(min) && Number.isFinite(max)){
+      return clamp(safe, min, max);
+    }
+    return safe;
+  }
+
+  function clampConfigFromControls(){
+    config.populationSize = clampToInput('slPopulation', config.populationSize);
+    config.initialHidden = clampToInput('slHidden', config.initialHidden);
+    config.mutationRate = clampToInput('slMutRate', config.mutationRate);
+    config.elitism = clamp(config.elitism ?? DEFAULT_CONFIG.elitism, 0, 0.95);
+    config.addConnectionRate = clampToInput('slAddConn', config.addConnectionRate);
+    config.addNodeRate = clampToInput('slAddNode', config.addNodeRate);
+    config.simSpeed = clampToInput('slSimSpeed', config.simSpeed);
+    config.ballCount = clampToInput('slBallCount', config.ballCount);
+    config.ballRadius = clampToInput('slBallRadius', config.ballRadius);
+    config.armReward = clampToInput('slArmBonus', config.armReward);
+    config.kickReward = clampToInput('slKickBonus', config.kickReward);
+    config.headPenalty = clampToInput('slHeadPenalty', config.headPenalty);
+    config.playerScale = clampToInput('slPlayerScale', config.playerScale);
+    config.jumpScale = clampToInput('slJumpScale', config.jumpScale);
+    config.playersPerTeam = clampToInput('slPlayersPerTeam', config.playersPerTeam);
+  }
+
+  function syncControlsFromConfig(){
+    const mapping = [
+      ['slPopulation', config.populationSize],
+      ['slHidden', config.initialHidden],
+      ['slMutRate', config.mutationRate],
+      ['slElite', Math.round(config.elitism * 100)],
+      ['slAddConn', config.addConnectionRate],
+      ['slAddNode', config.addNodeRate],
+      ['slSimSpeed', config.simSpeed],
+      ['slBallCount', config.ballCount],
+      ['slBallRadius', config.ballRadius],
+      ['slArmBonus', config.armReward],
+      ['slKickBonus', config.kickReward],
+      ['slHeadPenalty', config.headPenalty],
+      ['slPlayerScale', config.playerScale],
+      ['slJumpScale', config.jumpScale],
+      ['slPlayersPerTeam', config.playersPerTeam]
+    ];
+    mapping.forEach(([id, value])=> {
+      const input = Q(id);
+      if(!input) return;
+      input.value = value;
+      input.dispatchEvent(new Event('input', {bubbles: true}));
+    });
+    const modeSelect = Q('selMode');
+    if(modeSelect){
+      modeSelect.value = config.mode;
+    }
+    const sensorCheck = Q('cbShowSensors');
+    if(sensorCheck){
+      sensorCheck.checked = config.showSensors;
+    }
+    const presetSelect = Q('selPreset');
+    if(presetSelect){
+      presetSelect.value = currentPreset;
+    }
+  }
+
+  function updatePresetIndicator(){
+    const presetSelect = Q('selPreset');
+    if(presetSelect){
+      presetSelect.value = currentPreset;
+    }
+    const presetStat = Q('stat-preset');
+    if(presetStat){
+      const label = currentPreset === 'custom' ? 'Custom' : currentPreset === 'mid' ? 'Mid' : currentPreset === 'end' ? 'Endgame' : 'Start';
+      presetStat.textContent = label;
+    }
+  }
+
+  function applyConfig(nextConfig, {restart = true} = {}){
+    suppressPresetSync = true;
+    ignoreNextPresetSync = true;
+    Object.assign(config, nextConfig);
+    clampConfigFromControls();
+    armStrikeBonus = config.armReward;
+    legKickBonus = config.kickReward;
+    headTouchPenalty = config.headPenalty;
+    baseMutationAtStart = config.mutationRate;
+    ballRadius = config.ballRadius;
+    updatePlayerDimensions();
+    updateJumpPhysics();
+    ioLayout = buildIOLayout(config.playersPerTeam);
+    syncControlsFromConfig();
+    suppressPresetSync = false;
+    updatePresetIndicator();
+    if(restart){
+      restartTraining({skipRead: true});
+    }
+  }
+
+  function applyPreset(name){
+    const preset = PRESETS[name];
+    if(!preset) return;
+    currentPreset = name;
+    applyConfig(preset, {restart: true});
+  }
+
+  function applyCurriculum(generationBest){
+    if(curriculumStage >= CURRICULUM_STEPS.length) return;
+    const next = CURRICULUM_STEPS[curriculumStage];
+    if(generationBest < next.threshold) return;
+    curriculumStage++;
+    Object.assign(config, next.changes);
+    clampConfigFromControls();
+    currentPreset = 'custom';
+    syncControlsFromConfig();
+    updatePresetIndicator();
+    scheduleConfigRefresh();
+  }
+
+  function adjustMutationRate(generationBest){
+    const improvement = generationBest - lastGenerationBest;
+    if(improvement < MUTATION_IMPROVEMENT_THRESHOLD){
+      stagnationGenerations++;
+    } else {
+      stagnationGenerations = 0;
+    }
+    if(stagnationGenerations >= MUTATION_STAGNATION_WINDOW){
+      config.mutationRate = clamp(config.mutationRate + 6, MUTATION_MIN, MUTATION_MAX);
+      stagnationGenerations = 0;
+    } else {
+      config.mutationRate = clamp(config.mutationRate * 0.98, MUTATION_MIN, MUTATION_MAX);
+    }
+    lastGenerationBest = generationBest;
+  }
+
+  function recordBehaviorSignature(session){
+    if(!session?.behavior || session.behavior.steps <= 0) return 0;
+    const steps = session.behavior.steps;
+    const players = session.players.length || 1;
+    const avgX = session.behavior.sumX / (steps * players * FIELD_WIDTH);
+    const jumpRate = session.behavior.jumps / Math.max(1, steps * players);
+    const touchRate = session.touches / Math.max(1, steps);
+    let bonus = 0;
+    if(behaviorStats.count > 0){
+      const meanX = behaviorStats.sumX / behaviorStats.count;
+      const meanJump = behaviorStats.sumJump / behaviorStats.count;
+      const meanTouch = behaviorStats.sumTouch / behaviorStats.count;
+      const diff = Math.abs(avgX - meanX) + Math.abs(jumpRate - meanJump) + Math.abs(touchRate - meanTouch);
+      bonus = clamp(diff * DIVERSITY_BONUS_SCALE, 0, 4);
+    }
+    behaviorStats.count += 1;
+    behaviorStats.sumX += avgX;
+    behaviorStats.sumJump += jumpRate;
+    behaviorStats.sumTouch += touchRate;
+    return bonus;
+  }
 
   function readControls(){
     const prevBallCount = config.ballCount;
@@ -2040,6 +2376,12 @@ const EDGE_PENALTY = 0.004;       // half of 0.008
         currentSession.onBallCountChanged();
       }
     }
+    if(ignoreNextPresetSync){
+      ignoreNextPresetSync = false;
+    } else if(!suppressPresetSync){
+      currentPreset = 'custom';
+      updatePresetIndicator();
+    }
   }
 
   function rebuildPopulation(){
@@ -2063,9 +2405,18 @@ const EDGE_PENALTY = 0.004;       // half of 0.008
     updateStats();
   }
 
-  function restartTraining(){
-    readControls();
+  function restartTraining({skipRead = false} = {}){
+    if(!skipRead){
+      readControls();
+    }
     topologyNeedsRebuild = false;
+    curriculumStage = 0;
+    lastGenerationBest = 0;
+    stagnationGenerations = 0;
+    behaviorStats.count = 0;
+    behaviorStats.sumX = 0;
+    behaviorStats.sumJump = 0;
+    behaviorStats.sumTouch = 0;
     rebuildPopulation();
   }
 
@@ -2083,7 +2434,9 @@ const EDGE_PENALTY = 0.004;       // half of 0.008
   function finishGenome(){
     if(!currentSession) return;
     const genome = evaluationOrder[genomeIndex];
-    genome.fitness = Math.max(genome.fitness, currentSession.fitness);
+    const diversityBonus = recordBehaviorSignature(currentSession);
+    const totalFitness = currentSession.fitness + diversityBonus;
+    genome.fitness = Math.max(genome.fitness, totalFitness);
     if(genome.fitness > bestFitness){
       bestFitness = genome.fitness;
     }
@@ -2091,15 +2444,18 @@ const EDGE_PENALTY = 0.004;       // half of 0.008
     if(genomeIndex >= evaluationOrder.length){
       const generationBest = evaluationOrder.reduce((max, g)=> Math.max(max, g.fitness || 0), 0);
       recordGenerationFitness(generationBest);
-      // (7) Auto-decay mutation slightly each generation, lower-bounded
-      const decayFactor = 0.98;
-      config.mutationRate = Math.max(10, Math.min(80, config.mutationRate * decayFactor)); // <<< CHANGE 2
+      applyCurriculum(generationBest);
+      adjustMutationRate(generationBest);
 
       population.evolve(config);
       evaluationOrder = population.genomes.slice();
       genomeIndex = 0;
       generation++;
       totalSpecies = population.species.length || 1;
+      behaviorStats.count = 0;
+      behaviorStats.sumX = 0;
+      behaviorStats.sumJump = 0;
+      behaviorStats.sumTouch = 0;
     }
     startCurrentGenome();
   }
@@ -2149,11 +2505,13 @@ const EDGE_PENALTY = 0.004;       // half of 0.008
     Q('stat-generation').textContent = generation;
     Q('stat-genome').textContent = evaluationOrder.length ? `${genomeIndex + 1} / ${evaluationOrder.length}` : '0 / 0';
     Q('stat-best').textContent = bestFitness.toFixed(1);
+    Q('stat-mode').textContent = config.mode === 'competition' ? 'Competition' : 'Cooperation';
     const longest = currentSession ? Math.max(currentSession.longestRallyDuration, currentSession.currentRallyDuration) : 0;
     Q('stat-longest').textContent = `${longest.toFixed(2)} s`;
     Q('stat-crossings').textContent = currentSession ? currentSession.crossings : 0;
     Q('stat-species').textContent = totalSpecies;
     Q('stat-mutation').textContent = `${config.mutationRate.toFixed(1)}%`;
+    updatePresetIndicator();
     const chartNote = Q('fitnessChartNote');
     if(chartNote){
       if(fitnessHistory.length){
@@ -2471,6 +2829,14 @@ const EDGE_PENALTY = 0.004;       // half of 0.008
   function loadProgressFromData(raw){
     try{
       const data = JSON.parse(raw);
+      if(!data || typeof data !== 'object' || !data.config || !data.population){
+        alert('Invalid save data format.');
+        return;
+      }
+      if(Number.isFinite(data.version) && data.version > 2){
+        alert('Incompatible save version. Please export again.');
+        return;
+      }
       // restore config
       config.populationSize = data.config.populationSize;
       config.mutationRate = data.config.mutationRate;
@@ -2489,6 +2855,7 @@ const EDGE_PENALTY = 0.004;       // half of 0.008
       config.playersPerTeam = data.config.playersPerTeam ?? config.playersPerTeam;
       config.mode = data.config.mode || config.mode;
       config.showSensors = data.config.showSensors || false;
+      clampConfigFromControls();
       // update related variables
       armStrikeBonus = config.armReward;
       legKickBonus = config.kickReward;
@@ -2504,6 +2871,13 @@ const EDGE_PENALTY = 0.004;       // half of 0.008
       cumulativeScores = data.cumulativeScores || {left: 0, right: 0};
       generation = data.generation || 1;
       bestFitness = data.bestFitness || 0;
+      curriculumStage = 0;
+      lastGenerationBest = bestFitness;
+      stagnationGenerations = 0;
+      behaviorStats.count = 0;
+      behaviorStats.sumX = 0;
+      behaviorStats.sumJump = 0;
+      behaviorStats.sumTouch = 0;
       fitnessHistory = Array.isArray(data.fitnessHistory)
         ? data.fitnessHistory.map((value)=> {
             const numeric = Number(value);
@@ -2515,31 +2889,12 @@ const EDGE_PENALTY = 0.004;       // half of 0.008
       genomeIndex = 0;
       evaluationOrder = population.genomes.slice();
       // update sliders and UI
-      Q('slPopulation').value = config.populationSize;
-      Q('slHidden').value = config.initialHidden;
-      Q('slMutRate').value = config.mutationRate;
-      Q('slElite').value = Math.round(config.elitism * 100);
-      Q('slAddConn').value = config.addConnectionRate;
-      Q('slAddNode').value = config.addNodeRate;
-      Q('slSimSpeed').value = config.simSpeed;
-      Q('slBallCount').value = config.ballCount;
-      Q('slBallRadius').value = config.ballRadius;
-      Q('slArmBonus').value = config.armReward;
-      Q('slKickBonus').value = config.kickReward;
-      Q('slHeadPenalty').value = config.headPenalty;
-      const scaleControl = Q('slPlayerScale');
-      if(scaleControl) scaleControl.value = config.playerScale;
-      const jumpControl = Q('slJumpScale');
-      if(jumpControl) jumpControl.value = config.jumpScale;
-      const teamControl = Q('slPlayersPerTeam');
-      if(teamControl) teamControl.value = config.playersPerTeam;
-      // update labels
-      scheduleConfigRefresh();
-      // update mode and sensors UI
-      const modeSelect2 = Q('selMode');
-      if(modeSelect2) modeSelect2.value = config.mode;
-      const sensorCheck2 = Q('cbShowSensors');
-      if(sensorCheck2) sensorCheck2.checked = config.showSensors;
+      currentPreset = 'custom';
+      suppressPresetSync = true;
+      ignoreNextPresetSync = true;
+      syncControlsFromConfig();
+      suppressPresetSync = false;
+      updatePresetIndicator();
       // restart training from loaded state
       startCurrentGenome();
       updateStats();
@@ -2635,7 +2990,28 @@ const EDGE_PENALTY = 0.004;       // half of 0.008
   bindRange('slJumpScale','lbJumpScale',(v)=> `${Math.round(v*100)}%`);
   bindRange('slPlayersPerTeam','lbPlayersPerTeam',(v)=> `${v} / side`);
 
-  Q('btnRestart').addEventListener('click', restartTraining);
+  Q('btnRestart').addEventListener('click', ()=> {
+    if(currentSession && !confirm('Restart training and lose current progress?')){
+      return;
+    }
+    restartTraining();
+  });
+
+  const presetSelect = Q('selPreset');
+  if(presetSelect){
+    presetSelect.addEventListener('change', ()=> {
+      if(presetSelect.value === 'custom') return;
+      applyPreset(presetSelect.value);
+    });
+  }
+
+  const resetDefaultsBtn = Q('btnResetDefaults');
+  if(resetDefaultsBtn){
+    resetDefaultsBtn.addEventListener('click', ()=> {
+      currentPreset = 'custom';
+      applyConfig(DEFAULT_CONFIG, {restart: true});
+    });
+  }
 
   // hook up new UI controls
   const sensorCheckCtrl = Q('cbShowSensors');
@@ -2686,6 +3062,7 @@ const EDGE_PENALTY = 0.004;       // half of 0.008
     loadBtn.addEventListener('click', ()=> alert('File loading not supported in this environment.'));
   }
 
+  updatePresetIndicator();
   restartTraining();
   loop();
   </script>
