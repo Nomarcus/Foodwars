@@ -89,6 +89,30 @@
       color: var(--text-main);
       font-size: 11px;
     }
+    .control-stack { display: grid; gap: 14px; }
+    .control-block {
+      padding: 10px;
+      border-radius: 10px;
+      background: rgba(7, 10, 26, 0.7);
+      border: 1px solid rgba(148,163,209,.22);
+      box-shadow: inset 0 0 12px rgba(56,189,248,0.05);
+    }
+    .control-title {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      color: var(--accent);
+      margin-bottom: 8px;
+    }
+
+    .panel-image {
+      border-radius: 10px;
+      overflow: hidden;
+      border: 1px solid rgba(148,163,209,.28);
+      margin-bottom: 10px;
+      background: rgba(0,0,0,0.25);
+    }
+    .panel-image img { display: block; width: 100%; height: auto; }
     
     .btn-group { display: flex; gap: 5px; margin-top: 5px; }
     .btn {
@@ -219,24 +243,10 @@
   
   <div class="panel-section">
     <h2>Performance History (Best Agent)</h2>
+    <div class="panel-image">
+      <img src="assets/foodwars-hero.svg" alt="Performance overview" loading="lazy">
+    </div>
     <canvas id="fitnessGraph"></canvas>
-  </div>
-
-  <div class="panel-section">
-    <h2>Signal Legend</h2>
-    <div class="legend-grid">
-      <div class="legend-item"><span class="legend-dot" style="color:#ff3366"></span>Incident</div>
-      <div class="legend-item"><span class="legend-dot" style="color:#00ff99"></span>Service</div>
-      <div class="legend-item"><span class="legend-dot" style="color:#00eaff"></span>Problem</div>
-    </div>
-    <div class="mini-callouts">
-      <div class="callout"><strong>Quick guide:</strong> Plocka upp en ticket och styr in i rätt sektor i tri-sorten.</div>
-      <div class="callout">Keep the agents moving. If they stall: raise the speed or energy and press Restart.</div>
-    </div>
-    <div class="mini-callouts">
-      <div class="callout">Exploration spikes surface new routes. <strong>Keep epsilon dynamic.</strong></div>
-      <div class="callout">Gamma anchors long-term credit. <strong>Watch Q-score stability.</strong></div>
-    </div>
   </div>
 
   <div class="panel-section">
@@ -247,76 +257,83 @@
 
   <div class="panel-section">
     <h2>Simulation Controls</h2>
-    
-    <div class="control-group">
-      <label>Game Speed: <span id="valSpeed">1x</span></label>
-      <input type="range" id="slSpeed" min="1" max="20" value="1">
-    </div>
+    <div class="control-stack">
+      <div class="control-block">
+        <div class="control-title">Simulation Pace</div>
+        <div class="control-group">
+          <label>Game Speed: <span id="valSpeed">1x</span></label>
+          <input type="range" id="slSpeed" min="1" max="20" value="1">
+        </div>
+        <div class="control-group">
+          <label title="Antal frames per episod">Episode Duration (Frames): <span id="valDuration">2500</span></label>
+          <input type="range" id="slDuration" min="500" max="10000" step="100" value="2500">
+        </div>
+        <label class="checkbox-row"><input type="checkbox" id="chkManualEpisode"> Manual Episode (Ends on Restart)</label>
+      </div>
 
-    <div class="control-group">
-      <label>Population Size: <span id="valPop">1</span></label>
-      <input type="range" id="slPop" min="1" max="100" value="1">
-    </div>
+      <div class="control-block">
+        <div class="control-title">Agents & Tickets</div>
+        <div class="control-group">
+          <label>Population Size: <span id="valPop">1</span></label>
+          <input type="range" id="slPop" min="1" max="100" value="1">
+        </div>
+        <div class="control-group">
+          <label title="Number of tickets in the play area">Ticket Count: <span id="valTickets">15</span></label>
+          <input type="range" id="slTicketCount" min="5" max="300" value="15">
+        </div>
+        <div class="control-group">
+          <label>Ticket Spawn Layout</label>
+          <select id="slTicketLayout">
+            <option value="random">Random (Full Map)</option>
+            <option value="lanes">Three Lanes</option>
+            <option value="corners">Corner Clusters</option>
+            <option value="circle">Center Circle</option>
+          </select>
+        </div>
+        <div class="control-group">
+          <label>Ticket Category Grouping</label>
+          <select id="slTicketGrouping">
+            <option value="mixed">Mixed</option>
+            <option value="grouped">Grouped by Category</option>
+          </select>
+        </div>
+      </div>
 
-    <div class="control-group">
-      <label title="Number of tickets in the play area">Ticket Count: <span id="valTickets">15</span></label>
-      <input type="range" id="slTicketCount" min="5" max="300" value="15">
+      <div class="control-block">
+        <div class="control-title">Goal Zones</div>
+        <div class="control-group">
+          <label>Goal Size: <span id="valGoalScale">100%</span></label>
+          <input type="range" id="slGoalScale" min="70" max="130" value="100">
+        </div>
+        <div class="control-group">
+          <label>Incident Goal Edge</label>
+          <select id="slGoalPlacementIncident">
+            <option value="top">Top</option>
+            <option value="left">Left</option>
+            <option value="bottom">Bottom</option>
+            <option value="right">Right</option>
+          </select>
+        </div>
+        <div class="control-group">
+          <label>Service Req Goal Edge</label>
+          <select id="slGoalPlacementRequest">
+            <option value="top">Top</option>
+            <option value="left">Left</option>
+            <option value="bottom">Bottom</option>
+            <option value="right">Right</option>
+          </select>
+        </div>
+        <div class="control-group">
+          <label>Problem Goal Edge</label>
+          <select id="slGoalPlacementProblem">
+            <option value="top">Top</option>
+            <option value="left">Left</option>
+            <option value="bottom">Bottom</option>
+            <option value="right">Right</option>
+          </select>
+        </div>
+      </div>
     </div>
-
-    <div class="control-group">
-      <label>Ticket Spawn Layout</label>
-      <select id="slTicketLayout">
-        <option value="random">Random (Full Map)</option>
-        <option value="lanes">Three Lanes</option>
-        <option value="corners">Corner Clusters</option>
-        <option value="circle">Center Circle</option>
-      </select>
-    </div>
-
-    <div class="control-group">
-      <label>Ticket Category Grouping</label>
-      <select id="slTicketGrouping">
-        <option value="mixed">Mixed</option>
-        <option value="grouped">Grouped by Category</option>
-      </select>
-    </div>
-
-    <div class="control-group">
-      <label>Incident Goal Edge</label>
-      <select id="slGoalPlacementIncident">
-        <option value="top">Top</option>
-        <option value="left">Left</option>
-        <option value="bottom">Bottom</option>
-        <option value="right">Right</option>
-      </select>
-    </div>
-
-    <div class="control-group">
-      <label>Service Req Goal Edge</label>
-      <select id="slGoalPlacementRequest">
-        <option value="top">Top</option>
-        <option value="left">Left</option>
-        <option value="bottom">Bottom</option>
-        <option value="right">Right</option>
-      </select>
-    </div>
-
-    <div class="control-group">
-      <label>Problem Goal Edge</label>
-      <select id="slGoalPlacementProblem">
-        <option value="top">Top</option>
-        <option value="left">Left</option>
-        <option value="bottom">Bottom</option>
-        <option value="right">Right</option>
-      </select>
-    </div>
-    
-    <div class="control-group">
-      <label title="Antal frames per episod">Episode Duration (Frames): <span id="valDuration">2500</span></label>
-      <input type="range" id="slDuration" min="500" max="10000" step="100" value="2500">
-    </div>
-
-    <label class="checkbox-row"><input type="checkbox" id="chkManualEpisode"> Manual Episode (Ends on Restart)</label>
     
     <div class="btn-group">
         <button class="btn alt" id="btnResetAI">Reset Policy Weights</button>
@@ -456,6 +473,7 @@ const CFG = {
     layout: 'random',
     grouping: 'mixed'
   },
+  goalScale: 1,
   goalPlacements: {
     incident: 'top',
     request: 'top',
@@ -1954,6 +1972,7 @@ function buildGoalZones() {
   const zoneMargin = 40;
   const zoneGap = 24;
   const placements = CFG.goalPlacements || {};
+  const scale = CFG.goalScale || 1;
   const groups = { top: [], bottom: [], left: [], right: [] };
 
   CFG.categories.forEach(cat => {
@@ -1968,8 +1987,10 @@ function buildGoalZones() {
       if (placement === 'left' || placement === 'right') {
           const zoneCount = cats.length;
           const availableHeight = H - zoneMargin * 2 - zoneGap * (zoneCount - 1);
-          const zoneHeight = Math.max(110, availableHeight / zoneCount);
-          const zoneWidth = Math.max(140, Math.min(200, W * 0.22));
+          const baseHeight = Math.max(110, availableHeight / zoneCount);
+          const baseWidth = Math.max(140, Math.min(200, W * 0.22));
+          const zoneHeight = Math.max(80, baseHeight * scale);
+          const zoneWidth = Math.max(110, baseWidth * scale);
           const totalHeight = zoneHeight * zoneCount + zoneGap * (zoneCount - 1);
           const startY = Math.max(zoneMargin, (H - totalHeight) / 2);
           const x = placement === 'left' ? zoneMargin : W - zoneMargin - zoneWidth;
@@ -1993,9 +2014,11 @@ function buildGoalZones() {
       }
 
       const zoneCount = cats.length;
-      const zoneHeight = Math.max(110, Math.min(150, H * 0.18));
+      const baseHeight = Math.max(110, Math.min(150, H * 0.18));
       const availableWidth = W - zoneMargin * 2 - zoneGap * (zoneCount - 1);
-      const zoneWidth = Math.max(140, availableWidth / zoneCount);
+      const baseWidth = Math.max(140, availableWidth / zoneCount);
+      const zoneHeight = Math.max(80, baseHeight * scale);
+      const zoneWidth = Math.max(110, baseWidth * scale);
       const totalWidth = zoneWidth * zoneCount + zoneGap * (zoneCount - 1);
       const startX = Math.max(zoneMargin, (W - totalWidth) / 2);
       const y = placement === 'bottom' ? H - zoneMargin - zoneHeight : zoneMargin + 20;
@@ -2047,6 +2070,7 @@ function init(resetPolicyWeights = true) {
   CFG.ticketCount = parseInt(document.getElementById('slTicketCount').value); 
   CFG.ticketSpawn.layout = document.getElementById('slTicketLayout').value;
   CFG.ticketSpawn.grouping = document.getElementById('slTicketGrouping').value;
+  CFG.goalScale = parseInt(document.getElementById('slGoalScale').value) / 100;
   CFG.goalPlacements = {
       incident: document.getElementById('slGoalPlacementIncident').value,
       request: document.getElementById('slGoalPlacementRequest').value,
@@ -2066,6 +2090,7 @@ function init(resetPolicyWeights = true) {
   document.getElementById('valPenaltyWall').innerText = `-${CFG.penalties.wall}`;
   document.getElementById('valPenaltyStalled').innerText = `-${CFG.penalties.stalled.toFixed(1)}`;
   document.getElementById('valPenaltyWrong').innerText = `-${CFG.penalties.wrongSort}`;
+  document.getElementById('valGoalScale').innerText = `${Math.round(CFG.goalScale * 100)}%`;
 
   // Check for Topology Change (Hidden Nodes)
   const newHiddens = parseInt(document.getElementById('slHidden').value);
@@ -2387,6 +2412,13 @@ document.getElementById('slTicketLayout').onchange = (e) => {
 
 document.getElementById('slTicketGrouping').onchange = (e) => {
     CFG.ticketSpawn.grouping = e.target.value;
+    tickets.forEach(t => t.respawn());
+};
+
+document.getElementById('slGoalScale').oninput = (e) => {
+    CFG.goalScale = parseInt(e.target.value) / 100;
+    document.getElementById('valGoalScale').innerText = `${Math.round(CFG.goalScale * 100)}%`;
+    goalZones = buildGoalZones();
     tickets.forEach(t => t.respawn());
 };
 
