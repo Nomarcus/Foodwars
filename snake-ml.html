@@ -269,6 +269,61 @@ h2{
   border:1px solid rgba(128,138,206,0.2);
   box-shadow:0 16px 34px rgba(6,10,30,0.38);
 }
+.ai-auto-tune{
+  display:flex;
+  flex-direction:column;
+  gap:14px;
+  background:rgba(19,24,54,0.6);
+  border-radius:16px;
+  padding:14px 16px;
+  border:1px solid rgba(128,138,206,0.2);
+  box-shadow:0 16px 34px rgba(6,10,30,0.38);
+}
+.ai-auto-tune__header{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:16px;
+}
+.ai-auto-tune__header h3{
+  margin:0;
+  font-size:14px;
+  letter-spacing:0.06em;
+  text-transform:uppercase;
+  color:#e7ebff;
+}
+.ai-auto-tune__header .hint{
+  margin:4px 0 0;
+}
+.ai-auto-tune__controls{
+  display:flex;
+  align-items:stretch;
+  justify-content:space-between;
+  gap:18px;
+  flex-wrap:wrap;
+}
+.ai-auto-tune__column{
+  flex:1 1 240px;
+  display:flex;
+  flex-direction:column;
+  gap:12px;
+  padding:14px 16px;
+  border-radius:14px;
+  background:rgba(17,22,48,0.55);
+  border:1px solid rgba(128,138,206,0.2);
+  box-shadow:inset 0 0 0 1px rgba(84,98,176,0.08);
+}
+.ai-auto-tune__column h4{
+  margin:0;
+  font-size:12px;
+  font-weight:700;
+  letter-spacing:0.08em;
+  text-transform:uppercase;
+  color:#9fa9ff;
+}
+.ai-auto-tune__column .field{
+  margin:0;
+}
 .toggle{
   display:flex;
   align-items:center;
@@ -289,6 +344,13 @@ h2{
 }
 .toggle input[type="checkbox"][disabled]{
   cursor:not-allowed;
+}
+.ai-toggle-group{
+  display:flex;
+  align-items:center;
+  gap:12px;
+  flex-wrap:wrap;
+  justify-content:flex-end;
 }
 button{
   appearance:none;
@@ -1206,6 +1268,57 @@ footer{
 
     <p class="hint" id="algoDescription">Prioritized replay, n-step returns, and dueling heads make DQN stable and sample efficient.</p>
 
+    <div class="ai-auto-tune" id="aiAutoTunePanel">
+      <div class="ai-auto-tune__header">
+        <div>
+          <h3>AI Auto-Tune</h3>
+          <p class="hint">LLM analysis adjusts rewards and hyperparameters to maximize survival and fruit.</p>
+        </div>
+      </div>
+
+      <div class="ai-auto-tune__controls" role="group" aria-label="AI Auto-Tune settings">
+        <section class="ai-auto-tune__column" aria-labelledby="aiAutoTuneAiHeading">
+          <h4 id="aiAutoTuneAiHeading">AI analysis</h4>
+          <div class="field compact ai-interval-field">
+            <div class="field-header">
+              <label for="aiIntervalSlider">Analysis interval</label>
+              <div class="ai-toggle-group" role="group" aria-label="AI Auto-Tune toggles">
+                <label class="toggle" for="aiAutoTuneToggle">
+                  <input type="checkbox" id="aiAutoTuneToggle" aria-label="Enable AI Auto-Tune">
+                  <span>Enable</span>
+                </label>
+                <label class="toggle" for="aiAutoAdjustToggle">
+                  <input type="checkbox" id="aiAutoAdjustToggle" aria-label="Adjust parameters with AI">
+                  <span>Adjust parameters with AI</span>
+                </label>
+              </div>
+            </div>
+            <input type="range" id="aiIntervalSlider" min="100" max="5000" step="100" value="500">
+            <span class="hint">Number of episodes between AI analysis calls.</span>
+            <span class="mono" id="aiIntervalReadout">500 ep</span>
+          </div>
+        </section>
+        <section class="ai-auto-tune__column" aria-labelledby="aiAutoTuneAutoHeading">
+
+        <h4 id="aiAutoTuneAutoHeading">Auto-run</h4>
+<div class="field compact">
+  <label for="aiRunLimit">Rounds to run</label>
+  <input type="number" id="aiRunLimit" min="0" step="100" inputmode="numeric" placeholder="0"
+         style="width: 70px; padding: 2px; font-size: 14px;">
+  <span class="hint" id="aiRunLimitHint">0 = unlimited auto-run cycles.</span>
+</div>
+         <div class="field">
+            <span class="hint">Adjustment tempo</span>
+            <div class="pill-group" id="aiStyleGroup" role="group" aria-label="Adjustment pace">
+              <button type="button" class="pill" data-style="calm">Calm</button>
+              <button type="button" class="pill active" data-style="balanced">Balanced</button>
+              <button type="button" class="pill" data-style="aggressive">Aggressive</button>
+            </div>
+          </div>
+        </section>
+      </div>
+    </div>
+
     <div id="autoLogPanel" class="auto-log hidden">
       <div class="auto-log__header">
         <h3>Auto adjustments</h3>
@@ -1581,6 +1694,25 @@ footer{
   </div>
 
   <div class="card">
+    <h2>AI Auto-Tune data &amp; logging</h2>
+    <p>Auto-Tune sends far more than the latest episode to the LLM: every finished episode is stored in a local memory (<code>aiEpisodeHistory</code>) with room for 6,000 entries before the oldest are dropped. From there several views are built <em>before</em> the telemetry is serialized:</p>
+    <ul>
+      <li><strong>Interval window:</strong> a sliding window of <span class="mono">interval</span> episodes (default 500) summarizes averages, spread, trends, and crash distribution.</li>
+      <li><strong>Rollup:</strong> a separate summary over up to 1,000 episodes acts as long-term reference.</li>
+      <li><strong>Recent runs:</strong> the 32 freshest episodes plus the details from the very latest episode are included to show short-term swings.</li>
+    </ul>
+    <p>The result is packed into the same <code>messagePayload</code> together with the current reward configuration and hyperparameters, so the model can weigh both long-term trends and the most recent events.</p>
+    <p>Every prompt/response pair and checkpoint-tagged episode is also logged in the browser (local storage key <code>snake-history</code>). The log stays on your machine and can be cleared with <strong>Clear cache</strong>.</p>
+    <h3>How the model responses are interpreted</h3>
+    <ul>
+      <li>The LLM is instructed to reply with JSON containing <code>rewardConfig</code>, <code>hyper</code>, and <code>analysisText</code>.</li>
+      <li>The client extracts the first JSON object in the reply and tries to repair common formatting issues (e.g., misquoted keys, smart quotes, or trailing commas) before parsing.</li>
+      <li>Only valid numeric changes are applied. Everything else is logged in the Auto adjustments flow so you see exactly which tweaks were used or rejected.</li>
+    </ul>
+    <p>Want the model to analyze longer spans? Drag the <strong>Completed episodes</strong> slider in the AI Auto-Tune panel. The slider steps in hundreds and ranges between 100 and 5,000 episodes.</p>
+  </div>
+
+  <div class="card">
     <h2>Quickstart</h2>
     <ol>
       <li>Select a playback mode in the <em>Smooth/Fast/Turbo</em> pill group. Smooth shows every move and is perfect for studying behaviours, while Turbo skips rendering for maximum training speed.</li>
@@ -1741,7 +1873,10 @@ footer{
 
 <footer class="hint">© Marcus — Snake navigates with BFS, Hamilton routing, and endgame heuristics.</footer>
 
+<script type="module" src="hf-tuner.js"></script>
 <script type="module">
+import {createAITuner} from './hf-tuner.js';
+
 const DEBUG_LOG=false;
 
 const REWARD_DEFAULTS={
@@ -1850,6 +1985,7 @@ const telemetry={
 };
 const CURRICULUM_STORAGE_KEY='snake.curriculum.v1';
 let rewardConfig={...REWARD_DEFAULTS};
+let hyperParams={};
 const LOOP_PATTERNS=new Set(['1,2,1,2','2,1,2,1']);
 const GREEDY_EVAL_INTERVAL=1000;
 const GREEDY_EVAL_RUNS=20;
@@ -5203,6 +5339,13 @@ const ui={
   autoPpoField:document.getElementById('autoPpoField'),
   autoPpoToggle:document.getElementById('autoPpoToggle'),
   autoPpoStage:document.getElementById('autoPpoStage'),
+  aiAutoTuneToggle:document.getElementById('aiAutoTuneToggle'),
+  aiAutoAdjustToggle:document.getElementById('aiAutoAdjustToggle'),
+  aiIntervalSlider:document.getElementById('aiIntervalSlider'),
+  aiIntervalReadout:document.getElementById('aiIntervalReadout'),
+  aiRunLimit:document.getElementById('aiRunLimit'),
+  aiRunLimitHint:document.getElementById('aiRunLimitHint'),
+  aiStyleButtons:Array.from(document.querySelectorAll('#aiStyleGroup .pill')),
   gamma:document.getElementById('gamma'),
   gammaReadout:document.getElementById('gammaReadout'),
   lr:document.getElementById('lr'),
@@ -5805,6 +5948,14 @@ const AUTO_TUNING_STYLES={
   aggressive:{key:'aggressive',label:'Aggressiv',magnitude:1.45,cooldown:0.6,eval:0.75,start:0.8},
 };
 const DEFAULT_AUTO_STYLE='balanced';
+const aiEpisodeHistory=[];
+let aiAnalysisInterval=500;
+let aiAutoTuneEnabled=false;
+let aiAutoAdjustEnabled=false;
+let aiAutoTuneStyle=DEFAULT_AUTO_STYLE;
+let autoRunLimit=0;
+let autoRunStopEpisode=null;
+let aiTuner=null;
 function avg(arr,n){
   if(!arr.length) return 0;
   const slice=arr.slice(-n);
@@ -5908,7 +6059,7 @@ function resetAutoLog(){
 }
 function updateAutoLogVisibility(){
   if(!ui.autoLogPanel) return;
-  const shouldShow=trainingMode==='auto';
+  const shouldShow=trainingMode==='auto'||aiAutoTuneEnabled;
   ui.autoLogPanel.classList.toggle('hidden',!shouldShow);
 }
 function logAutoEvent({title='',detail='',metrics=null,tone='info',episode=null}={}){
@@ -6011,6 +6162,15 @@ function round(value,decimals=3){
   return Math.round(num*factor)/factor;
 }
 
+function updateAiIntervalReadout(){
+  if(!ui.aiIntervalSlider||!ui.aiIntervalReadout) return;
+  const raw=+ui.aiIntervalSlider.value||aiAnalysisInterval||500;
+  aiAnalysisInterval=Math.max(100,Math.min(5000,Math.round(raw/100)*100));
+  checkpointEpisodeInterval=aiAnalysisInterval;
+  ui.aiIntervalReadout.textContent=`${aiAnalysisInterval} ep`;
+  if(aiTuner) aiTuner.setInterval(aiAnalysisInterval);
+}
+
 function updateTestSpeedFromUI(){
   if(!ui.testSpeed) return;
   const raw=Number(ui.testSpeed.value);
@@ -6035,6 +6195,474 @@ function setTestModeActive(active){
   }
   if(ui.testMetrics){
     ui.testMetrics.classList.toggle('hidden',!active);
+  }
+}
+
+function setAiAutoStyle(style,{announce=true}={}){
+  const preset=AUTO_TUNING_STYLES[style]||AUTO_TUNING_STYLES[DEFAULT_AUTO_STYLE];
+  aiAutoTuneStyle=preset.key;
+  ui.aiStyleButtons?.forEach(btn=>{
+    btn.classList.toggle('active',btn.dataset.style===aiAutoTuneStyle);
+  });
+  autoPilot?.setTuningStyle?.(aiAutoTuneStyle);
+  if(announce){
+    logAutoEvent({
+      title:'Auto mode updated',
+      detail:`${preset.label} adjustments`,
+      tone:'ai',
+      episode:autoPilot?.episode||episode||0,
+    });
+  }
+  updateAiRunLimitHint();
+}
+
+function updateAiRunLimitHint(reachedTarget=false){
+  if(!ui.aiRunLimitHint) return;
+  if(autoRunLimit<=0){
+    ui.aiRunLimitHint.textContent='0 = unlimited auto-run cycles.';
+    return;
+  }
+  const preset=AUTO_TUNING_STYLES[aiAutoTuneStyle]||AUTO_TUNING_STYLES[DEFAULT_AUTO_STYLE];
+  if(reachedTarget){
+    ui.aiRunLimitHint.textContent=`Target reached – ${preset.label} mode paused after ${autoRunLimit} episodes`;
+    return;
+  }
+  if(trainingMode==='auto' && training && autoRunStopEpisode){
+    const remaining=Math.max(0,autoRunStopEpisode-episode);
+    ui.aiRunLimitHint.textContent=`Pausing after ${autoRunLimit} episodes (${remaining} remaining)`;
+  }else{
+    ui.aiRunLimitHint.textContent=`Pausing after ${autoRunLimit} episodes`;
+  }
+}
+
+function scheduleAutoRunTarget(){
+  if(trainingMode==='auto' && training && autoRunLimit>0){
+    autoRunStopEpisode=episode+autoRunLimit;
+  }else{
+    autoRunStopEpisode=null;
+  }
+  updateAiRunLimitHint();
+}
+
+function applyAiRunLimitFromUI(){
+  if(!ui.aiRunLimit) return;
+  const parsed=Math.max(0,Math.floor(+ui.aiRunLimit.value||0));
+  autoRunLimit=parsed;
+  if(parsed>0){
+    ui.aiRunLimit.value=`${parsed}`;
+  }else{
+    ui.aiRunLimit.value='';
+  }
+  if(training && trainingMode==='auto' && autoRunLimit>0){
+    scheduleAutoRunTarget();
+  }else{
+    autoRunStopEpisode=null;
+    updateAiRunLimitHint();
+  }
+}
+
+function getHyperparameterSnapshot(){
+  const snapshot={
+    gamma:+ui.gamma?.value||0,
+    lr:+ui.lr?.value||0,
+    envCount,
+    epsilon:agent?.epsilon??null,
+    agentKind:agent?.kind||null,
+  };
+  if(isDqnAgent(agent)){
+    Object.assign(snapshot,{
+      epsStart:+ui.epsStart?.value||0,
+      epsEnd:+ui.epsEnd?.value||0,
+      epsDecay:+ui.epsDecay?.value||0,
+      batch:+ui.batchSize?.value||0,
+      bufferSize:+ui.bufferSize?.value||0,
+      targetSync:+ui.targetSync?.value||0,
+      nStep:+ui.nStep?.value||0,
+      priorityAlpha:+ui.priorityAlpha?.value||0,
+      priorityBeta:+ui.priorityBeta?.value||0,
+      double:!!ui.doubleToggle?.checked,
+    });
+  }else if(agent?.kind==='policy'){
+    Object.assign(snapshot,{
+      entropy:+ui.pgEntropy?.value||0,
+    });
+  }else if(agent?.kind==='a2c'){
+    Object.assign(snapshot,{
+      entropy:+ui.acEntropy?.value||0,
+      valueCoef:+ui.acValueCoef?.value||0,
+    });
+  }else if(agent?.kind==='ppo'){
+    Object.assign(snapshot,{
+      entropy:+ui.ppoEntropy?.value||0,
+      valueCoef:+ui.ppoValueCoef?.value||0,
+      clip:+ui.ppoClip?.value||0,
+      lambda:+ui.ppoLambda?.value||0,
+      batch:+ui.ppoBatch?.value||0,
+      epochs:+ui.ppoEpochs?.value||0,
+    });
+  }
+  return snapshot;
+}
+
+function compactEpisodeSummary(entry,includeDetail=false){
+  if(!entry) return null;
+  const summary={
+    episode:entry.episode??null,
+    reward:round(Number(entry.reward)||0,3),
+    fruits:Number(entry.fruits)||0,
+    steps:Number(entry.steps)||0,
+    crash:entry.crash||'none',
+  };
+  if(includeDetail){
+    summary.loopHits=Number(entry.loopHits)||0;
+    if(entry.revisitPenalty!==undefined) summary.revisitPenalty=round(Number(entry.revisitPenalty)||0,3);
+    if(entry.timeToFruitAvg!==undefined&&entry.timeToFruitAvg!==null){
+      summary.timeToFruitAvg=round(Number(entry.timeToFruitAvg)||0,3);
+    }
+  }
+  return summary;
+}
+
+function aggregateEpisodeWindow(windowSize){
+  const size=Math.min(windowSize,aiEpisodeHistory.length);
+  if(!size) return null;
+  const slice=aiEpisodeHistory.slice(-size);
+  let rewardSum=0,fruitSum=0,stepsSum=0,loopsSum=0,timeToFruitSum=0,timeToFruitCount=0;
+  const rewardValues=[];
+  const fruitValues=[];
+  const crashCounts={};
+  const breakdownTotals={};
+  let breakdownCount=0;
+  slice.forEach(item=>{
+    const reward=Number(item.reward)||0;
+    const fruits=Number(item.fruits)||0;
+    const steps=Number(item.steps)||0;
+    const loops=Number(item.loopHits)||0;
+    rewardValues.push(reward);
+    fruitValues.push(fruits);
+    rewardSum+=reward;
+    fruitSum+=fruits;
+    stepsSum+=steps;
+    loopsSum+=loops;
+    const crashKey=item.crash||'none';
+    crashCounts[crashKey]=(crashCounts[crashKey]||0)+1;
+    if(item.timeToFruitAvg!==null&&item.timeToFruitAvg!==undefined){
+      const timeVal=Number(item.timeToFruitAvg)||0;
+      timeToFruitSum+=timeVal;
+      timeToFruitCount++;
+    }
+    if(item.breakdown){
+      breakdownCount++;
+      Object.entries(item.breakdown).forEach(([key,val])=>{
+        breakdownTotals[key]=(breakdownTotals[key]||0)+(+val||0);
+      });
+    }
+  });
+  const rewardAvg=size?rewardSum/size:0;
+  const fruitAvg=size?fruitSum/size:0;
+  const stepsAvg=size?stepsSum/size:0;
+  const loopsAvg=size?loopsSum/size:0;
+  const rewardVariance=rewardValues.length?rewardValues.reduce((acc,val)=>acc+(val-rewardAvg)**2,0)/rewardValues.length:0;
+  const fruitVariance=fruitValues.length?fruitValues.reduce((acc,val)=>acc+(val-fruitAvg)**2,0)/fruitValues.length:0;
+  const rewardStd=Math.sqrt(rewardVariance);
+  const fruitStd=Math.sqrt(fruitVariance);
+  const fruitRate=stepsSum>0?fruitSum/stepsSum:0;
+  const fillRate=(COLS*ROWS)?fruitAvg/(COLS*ROWS):0;
+  const half=Math.floor(slice.length/2);
+  let rewardTrend=0,fruitTrend=0;
+  if(half>0){
+    const first=slice.slice(0,half);
+    const last=slice.slice(-half);
+    const firstReward=first.reduce((acc,item)=>acc+((Number(item.reward)||0)),0)/half;
+    const lastReward=last.reduce((acc,item)=>acc+((Number(item.reward)||0)),0)/half;
+    const firstFruit=first.reduce((acc,item)=>acc+((Number(item.fruits)||0)),0)/half;
+    const lastFruit=last.reduce((acc,item)=>acc+((Number(item.fruits)||0)),0)/half;
+    rewardTrend=lastReward-firstReward;
+    fruitTrend=lastFruit-firstFruit;
+  }
+  const stats={
+    rewardAvg:round(rewardAvg,3),
+    rewardStd:round(rewardStd,3),
+    fruitAvg:round(fruitAvg,3),
+    fruitStd:round(fruitStd,3),
+    stepsAvg:Math.round(stepsAvg),
+    loopsAvg:round(loopsAvg,3),
+    fruitRate:round(fruitRate,4),
+    fillRate:round(fillRate,4),
+    rewardTrend:round(rewardTrend,3),
+    fruitTrend:round(fruitTrend,3),
+  };
+  if(timeToFruitCount>0){
+    stats.timeToFruit=round(timeToFruitSum/timeToFruitCount,3);
+  }
+  const breakdownAvg=breakdownCount?Object.fromEntries(Object.entries(breakdownTotals).map(([key,val])=>[key,round(val/breakdownCount,4)])):undefined;
+  return {
+    window:size,
+    firstEpisode:slice[0]?.episode??null,
+    lastEpisode:slice[slice.length-1]?.episode??null,
+    stats,
+    crash:crashCounts,
+    rewardBreakdown:breakdownAvg,
+  };
+}
+
+function buildAITelemetrySnapshot(intervalOverride){
+  const candidate=Number(intervalOverride);
+  const requestedInterval=Number.isFinite(candidate)&&candidate>0?Math.floor(candidate):aiAnalysisInterval;
+  const lookback=Math.min(requestedInterval,aiEpisodeHistory.length);
+  if(!lookback) return null;
+  const hyperSnapshot=getHyperparameterSnapshot();
+  const intervalSummary=aggregateEpisodeWindow(lookback);
+  const rollupSummary=aggregateEpisodeWindow(Math.min(ROLLUP_WINDOW,aiEpisodeHistory.length));
+  const recentWindow=Math.min(RECENT_EPISODES_MAX,lookback);
+  const recentEpisodes=aiEpisodeHistory.slice(-recentWindow).map(entry=>compactEpisodeSummary(entry));
+  const latestEpisode=compactEpisodeSummary(aiEpisodeHistory[aiEpisodeHistory.length-1],true);
+  return {
+    intervalEpisodes:intervalSummary?.window??lookback,
+    meta:{
+      episode,
+      interval:intervalSummary?.window??lookback,
+      board:{cols:COLS,rows:ROWS},
+      envs:envCount,
+      algo:currentAlgoKey,
+      agent:agent?.kind||null,
+      best:bestLen,
+    },
+    stats:intervalSummary?.stats||{},
+    crash:intervalSummary?.crash||{},
+    rewardBreakdown:intervalSummary?.rewardBreakdown,
+    rollup:rollupSummary?{
+      window:rollupSummary.window,
+      firstEpisode:rollupSummary.firstEpisode,
+      lastEpisode:rollupSummary.lastEpisode,
+      stats:rollupSummary.stats,
+      crash:rollupSummary.crash,
+      rewardBreakdown:rollupSummary.rewardBreakdown,
+    }:null,
+    rewardConfig:{...rewardConfig},
+    hyper:hyperSnapshot,
+    currentConfig:{
+      reward:{...rewardConfig},
+      hyper:hyperSnapshot,
+    },
+    recentEpisodes,
+    latestEpisode,
+    greedy:{
+      lastFruit:telemetry.greedyFruit.length?telemetry.greedyFruit[telemetry.greedyFruit.length-1]:null,
+      lastReward:telemetry.greedyReward.length?telemetry.greedyReward[telemetry.greedyReward.length-1]:null,
+      lastGap:telemetry.greedyGapLatest??(telemetry.greedyGap.length?telemetry.greedyGap[telemetry.greedyGap.length-1]:null),
+      history:{
+        episodes:greedyEpisodeHist.slice(-recentWindow),
+        fruit:telemetry.greedyFruit.slice(-recentWindow),
+        reward:telemetry.greedyReward.slice(-recentWindow),
+        gap:telemetry.greedyGap.slice(-recentWindow),
+      },
+    },
+  };
+}
+
+function applyAITunerRewardConfig(newConfig={}){
+  const result={changes:[],config:null};
+  if(!newConfig||typeof newConfig!=='object') return result;
+  const merged={...rewardConfig};
+  Object.entries(newConfig).forEach(([key,value])=>{
+    if(!(key in merged)) return;
+    const num=Number(value);
+    if(!Number.isFinite(num)) return;
+    let clamped=num;
+    const inputId=REWARD_INPUT_IDS[key];
+    const input=ui[inputId];
+    if(input){
+      if(input.min!==''&&input.min!==undefined) clamped=Math.max(clamped,+input.min);
+      if(input.max!==''&&input.max!==undefined) clamped=Math.min(clamped,+input.max);
+    }
+    const current=merged[key];
+    if(Math.abs(current-clamped)<1e-6) return;
+    merged[key]=clamped;
+    result.changes.push({key,oldValue:current,newValue:clamped});
+  });
+  if(result.changes.length){
+    applyRewardConfigToUI(merged);
+    rewardConfig={...merged};
+    result.config={...merged};
+  }
+  return result;
+}
+
+function applyAITunerHyperparameters(updates={}){
+  const result={changes:[],hyper:null};
+  if(!updates||typeof updates!=='object') return result;
+  const setValue=(id,value,keyLabel)=>{
+    const input=ui[id];
+    if(!input) return;
+    let num=Number(value);
+    if(!Number.isFinite(num)) return;
+    if(input.min!==''&&input.min!==undefined) num=Math.max(num,+input.min);
+    if(input.max!==''&&input.max!==undefined) num=Math.min(num,+input.max);
+    const current=+input.value;
+    if(Math.abs(current-num)<1e-6) return;
+    input.value=`${num}`;
+    result.changes.push({key:keyLabel,oldValue:current,newValue:num});
+  };
+  if(updates.gamma!==undefined) setValue('gamma',updates.gamma,'gamma');
+  if(updates.lr!==undefined) setValue('lr',updates.lr,'lr');
+  if(updates.epsStart!==undefined) setValue('epsStart',updates.epsStart,'epsStart');
+  if(updates.epsEnd!==undefined) setValue('epsEnd',updates.epsEnd,'epsEnd');
+  if(updates.epsDecay!==undefined) setValue('epsDecay',updates.epsDecay,'epsDecay');
+  if(updates.batch!==undefined){
+    if(agent?.kind==='ppo') setValue('ppoBatch',updates.batch,'ppoBatch');
+    else setValue('batchSize',updates.batch,'batchSize');
+  }
+  if(updates.batchSize!==undefined) setValue('batchSize',updates.batchSize,'batchSize');
+  if(updates.bufferSize!==undefined) setValue('bufferSize',updates.bufferSize,'bufferSize');
+  if(updates.targetSync!==undefined) setValue('targetSync',updates.targetSync,'targetSync');
+  if(updates.nStep!==undefined) setValue('nStep',updates.nStep,'nStep');
+  if(updates.priorityAlpha!==undefined) setValue('priorityAlpha',updates.priorityAlpha,'priorityAlpha');
+  if(updates.priorityBeta!==undefined) setValue('priorityBeta',updates.priorityBeta,'priorityBeta');
+  if(updates.double!==undefined && ui.doubleToggle){
+    const desired=!!updates.double;
+    const current=!!ui.doubleToggle.checked;
+    if(current!==desired){
+      ui.doubleToggle.checked=desired;
+      result.changes.push({key:'double',oldValue:current,newValue:desired});
+    }
+  }
+  if(updates.entropy!==undefined){
+    if(agent?.kind==='policy') setValue('pgEntropy',updates.entropy,'pgEntropy');
+    else if(agent?.kind==='a2c') setValue('acEntropy',updates.entropy,'acEntropy');
+    else if(agent?.kind==='ppo') setValue('ppoEntropy',updates.entropy,'ppoEntropy');
+  }
+  if(updates.valueCoef!==undefined){
+    if(agent?.kind==='a2c') setValue('acValueCoef',updates.valueCoef,'acValueCoef');
+    else if(agent?.kind==='ppo') setValue('ppoValueCoef',updates.valueCoef,'ppoValueCoef');
+  }
+  if(updates.clip!==undefined&&agent?.kind==='ppo') setValue('ppoClip',updates.clip,'ppoClip');
+  if(updates.lambda!==undefined&&agent?.kind==='ppo') setValue('ppoLambda',updates.lambda,'ppoLambda');
+  if(updates.epochs!==undefined&&agent?.kind==='ppo') setValue('ppoEpochs',updates.epochs,'ppoEpochs');
+  if(result.changes.length){
+    updateReadouts();
+    applyConfigToAgent();
+    result.hyper=getHyperparameterSnapshot();
+  }
+  if(result.hyper){
+    hyperParams={...result.hyper};
+  }
+  return result;
+}
+
+function parseAITunerContent(aiResult){
+  if(typeof aiResult!=='string') return null;
+  let cleaned=aiResult.trim();
+
+  const fenceMatch=cleaned.match(/^```(?:json)?\s*([\s\S]*?)```$/i);
+  if(fenceMatch){
+    cleaned=fenceMatch[1].trim();
+  }
+
+  try{
+    return JSON.parse(cleaned);
+  }catch(parseErr){
+    const start=cleaned.indexOf('{');
+    const end=cleaned.lastIndexOf('}');
+    if(start!==-1&&end!==-1&&end>=start){
+      const snippet=cleaned.slice(start,end+1);
+      try{
+        return JSON.parse(snippet);
+      }catch(innerErr){
+        console.warn('[handleGroqResponse] could not parse JSON blob after cleanup',innerErr,{snippet});
+      }
+    }
+    console.warn('[handleGroqResponse] AI response is missing valid JSON',parseErr,{raw:aiResult});
+    return null;
+  }
+}
+
+async function handleGroqResponse(responseJson){
+  try{
+    const aiResult=responseJson?.data?.choices?.[0]?.message?.content;
+    if(!aiResult){
+      console.warn("⚠️ No AI output found in the response");
+      return;
+    }
+
+    const parsed=parseAITunerContent(aiResult);
+    if(!parsed){
+      return;
+    }
+
+    const allowAutoAdjustment=aiAutoTuneEnabled&&aiAutoAdjustEnabled;
+    let adjustmentsDeferred=false;
+
+    if(parsed.rewardConfig){
+      if(allowAutoAdjustment){
+        const rewardResult=applyAITunerRewardConfig(parsed.rewardConfig);
+        if(rewardResult?.config){
+          Object.assign(rewardConfig,rewardResult.config);
+        }else{
+          Object.assign(rewardConfig,parsed.rewardConfig);
+          applyRewardsToEnv();
+        }
+      }else{
+        adjustmentsDeferred=true;
+        console.log('💡 AI suggested reward changes (auto-adjust is off):',parsed.rewardConfig);
+      }
+    }
+
+    if(parsed.hyper){
+      if(allowAutoAdjustment){
+        const hyperResult=applyAITunerHyperparameters(parsed.hyper);
+        if(hyperResult?.hyper){
+          hyperParams={...hyperResult.hyper};
+        }else if(typeof getHyperparameterSnapshot==='function'){
+          hyperParams={...getHyperparameterSnapshot(),...parsed.hyper};
+        }else{
+          hyperParams={...hyperParams,...parsed.hyper};
+        }
+      }else{
+        adjustmentsDeferred=true;
+        console.log('💡 AI suggested hyperparameter changes (auto-adjust is off):',parsed.hyper);
+      }
+    }
+
+    if(adjustmentsDeferred){
+      try{
+        logAITunerEvent?.({
+          title:'AI Auto-Tune',
+          detail:'Suggestions received—enable "Adjust parameters with AI" to apply them automatically.',
+          tone:'ai',
+          episodeNumber:episode,
+        });
+      }catch(err){
+        console.warn('[handleGroqResponse] could not log notification about manual adjustments',err);
+      }
+    }
+
+    if(parsed.analysisText){
+      console.log("🤖 AI analysis:", parsed.analysisText);
+      try{
+        logAITunerEvent?.({title:'AI analysis',detail:parsed.analysisText,tone:'ai',episodeNumber:episode});
+      }catch(err){
+        console.warn('[handleGroqResponse] could not log analysis',err);
+      }
+    }else{
+      console.log("🤖 AI analysis:", parsed.analysisText);
+    }
+  }catch(err){
+    console.error("Fel vid parsing av AI-svar:", err);
+  }
+}
+
+function logAITunerEvent({title='',detail='',tone='ai',metrics=null,episodeNumber=null}={}){
+  logAutoEvent({title,detail,metrics,tone,episode:episodeNumber??episode});
+}
+
+function syncAiAutoAdjustToggle(){
+  if(!ui.aiAutoAdjustToggle) return;
+  const shouldDisable=!aiAutoTuneEnabled;
+  ui.aiAutoAdjustToggle.disabled=shouldDisable;
+  const label=ui.aiAutoAdjustToggle.closest('.toggle');
+  if(label){
+    label.classList.toggle('toggle--disabled',shouldDisable);
   }
 }
 
@@ -6094,8 +6722,46 @@ function bindUI(){
     });
     setProgressChartCollapsed(false);
   }
+  ui.aiIntervalSlider?.addEventListener('input',()=>{
+    updateAiIntervalReadout();
+  });
   ui.testSpeed?.addEventListener('input',()=>{
     updateTestSpeedFromUI();
+  });
+  ui.aiRunLimit?.addEventListener('change',()=>{
+    applyAiRunLimitFromUI();
+  });
+  ui.aiStyleButtons?.forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      setAiAutoStyle(btn.dataset.style||DEFAULT_AUTO_STYLE);
+    });
+  });
+  if(ui.aiAutoAdjustToggle){
+    aiAutoAdjustEnabled=ui.aiAutoAdjustToggle.checked;
+    ui.aiAutoAdjustToggle.addEventListener('change',()=>{
+      aiAutoAdjustEnabled=ui.aiAutoAdjustToggle.checked;
+      const detail=aiAutoAdjustEnabled?'Auto-adjust enabled':'Auto-adjust disabled';
+      logAITunerEvent({title:'AI Auto-Tune',detail,tone:'ai',episodeNumber:episode});
+    });
+    syncAiAutoAdjustToggle();
+  }
+  ui.aiAutoTuneToggle?.addEventListener('change',()=>{
+    if(ui.aiAutoTuneToggle.checked){
+      const code=prompt('Enter the security code to enable AI Auto-Tune:');
+      if(code!=='1234554321'){
+        ui.aiAutoTuneToggle.checked=false;
+        aiAutoTuneEnabled=false;
+        syncAiAutoAdjustToggle();
+        flash('Wrong code. AI Auto-Tune remains disabled.',true);
+        return;
+      }
+    }
+    aiAutoTuneEnabled=ui.aiAutoTuneToggle.checked;
+    syncAiAutoAdjustToggle();
+    if(aiTuner) aiTuner.setEnabled(aiAutoTuneEnabled);
+    const detail=aiAutoTuneEnabled?'Enabled':'Disabled';
+    logAITunerEvent({title:'AI Auto-Tune',detail,tone:'ai',episodeNumber:episode});
+    updateAutoLogVisibility();
   });
   ui.fileLoader?.addEventListener('change',async ev=>{
     const [file]=ev.target.files||[];
@@ -6194,9 +6860,13 @@ function bindUI(){
   updateControlAvailability();
   setTrainingMode(trainingMode);
   updateAutoLogVisibility();
+  updateAiIntervalReadout();
   updateTestSpeedFromUI();
   syncTestLengthDisplays();
   setTestModeActive(false);
+  setAiAutoStyle(aiAutoTuneStyle,{announce:false});
+  updateAiRunLimitHint();
+  if(ui.aiAutoTuneToggle) ui.aiAutoTuneToggle.checked=aiAutoTuneEnabled;
   updateCheckpointToggleUI();
   updateProgressChart();
 }
@@ -6339,6 +7009,7 @@ function setTrainingMode(mode){
     const firstActivation=prevMode!=='auto';
     autoPilot=new BrowserAutoPilot({rewardConfig:{...rewardConfig}});
     autoPilot.setAgent(agent);
+    autoPilot.setTuningStyle(aiAutoTuneStyle);
     const desiredCount=Math.max(12,envCount);
     ui.envCount.value=`${desiredCount}`;
     if(firstActivation){
@@ -7778,6 +8449,7 @@ function resetTrainingStats(){
     autoPilot.lastAdjust={};
     autoPilot.lastEvaluationEpisode=0;
     autoPilot.rewardConfig={...rewardConfig};
+    autoPilot.setTuningStyle(aiAutoTuneStyle);
   }
   lastAutoMetrics=null;
   lastAutoSummaryEpisode=0;
@@ -8074,6 +8746,22 @@ async function finalizeContextEpisode(ctx,envIndex){
       lastAutoSummaryEpisode=autoEpisode;
     }
   }
+  if(trainingMode==='auto' && autoRunLimit>0){
+    if(autoRunStopEpisode && episode>=autoRunStopEpisode){
+      const preset=AUTO_TUNING_STYLES[aiAutoTuneStyle]||AUTO_TUNING_STYLES[DEFAULT_AUTO_STYLE];
+      logAutoEvent({
+        title:'Auto-run pausad',
+        detail:`${autoRunLimit} episodes in ${preset.label.toLowerCase()} mode`,
+        tone:'summary',
+        episode:autoPilot?.episode||episode,
+      });
+      flash('Goal reached – AI Auto-Tune paused.');
+      stopTraining({reachedTarget:true});
+      autoRunStopEpisode=null;
+    }else if(autoRunStopEpisode){
+      updateAiRunLimitHint();
+    }
+  }
   if(agent?.kind==='ppo'){
     const diag=typeof agent.getDiagnostics==='function'?agent.getDiagnostics():null;
     const avgReward100=rwHist.length?avg(rwHist,Math.max(1,Math.min(100,rwHist.length))):null;
@@ -8094,6 +8782,19 @@ async function finalizeContextEpisode(ctx,envIndex){
       crash:crashType,
     });
   }
+  aiEpisodeHistory.push({
+    episode,
+    reward:ctx.totalReward,
+    fruits:ctx.fruits,
+    steps:ctx.steps,
+    loopHits,
+    revisitPenalty,
+    crash:crashType||'none',
+    timeToFruitAvg:avgTimeToFruit,
+    breakdown:breakdown?{...breakdown}:null,
+  });
+  if(aiEpisodeHistory.length>6000) aiEpisodeHistory.shift();
+  if(aiTuner) aiTuner.maybeTune({episode});
   agent?.onEpisodeEnd?.(ctx,envIndex);
   ctx.totalReward=0;
   ctx.fruits=0;
@@ -9188,10 +9889,23 @@ if(ui.autoPpoToggle){
   });
 }
 
+aiTuner=createAITuner({
+  getVecEnv:()=>vecEnv,
+  fetchTelemetry:({interval})=>buildAITelemetrySnapshot(interval),
+  applyRewardConfig:applyAITunerRewardConfig,
+  applyHyperparameters:applyAITunerHyperparameters,
+  log:logAITunerEvent,
+  isCheckpointEnabled:()=>checkpointEnabled,
+  handleGroqResponse,
+});
+aiTuner.setInterval(aiAnalysisInterval);
+aiTuner.setEnabled(aiAutoTuneEnabled);
+
 window.addEventListener('load',()=>{
   bindUI();
   setPlaybackMode('cinematic');
   instantiateAgent('dueling');
+  hyperParams=getHyperparameterSnapshot();
   setImmediateState(env);
 });
 </script>
