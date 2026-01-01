@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Hybrid Policy Learning (HPL) Data Sorting Simulation - RL-ACO</title>
+  <title>Evolve Data Sorting Simulation</title>
   <style>
     :root {
       --bg-dark: #050516;
@@ -211,7 +211,7 @@
 
 <aside class="sidebar">
   <div class="panel-section">
-    <h1>HPL Control Console</h1>
+    <h1>Evolve Control Console</h1>
     
     <div class="stat-grid">
       <div class="stat-box">
@@ -219,7 +219,7 @@
         <span class="stat-val" id="dispGen">1</span>
       </div>
       <div class="stat-box">
-        <span class="stat-label">Best Q-Score</span>
+        <span class="stat-label">Best Fitness</span>
         <span class="stat-val" id="dispFit" style="color:var(--accent-ok)">0.0</span>
       </div>
       <div class="stat-box">
@@ -340,34 +340,11 @@
     
    
   <div class="panel-section">
-    <h2>RL/Policy Parameters</h2>
-    
-    <div class="control-group">
-      <label title="How quickly the network weights update">Learning Rate (Alpha): <span id="valAlpha">0.010</span></label>
-      <input type="range" id="slAlpha" min="1" max="100" value="10" step="1">
-    </div>
-
-    <div class="control-group">
-        <label title="Weight for future rewards. Higher = more long-term planning">Discount Factor (Gamma): <span id="valGamma">0.90</span></label>
-        <input type="range" id="slGamma" min="50" max="99" value="90" step="1">
-    </div>
-    
-    <div class="control-group">
-        <label title="Share of random moves for exploration">Exploration Rate (Epsilon): <span id="valEpsilon">8%</span></label>
-        <input type="range" id="slEpsilon" min="0" max="50" value="8" step="1">
-    </div>
+    <h2>Policy Network</h2>
     
     <div class="control-group">
       <label title="Antal noder i dolda lagret.">Hidden Nodes: <span id="valHidden">20</span></label>
       <input type="range" id="slHidden" min="8" max="40" step="4" value="20">
-    </div>
-
-    <div class="control-group">
-      <label title="Switch between evolution and RL">Learning Mode: <span id="valLearningMode">Evolve</span></label>
-      <select id="slLearningMode">
-        <option value="evolve" selected>Evolve</option>
-        <option value="rl">RL</option>
-      </select>
     </div>
   </div>
 
@@ -416,18 +393,13 @@
       <label class="checkbox-row"><input type="checkbox" id="chkPheromones" checked> Show Pheromone Heatmap</label>
       <label class="checkbox-row"><input type="checkbox" id="chkParticles" checked> Show Particles (Feedback)</label>
       <label class="checkbox-row"><input type="checkbox" id="chkTrail"> Show Best Agent Trail</label>
-      <div class="pulse-grid" style="margin-top:10px;">
-        <div class="pulse-row"><span class="pulse-label">Exploration (ε)</span><div class="pulse-bar"><span id="barEpsilon"></span></div><span class="pulse-value" id="valEpsilonPulse">8%</span></div>
-        <div class="pulse-row"><span class="pulse-label">Learning Rate (α)</span><div class="pulse-bar"><span id="barAlpha"></span></div><span class="pulse-value" id="valAlphaPulse">0.010</span></div>
-        <div class="pulse-row"><span class="pulse-label">Discount (γ)</span><div class="pulse-bar"><span id="barGamma"></span></div><span class="pulse-value" id="valGammaPulse">0.90</span></div>
-      </div>
   </div>
 </aside>
 
 <main class="main-view">
   <div class="viewport">
     <div class="sim-top-bar">
-        <span><strong style="color:var(--accent)">HPL-ACO:</strong> Hybrid Policy Learning Simulation</span>
+        <span><strong style="color:var(--accent)">Evolve:</strong> Data Sorting Simulation</span>
         <span class="fps-counter" id="fpsDisplay">FPS: 0</span>
     </div>
     <div class="episode-progress"><div class="fill" id="episodeFill"></div></div>
@@ -448,10 +420,6 @@
 // --- CONFIGURATION OBJECT (Mutable) ---
 const CFG = {
   popSize: 1,
-  RL_ALPHA: 0.01, // Learning Rate
-  RL_GAMMA: 0.90,  // Discount Factor
-  RL_EPSILON: 0.08, // Exploration Rate
-  learningMode: 'evolve', // 'rl' or 'evolve' (Foodwars-style evolution)
   evolve: {
     elite: 0.2,
     mutRate: 0.22,
@@ -488,10 +456,6 @@ const CFG = {
   outputs: 6, 
   // Outputs: [Steer_Bias, Speed_Factor, Brake_Factor, Goal_INC_WT, Goal_REQ_WT, Goal_PROB_WT]
   smart: {
-    epsilonMin: 0.02,
-    epsilonMax: 0.5,
-    alphaMin: 0.002,
-    alphaMax: 0.06,
     sensorBoostMax: 1.6,
     carrySensorScale: 0.85,
     stuckFrames: 45,
@@ -586,19 +550,6 @@ let grid = {
 };
 const GRID_FIELDS = ['food', 'incident', 'request', 'problem'];
 
-const adaptive = {
-    epsilon: CFG.RL_EPSILON,
-    alpha: CFG.RL_ALPHA,
-    decay: PHEROMONE_DECAY,
-    successEMA: 0,
-    stallEMA: 0,
-    rewardEMA: 0,
-    rewardVar: 0
-};
-
-const getEffectiveEpsilon = () => adaptive.epsilon || CFG.RL_EPSILON;
-const getEffectiveAlpha = () => adaptive.alpha || CFG.RL_ALPHA;
-
 const gi=(x,y)=> y*GW + x;
 const clampi=(v,a,b)=> v<a?a:(v>b?b:v);
 
@@ -692,7 +643,7 @@ function pheromoneValue(type, x, y){
 }
 
 function evaporate(){
-    const decay = adaptive.decay || PHEROMONE_DECAY;
+    const decay = PHEROMONE_DECAY;
     for(let i=0; i<grid.food.length; i++){
         for(const key of GRID_FIELDS){
             grid[key][i] *= decay;
@@ -703,7 +654,7 @@ function evaporate(){
 // --- END FEROMON SYSTEM ---
 
 
-// --- POLICY NETWORK (RL Component) ---
+// --- POLICY NETWORK ---
 
 class PolicyNetwork {
     constructor(inputs, hiddens, outputs, weights = null) {
@@ -932,11 +883,9 @@ class Agent {
     this.stalled = false;
     this.trail = []; 
     
-    // RL State Variables
     this.lastState = new Array(CFG.inputs).fill(0); 
     this.lastAction = new Array(CFG.outputs).fill(0);
     this.accumulatedReward = 0;
-    this.qScore = 0; // Accumulated Q-score / long-term fitness
     this.stuckFrames = 0;
     this.searchFrames = 0;
     this.progressStreak = 0;
@@ -1182,24 +1131,6 @@ class Agent {
     this.y += Math.sin(this.angle) * this.vel;
   }
 
-  // RL Learning Step (Called after Action Execution)
-  learn(prevState, prevAction, reward, newPolicyOutputs) {
-    if (CFG.learningMode !== 'rl' || reward === 0) return;
-    
-    const alpha = getEffectiveAlpha();
-    const gamma = CFG.RL_GAMMA;
-
-    // The accumulated Q-Score is updated using a simple temporal difference update.
-    // Q(S, A) = Q(S, A) + alpha * [ R + gamma * Q_max(S') - Q(S, A) ]
-    // Since we don't store Q(S,A) explicitly, we use the immediate reward and update the network.
-    
-    // Update Agent's long-term score
-    this.qScore = this.qScore * gamma + reward; 
-
-    // Backpropagate using the reward as the Advantage/Loss signal
-    this.policy.backpropagate(prevState, prevAction, reward, alpha);
-  }
-
   update() {
     if(mouse.dragAgent === this || mouse.dragNest || mouse.dragZone) return; 
 
@@ -1214,7 +1145,7 @@ class Agent {
     const prevState = this.getState();
     let prevProgressDist = null;
     
-    // --- Policy Prediction & Exploration (Epsilon-Greedy) ---
+    // --- Policy Prediction ---
     let policyOutputs;
     let hiddens;
     let reward = 0;
@@ -1226,16 +1157,9 @@ class Agent {
         prevProgressDist = dist(this.x, this.y, this.currentTargetTicket.x, this.currentTargetTicket.y);
     }
 
-    if (Math.random() < getEffectiveEpsilon()) {
-        // Exploration: Random Action
-        policyOutputs = new Array(CFG.outputs).fill(0).map(() => rand(-1, 1));
-        hiddens = new Array(CFG.hiddens).fill(0); 
-    } else {
-        // Exploitation: Policy Network Action
-        const { outputs, hiddens: h } = this.policy.predict(prevState);
-        policyOutputs = Array.from(outputs);
-        hiddens = h;
-    }
+    const { outputs, hiddens: h } = this.policy.predict(prevState);
+    policyOutputs = Array.from(outputs);
+    hiddens = h;
     
     this.lastState = prevState;
     this.lastAction = policyOutputs;
@@ -1356,10 +1280,7 @@ class Agent {
     
     this.accumulatedReward = reward; // Store for display/debugging
     this.fitness += reward; // Overall episode fitness (for finding best agent)
-    this.qScore = this.fitness; // Keep Q-score display in sync with fitness for evolve mode
     
-    // --- Learning Step (RL) ---
-    this.learn(prevState, policyOutputs, reward, policyOutputs); 
 
     // Trail update
     if(this === bestAgent && document.getElementById('chkTrail')?.checked) {
@@ -1454,8 +1375,7 @@ class Agent {
     if (this.carrying) {
         agentFillColor = this.carrying.def.color;
     } else {
-        // Color based on policy's 'memory' (normalized Q-Score)
-        const memSaturation = 50 + clamp(this.qScore / 100, 0, 100); 
+        const memSaturation = 50 + clamp(this.fitness / 100, 0, 100); 
         agentFillColor = `hsl(${this.teamHue}, ${memSaturation}%, 50%)`;
     }
 
@@ -1712,36 +1632,6 @@ function updateFPS(now) {
     lastFrameTime = now;
 }
 
-function updateAdaptiveLearning() {
-    const total = stats.solved + stats.wrong;
-    const successRate = total ? stats.solved / total : 0;
-    adaptive.successEMA = adaptive.successEMA * 0.96 + successRate * 0.04;
-
-    const stalledRatio = agents.length ? agents.filter(a => a.stalled).length / agents.length : 0;
-    adaptive.stallEMA = adaptive.stallEMA * 0.9 + stalledRatio * 0.1;
-
-    const avgReward = agents.length
-        ? agents.reduce((sum, a) => sum + (a.accumulatedReward || 0), 0) / agents.length
-        : 0;
-    adaptive.rewardEMA = adaptive.rewardEMA * 0.9 + avgReward * 0.1;
-    const rewardDelta = avgReward - adaptive.rewardEMA;
-    adaptive.rewardVar = adaptive.rewardVar * 0.9 + rewardDelta * rewardDelta * 0.1;
-
-    let eps = CFG.RL_EPSILON * (1.1 - adaptive.successEMA * 0.6);
-    eps += adaptive.stallEMA * 0.08;
-    adaptive.epsilon = clamp(eps, CFG.smart.epsilonMin, CFG.smart.epsilonMax);
-
-    const volatility = Math.sqrt(adaptive.rewardVar);
-    let alpha = CFG.RL_ALPHA * (1 + clamp(volatility, 0, 1.2));
-    adaptive.alpha = clamp(alpha, CFG.smart.alphaMin, CFG.smart.alphaMax);
-
-    let activeTickets = 0;
-    tickets.forEach(t => { if (t.x > 0) activeTickets += 1; });
-    const loadRatio = activeTickets / Math.max(1, tickets.length);
-    let decay = PHEROMONE_DECAY + (1 - adaptive.successEMA) * 0.004 + (loadRatio - 0.5) * 0.003;
-    adaptive.decay = clamp(decay, 0.980, 0.999);
-}
-
 function updateUI() {
   document.getElementById('hudGen').innerText = `EPISODE ${episode}`;
   document.getElementById('dispGen').innerText = episode;
@@ -1758,29 +1648,8 @@ function updateUI() {
 
   document.getElementById('dispActive').innerText = `${stats.activeCount}/${agents.length}`;
   if(bestAgent) {
-      document.getElementById('dispFit').innerText = bestAgent.qScore.toFixed(2);
+      document.getElementById('dispFit').innerText = bestAgent.fitness.toFixed(2);
   }
-
-  // Learning pulse bars
-  const epsilonPct = Math.round(getEffectiveEpsilon() * 100);
-  const alphaVal = getEffectiveAlpha();
-  const gammaVal = CFG.RL_GAMMA;
-
-  const setBar = (id, pct) => {
-      const bar = document.getElementById(id);
-      if(bar) bar.style.width = `${clamp(pct,0,100)}%`;
-  };
-
-  setBar('barEpsilon', epsilonPct);
-  setBar('barAlpha', alphaVal * 8000);
-  setBar('barGamma', gammaVal * 120);
-
-  const valEpsilonPulse = document.getElementById('valEpsilonPulse');
-  if(valEpsilonPulse) valEpsilonPulse.innerText = `${epsilonPct}%`;
-  const valAlphaPulse = document.getElementById('valAlphaPulse');
-  if(valAlphaPulse) valAlphaPulse.innerText = alphaVal.toFixed(3);
-  const valGammaPulse = document.getElementById('valGammaPulse');
-  if(valGammaPulse) valGammaPulse.innerText = gammaVal.toFixed(2);
 
   const progress = clamp(frame / CFG.episodeDuration, 0, 1);
   const progressFill = document.getElementById('episodeFill');
@@ -1897,7 +1766,7 @@ function drawBrain(agent) {
 }
 
 function drawFitnessGraph() {
-    // ... (drawFitnessGraph adapted to track best Q-Score) ...
+    // ... (drawFitnessGraph adapted to track best fitness) ...
   const W_G = 360, H_G = 70;
   const fitCtx = document.getElementById('fitnessGraph').getContext('2d');
   
@@ -1935,7 +1804,7 @@ function pushFeed(msg, type='normal') {
 }
 
 function updateHoverTip(e) {
-    // ... (updateHoverTip adapted for Q-Score) ...
+    // ... (updateHoverTip adapted for fitness) ...
     const rect = canvas.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
@@ -1955,7 +1824,6 @@ function updateHoverTip(e) {
         hoverTip.innerHTML = `
             <strong>Status:</strong><br>
             Episode Fitness: <span style="color:var(--accent-ok)">${hoveredAgent.fitness.toFixed(2)}</span><br>
-            Q-Score: <span style="color:${hoveredAgent.qScore > 0 ? '#0ff' : '#aaa'}">${hoveredAgent.qScore.toFixed(2)}</span><br>
             Energy: <span style="color:${hoveredAgent.energy > 0.3 ? '#0f0' : '#ff9900'}">${(hoveredAgent.energy * 100).toFixed(0)}%</span><br>
             Speed: ${hoveredAgent.vel.toFixed(1)} / ${CFG.maxSpeed}<br>
             Carrying: ${hoveredAgent.carrying ? hoveredAgent.carrying.def.label : 'None'}
@@ -2075,15 +1943,10 @@ function init(resetPolicyWeights = true) {
   };
   CFG.episodeDuration = parseInt(document.getElementById('slDuration').value); 
   CFG.manualEpisode = document.getElementById('chkManualEpisode').checked;
-  CFG.RL_ALPHA = parseInt(document.getElementById('slAlpha').value) / 1000;
-  CFG.RL_GAMMA = parseInt(document.getElementById('slGamma').value) / 100;
-  CFG.RL_EPSILON = parseInt(document.getElementById('slEpsilon').value) / 100;
-  CFG.learningMode = document.getElementById('slLearningMode').value;
   CFG.penalties.wall = parseInt(document.getElementById('slPenaltyWall').value);
   CFG.penalties.stalled = parseInt(document.getElementById('slPenaltyStalled').value) / 10;
   CFG.penalties.wrongSort = parseInt(document.getElementById('slPenaltyWrong').value);
 
-  document.getElementById('valLearningMode').innerText = CFG.learningMode === 'rl' ? 'RL' : 'Evolve';
   document.getElementById('valPenaltyWall').innerText = `-${CFG.penalties.wall}`;
   document.getElementById('valPenaltyStalled').innerText = `-${CFG.penalties.stalled.toFixed(1)}`;
   document.getElementById('valPenaltyWrong').innerText = `-${CFG.penalties.wrongSort}`;
@@ -2100,10 +1963,6 @@ function init(resetPolicyWeights = true) {
 
   PHEROMONE_DECAY = parseInt(document.getElementById('slDecay').value) / 1000;
 
-  adaptive.epsilon = CFG.RL_EPSILON;
-  adaptive.alpha = CFG.RL_ALPHA;
-  adaptive.decay = PHEROMONE_DECAY;
-  
   goalZones = buildGoalZones();
   makeGrid(); 
 
@@ -2160,18 +2019,15 @@ function resetEpisode({ evolve = true } = {}) {
       a.progressStreak = 0;
       a.visitedCells = new Set();
 
-      if (evolve && CFG.learningMode === 'evolve') {
-          if (!eliteSet.has(a)) {
-              if (Math.random() < CFG.evolve.fresh) {
-                  a.policy = new PolicyNetwork(CFG.inputs, CFG.hiddens, CFG.outputs);
-              } else {
-                  const parent = pickElite();
-                  a.policy = parent.policy.clone();
-                  a.policy.mutate(CFG.evolve.mutRate, CFG.evolve.mutStrength);
-              }
+      if (evolve && !eliteSet.has(a)) {
+          if (Math.random() < CFG.evolve.fresh) {
+              a.policy = new PolicyNetwork(CFG.inputs, CFG.hiddens, CFG.outputs);
+          } else {
+              const parent = pickElite();
+              a.policy = parent.policy.clone();
+              a.policy.mutate(CFG.evolve.mutRate, CFG.evolve.mutStrength);
           }
       }
-      a.qScore = 0;
   });
 
   // Track performance
@@ -2258,7 +2114,6 @@ function loop(now) {
 
   if(!paused) {
     // 1. Global Pheromone Update
-    updateAdaptiveLearning();
     evaporate();
     
     for(let n=0; n<speedMult; n++) {
@@ -2457,40 +2312,12 @@ document.getElementById('slDrain').oninput = (e) => {
 document.getElementById('slDecay').oninput = (e) => { 
     let val = parseInt(e.target.value);
     PHEROMONE_DECAY = val / 1000; 
-    adaptive.decay = PHEROMONE_DECAY;
     document.getElementById('valDecay').innerText = PHEROMONE_DECAY.toFixed(3); 
-};
-
-// RL Sliders
-document.getElementById('slAlpha').oninput = (e) => { 
-    let val = parseInt(e.target.value);
-    CFG.RL_ALPHA = val / 1000;
-    adaptive.alpha = CFG.RL_ALPHA;
-    document.getElementById('valAlpha').innerText = CFG.RL_ALPHA.toFixed(3); 
-};
-
-document.getElementById('slGamma').oninput = (e) => { 
-    let val = parseInt(e.target.value);
-    CFG.RL_GAMMA = val / 100;
-    document.getElementById('valGamma').innerText = CFG.RL_GAMMA.toFixed(2); 
-};
-
-document.getElementById('slEpsilon').oninput = (e) => { 
-    let val = parseInt(e.target.value);
-    CFG.RL_EPSILON = val / 100;
-    adaptive.epsilon = CFG.RL_EPSILON;
-    document.getElementById('valEpsilon').innerText = val + '%'; 
 };
 
 document.getElementById('slHidden').oninput = (e) => { 
     document.getElementById('valHidden').innerText = e.target.value; 
     pushFeed('Hidden Nodes changed. Press "Hard Reset All" to refresh the Policy Networks.', 'warn');
-};
-
-document.getElementById('slLearningMode').onchange = (e) => {
-    CFG.learningMode = e.target.value;
-    document.getElementById('valLearningMode').innerText = CFG.learningMode === 'rl' ? 'RL' : 'Evolve';
-    pushFeed(`Learning mode set to ${CFG.learningMode.toUpperCase()}.`, 'warn');
 };
 
 document.getElementById('slPenaltyWall').oninput = (e) => {
