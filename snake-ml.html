@@ -1702,7 +1702,7 @@ footer{
       <li><strong>Recent runs:</strong> the 32 freshest episodes plus the details from the very latest episode are included to show short-term swings.</li>
     </ul>
     <p>The result is packed into the same <code>messagePayload</code> together with the current reward configuration and hyperparameters, so the model can weigh both long-term trends and the most recent events.</p>
-    <p>Every prompt/response pair and checkpoint-tagged episode is also logged to <code>api/logs/snake-history.jsonl</code> via the proxy. The file rotates automatically when it approaches 8 MB, giving you a full history without risk of it being checked into Git (the type is ignored in <code>.gitignore</code>).</p>
+    <p>Every prompt/response pair and checkpoint-tagged episode is also logged in the browser (local storage key <code>snake-history</code>). The log stays on your machine and can be cleared with <strong>Clear cache</strong>.</p>
     <h3>How the model responses are interpreted</h3>
     <ul>
       <li>The LLM is instructed to reply with JSON containing <code>rewardConfig</code>, <code>hyper</code>, and <code>analysisText</code>.</li>
@@ -1873,10 +1873,6 @@ footer{
 
 <footer class="hint">© Marcus — Snake navigates with BFS, Hamilton routing, and endgame heuristics.</footer>
 
-<script>
-// Important: set the Render base here
-  window.API_BASE_URL = "https://snake-ml.onrender.com";
-</script>
 <script type="module" src="hf-tuner.js"></script>
 <script type="module">
 import {createAITuner} from './hf-tuner.js';
@@ -2004,7 +2000,14 @@ const OBSERVATION_STATE_SIZES={
   [OBSERVATION_VERSIONS.extendedCompat]:21,
   [OBSERVATION_VERSIONS.extended]:24,
 };
-const SOUNDTRACK_ENDPOINT='/api/audio/tracks';
+const AUDIO_MANIFEST_PATH='Audio/manifest.json';
+const FALLBACK_SOUNDTRACK_FILES=[
+  'zen-wind.mp3',
+  'the-epic-battle-361553.mp3',
+  'trance-progressive-357193.mp3',
+  'country-music-347561.mp3',
+  'background-music-happy-333014.mp3',
+];
 const normalizeObservationVersion=version=>{
   if(typeof version!=='string') return DEFAULT_OBSERVATION_VERSION;
   const lower=version.trim().toLowerCase();
@@ -5480,39 +5483,6 @@ const soundtrackState={
   lastStatusTone:'info',
 };
 
-function getConfiguredApiBase(){
-  if(typeof globalThis==='undefined') return '';
-  const candidates=[globalThis.API_BASE_URL,globalThis.__API_BASE_URL];
-  for(const candidate of candidates){
-    if(typeof candidate!=='string') continue;
-    const trimmed=candidate.trim();
-    if(trimmed) return trimmed.replace(/\/+$/,'');
-  }
-  return '';
-}
-
-function buildAbsoluteUrl(path=''){
-  const base=getConfiguredApiBase();
-  if(typeof path!=='string') path=String(path||'');
-  const trimmed=path.trim();
-  if(!trimmed){
-    return base;
-  }
-  if(/^https?:\/\//i.test(trimmed)){
-    return trimmed;
-  }
-  if(!base){
-    return trimmed;
-  }
-  if(/^https?:\/\//i.test(base)){
-    if(trimmed.startsWith('/')) return `${base}${trimmed}`;
-    return `${base}/${trimmed}`;
-  }
-  const normalizedBase=base.startsWith('/')?base:`/${base}`;
-  if(trimmed.startsWith('/')) return `${normalizedBase}${trimmed}`;
-  return `${normalizedBase}/${trimmed}`;
-}
-
 function encodeSoundtrackPath(name){
   if(typeof name!=='string') return '';
   return name
@@ -5537,7 +5507,7 @@ function normalizeSoundtrackTrack(track){
     url=track.url.trim();
   }else{
     const fileName=typeof track.file==='string'&&track.file.trim()?track.file.trim():id;
-    url=`/Audio/${encodeSoundtrackPath(fileName)}`;
+    url=`Audio/${encodeSoundtrackPath(fileName)}`;
   }
   const labelCandidates=[track.label,track.name,track.file,id];
   let label='Custom track';
@@ -5590,12 +5560,20 @@ async function refreshSoundtrackList(){
   const previousId=soundtrackState.currentId;
   try{
     setSoundtrackStatus('Loading soundtrack list…');
-    const response=await fetch(buildAbsoluteUrl(SOUNDTRACK_ENDPOINT),{headers:{Accept:'application/json'}});
-    if(!response.ok){
-      throw new Error(`HTTP ${response.status}`);
+    let rawTracks=[];
+    try{
+      const response=await fetch(AUDIO_MANIFEST_PATH,{cache:'no-store'});
+      if(response.ok){
+        const payload=await response.json();
+        const files=Array.isArray(payload?.files)?payload.files:[];
+        rawTracks=files.map(file=>({file}));
+      }
+    }catch(err){
+      console.warn('Soundtrack manifest not available, using fallback list.',err);
     }
-    const payload=await response.json();
-    const rawTracks=Array.isArray(payload?.tracks)?payload.tracks:Array.isArray(payload)?payload:[];
+    if(!rawTracks.length){
+      rawTracks=FALLBACK_SOUNDTRACK_FILES.map(file=>({file}));
+    }
     const normalized=rawTracks.map(normalizeSoundtrackTrack).filter(Boolean);
     soundtrackState.tracks=normalized;
     select.innerHTML='';
@@ -5729,7 +5707,7 @@ async function playSelectedSoundtrack({restart=false}={}){
   if(!audio) throw new Error('Audio element not initialised');
   const track=getSoundtrackTrackById(soundtrackState.currentId);
   if(!track) throw new Error('Track not found');
-  const targetUrl=buildAbsoluteUrl(track.url);
+  const targetUrl=track.url;
   if(restart||soundtrackState.activeId!==track.id||!audio.src){
     audio.src=targetUrl;
     soundtrackState.activeId=track.id;
@@ -6730,6 +6708,7 @@ function bindUI(){
     for(const k in localStorage){
       if(k.includes('tensorflowjs')) localStorage.removeItem(k);
     }
+    localStorage.removeItem('snake-history');
     flash('Cleared local storage');
   });
   initializeSoundtrackControls();
@@ -7301,7 +7280,8 @@ class AutoPPOController{
     this.lastSwitchEpisode=null;
     this.lastStats=null;
     this.lastAverages={reward100:null,reward500:null,fruit100:null,fruit500:null};
-    this.historyUrl=null;
+    this.historyKey='snake-history';
+    this.history=this.loadHistory();
     this.applyOnInit();
   }
   buildConfigs(){
@@ -7861,41 +7841,31 @@ class AutoPPOController{
     return Math.round(value*factor)/factor;
   }
   appendHistory(entry){
-    if(!entry||typeof fetch!=='function') return;
-    const url=this.historyUrl||(this.historyUrl=this.buildHistoryUrl());
-    if(!url) return;
-    fetch(url,{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({entry}),
-    }).catch(err=>console.warn('[AUTO-PPO] failed to log stage',err));
-  }
-  resolveApiBase(){
-    if(typeof globalThis==='undefined') return '';
-    const candidates=[globalThis.API_BASE_URL,globalThis.__API_BASE_URL];
-    for(const candidate of candidates){
-      if(typeof candidate!=='string') continue;
-      const trimmed=candidate.trim();
-      if(trimmed) return trimmed.replace(/\/+$/,'');
+    if(!entry) return;
+    this.history.push(entry);
+    if(this.history.length>8000){
+      this.history=this.history.slice(-6000);
     }
-    return '';
+    this.saveHistory();
   }
-  joinPath(base,path){
-    if(!base) return path;
-    if(!path) return base;
-    const trailing=base.endsWith('/');
-    const leading=path.startsWith('/');
-    if(trailing&&leading) return base+path.slice(1);
-    if(!trailing&&!leading) return `${base}/${path}`;
-    return base+path;
+  loadHistory(){
+    if(typeof localStorage==='undefined') return [];
+    try{
+      const raw=localStorage.getItem(this.historyKey);
+      const parsed=raw?JSON.parse(raw):[];
+      return Array.isArray(parsed)?parsed:[];
+    }catch(err){
+      console.warn('[AUTO-PPO] Failed to load history',err);
+      return [];
+    }
   }
-  buildHistoryUrl(){
-    const base=this.resolveApiBase();
-    const path='/api/logs/snake-history.jsonl';
-    if(!base) return path;
-    if(/^https?:\/\//i.test(base)) return this.joinPath(base,path);
-    if(base.startsWith('/')) return this.joinPath(base,path);
-    return this.joinPath(`/${base}`,path);
+  saveHistory(){
+    if(typeof localStorage==='undefined') return;
+    try{
+      localStorage.setItem(this.historyKey,JSON.stringify(this.history));
+    }catch(err){
+      console.warn('[AUTO-PPO] Failed to save history',err);
+    }
   }
 }
 
