@@ -269,6 +269,7 @@
         <option value="random">Random (Full Map)</option>
         <option value="lanes">Three Lanes</option>
         <option value="corners">Corner Clusters</option>
+        <option value="circle">Center Circle</option>
       </select>
     </div>
 
@@ -277,6 +278,16 @@
       <select id="slTicketGrouping">
         <option value="mixed">Mixed</option>
         <option value="grouped">Grouped by Category</option>
+      </select>
+    </div>
+
+    <div class="control-group">
+      <label>Goal Zone Placement</label>
+      <select id="slGoalPlacement">
+        <option value="top">Top</option>
+        <option value="left">Left</option>
+        <option value="bottom">Bottom</option>
+        <option value="right">Right</option>
       </select>
     </div>
     
@@ -425,6 +436,7 @@ const CFG = {
     layout: 'random',
     grouping: 'mixed'
   },
+  goalPlacement: 'top',
   sensorRange: 180, 
   maxSpeed: 4.0, 
   turnRate: 0.08, 
@@ -823,7 +835,10 @@ class Nest {
 
 class Ticket {
     // ... (Ticket class remains the same) ...
-    constructor() { this.respawn(); }
+    constructor(spawnIndex = 0) {
+        this.spawnIndex = spawnIndex;
+        this.respawn();
+    }
 
     update() {
         deposit('food', this.x, this.y, PHEROMONE_CAP * CFG.smart.ticketDeposit, { spread: PHEROMONE_SPREAD });
@@ -833,7 +848,7 @@ class Ticket {
         this.id = Math.random();
         this.typeIdx = Math.floor(Math.random() * CFG.categories.length);
         this.def = CFG.categories[this.typeIdx];
-        const spawn = getTicketSpawnPoint(this.typeIdx);
+        const spawn = getTicketSpawnPoint(this.typeIdx, this.spawnIndex, CFG.ticketCount);
         this.x = spawn.x;
         this.y = spawn.y;
         this.r = 8;
@@ -1911,6 +1926,63 @@ function updateHoverTip(e) {
     }
 }
 
+function buildGoalZones() {
+  const zoneMargin = 40;
+  const zoneGap = 24;
+  const zoneCount = CFG.categories.length;
+  const placement = CFG.goalPlacement;
+
+  if (placement === 'left' || placement === 'right') {
+      const availableHeight = H - zoneMargin * 2 - zoneGap * (zoneCount - 1);
+      const zoneHeight = Math.max(110, availableHeight / zoneCount);
+      const zoneWidth = Math.max(140, Math.min(200, W * 0.22));
+      const totalHeight = zoneHeight * zoneCount + zoneGap * (zoneCount - 1);
+      const startY = Math.max(zoneMargin, (H - totalHeight) / 2);
+      const x = placement === 'left' ? zoneMargin : W - zoneMargin - zoneWidth;
+
+      return CFG.categories.map((cat, idx) => {
+          const y = startY + idx * (zoneHeight + zoneGap);
+          return {
+              id: cat.id,
+              color: cat.color,
+              label: cat.label.replace(' Req', ''),
+              x,
+              y,
+              w: zoneWidth,
+              h: zoneHeight,
+              labelX: x + zoneWidth / 2,
+              labelY: y + zoneHeight / 2 + 4,
+              targetX: x + zoneWidth / 2,
+              targetY: y + zoneHeight / 2
+          };
+      });
+  }
+
+  const zoneHeight = Math.max(110, Math.min(150, H * 0.18));
+  const availableWidth = W - zoneMargin * 2 - zoneGap * (zoneCount - 1);
+  const zoneWidth = Math.max(140, availableWidth / zoneCount);
+  const totalWidth = zoneWidth * zoneCount + zoneGap * (zoneCount - 1);
+  const startX = Math.max(zoneMargin, (W - totalWidth) / 2);
+  const y = placement === 'bottom' ? H - zoneMargin - zoneHeight : zoneMargin + 20;
+
+  return CFG.categories.map((cat, idx) => {
+      const x = startX + idx * (zoneWidth + zoneGap);
+      return {
+          id: cat.id,
+          color: cat.color,
+          label: cat.label.replace(' Req', ''),
+          x,
+          y,
+          w: zoneWidth,
+          h: zoneHeight,
+          labelX: x + zoneWidth / 2,
+          labelY: y + zoneHeight / 2 + 4,
+          targetX: x + zoneWidth / 2,
+          targetY: y + zoneHeight / 2
+      };
+  });
+}
+
 
 // --- MAIN LOOP ---
 function init(resetPolicyWeights = true) {
@@ -1927,43 +1999,12 @@ function init(resetPolicyWeights = true) {
        nest.x = W / 2; nest.y = nestY;
   }
   
-  // Initialize Goal Zones (horizontal sorting line)
-  const zoneMargin = 40;
-  const zoneGap = 24;
-  const zoneHeight = Math.max(110, Math.min(150, H * 0.18));
-  const zoneTop = 60;
-  const zoneCount = CFG.categories.length;
-  const availableWidth = W - zoneMargin * 2 - zoneGap * (zoneCount - 1);
-  const zoneWidth = Math.max(140, availableWidth / zoneCount);
-  const totalWidth = zoneWidth * zoneCount + zoneGap * (zoneCount - 1);
-  const startX = Math.max(zoneMargin, (W - totalWidth) / 2);
-
-  goalZones = CFG.categories.map((cat, idx) => {
-      const x = startX + idx * (zoneWidth + zoneGap);
-      const y = zoneTop;
-      const labelX = x + zoneWidth / 2;
-      const labelY = y + zoneHeight / 2 + 4;
-
-      return {
-          id: cat.id,
-          color: cat.color,
-          label: cat.label.replace(' Req', ''),
-          x,
-          y,
-          w: zoneWidth,
-          h: zoneHeight,
-          labelX,
-          labelY,
-          targetX: x + zoneWidth / 2,
-          targetY: y + zoneHeight / 2
-      };
-  });
-  
   // Set CFG from Sliders
   CFG.popSize = parseInt(document.getElementById('slPop').value); 
   CFG.ticketCount = parseInt(document.getElementById('slTicketCount').value); 
   CFG.ticketSpawn.layout = document.getElementById('slTicketLayout').value;
   CFG.ticketSpawn.grouping = document.getElementById('slTicketGrouping').value;
+  CFG.goalPlacement = document.getElementById('slGoalPlacement').value;
   CFG.episodeDuration = parseInt(document.getElementById('slDuration').value); 
   CFG.manualEpisode = document.getElementById('chkManualEpisode').checked;
   CFG.RL_ALPHA = parseInt(document.getElementById('slAlpha').value) / 1000;
@@ -1994,6 +2035,7 @@ function init(resetPolicyWeights = true) {
   adaptive.alpha = CFG.RL_ALPHA;
   adaptive.decay = PHEROMONE_DECAY;
   
+  goalZones = buildGoalZones();
   makeGrid(); 
 
   // Agent Initialization Logic
@@ -2017,7 +2059,7 @@ function init(resetPolicyWeights = true) {
   }
   
   tickets = [];
-  for(let i=0; i<CFG.ticketCount; i++) tickets.push(new Ticket());
+  for(let i=0; i<CFG.ticketCount; i++) tickets.push(new Ticket(i));
   
   if(!requestAnimationFrame.isLooping) {
       requestAnimationFrame.isLooping = true;
@@ -2114,7 +2156,20 @@ function getTicketSpawnAreas() {
     return [{ xMin: left, xMax: right, yMin: top, yMax: bottom }];
 }
 
-function getTicketSpawnPoint(typeIdx) {
+function getTicketSpawnPoint(typeIdx, spawnIndex = 0, totalCount = CFG.ticketCount) {
+    if (CFG.ticketSpawn.layout === 'circle') {
+        const count = Math.max(1, totalCount);
+        const angle = (Math.PI * 2 / count) * spawnIndex;
+        const radius = Math.min(W, H) * 0.18;
+        const jitter = Math.min(12, radius * 0.08);
+        const centerX = W / 2;
+        const centerY = H / 2;
+        return {
+            x: centerX + Math.cos(angle) * (radius + rand(-jitter, jitter)),
+            y: centerY + Math.sin(angle) * (radius + rand(-jitter, jitter))
+        };
+    }
+
     const areas = getTicketSpawnAreas();
     let areaIndex = Math.floor(Math.random() * areas.length);
 
@@ -2275,7 +2330,7 @@ document.getElementById('slTicketCount').oninput = (e) => {
     CFG.ticketCount = parseInt(e.target.value); 
     document.getElementById('valTickets').innerText = CFG.ticketCount; 
     tickets = [];
-    for(let i=0; i<CFG.ticketCount; i++) tickets.push(new Ticket());
+    for(let i=0; i<CFG.ticketCount; i++) tickets.push(new Ticket(i));
 };
 
 document.getElementById('slTicketLayout').onchange = (e) => {
@@ -2285,6 +2340,12 @@ document.getElementById('slTicketLayout').onchange = (e) => {
 
 document.getElementById('slTicketGrouping').onchange = (e) => {
     CFG.ticketSpawn.grouping = e.target.value;
+    tickets.forEach(t => t.respawn());
+};
+
+document.getElementById('slGoalPlacement').onchange = (e) => {
+    CFG.goalPlacement = e.target.value;
+    goalZones = buildGoalZones();
     tickets.forEach(t => t.respawn());
 };
 
