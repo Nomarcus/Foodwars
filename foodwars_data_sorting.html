@@ -282,8 +282,28 @@
     </div>
 
     <div class="control-group">
-      <label>Goal Zone Placement</label>
-      <select id="slGoalPlacement">
+      <label>Incident Goal Edge</label>
+      <select id="slGoalPlacementIncident">
+        <option value="top">Top</option>
+        <option value="left">Left</option>
+        <option value="bottom">Bottom</option>
+        <option value="right">Right</option>
+      </select>
+    </div>
+
+    <div class="control-group">
+      <label>Service Req Goal Edge</label>
+      <select id="slGoalPlacementRequest">
+        <option value="top">Top</option>
+        <option value="left">Left</option>
+        <option value="bottom">Bottom</option>
+        <option value="right">Right</option>
+      </select>
+    </div>
+
+    <div class="control-group">
+      <label>Problem Goal Edge</label>
+      <select id="slGoalPlacementProblem">
         <option value="top">Top</option>
         <option value="left">Left</option>
         <option value="bottom">Bottom</option>
@@ -436,7 +456,11 @@ const CFG = {
     layout: 'random',
     grouping: 'mixed'
   },
-  goalPlacement: 'top',
+  goalPlacements: {
+    incident: 'top',
+    request: 'top',
+    problem: 'top'
+  },
   sensorRange: 180, 
   maxSpeed: 4.0, 
   turnRate: 0.08, 
@@ -1929,19 +1953,55 @@ function updateHoverTip(e) {
 function buildGoalZones() {
   const zoneMargin = 40;
   const zoneGap = 24;
-  const zoneCount = CFG.categories.length;
-  const placement = CFG.goalPlacement;
+  const placements = CFG.goalPlacements || {};
+  const groups = { top: [], bottom: [], left: [], right: [] };
 
-  if (placement === 'left' || placement === 'right') {
-      const availableHeight = H - zoneMargin * 2 - zoneGap * (zoneCount - 1);
-      const zoneHeight = Math.max(110, availableHeight / zoneCount);
-      const zoneWidth = Math.max(140, Math.min(200, W * 0.22));
-      const totalHeight = zoneHeight * zoneCount + zoneGap * (zoneCount - 1);
-      const startY = Math.max(zoneMargin, (H - totalHeight) / 2);
-      const x = placement === 'left' ? zoneMargin : W - zoneMargin - zoneWidth;
+  CFG.categories.forEach(cat => {
+      const placement = placements[cat.id] || 'top';
+      if (!groups[placement]) groups[placement] = [];
+      groups[placement].push(cat);
+  });
 
-      return CFG.categories.map((cat, idx) => {
-          const y = startY + idx * (zoneHeight + zoneGap);
+  const buildZonesForEdge = (placement, cats) => {
+      if (!cats.length) return [];
+
+      if (placement === 'left' || placement === 'right') {
+          const zoneCount = cats.length;
+          const availableHeight = H - zoneMargin * 2 - zoneGap * (zoneCount - 1);
+          const zoneHeight = Math.max(110, availableHeight / zoneCount);
+          const zoneWidth = Math.max(140, Math.min(200, W * 0.22));
+          const totalHeight = zoneHeight * zoneCount + zoneGap * (zoneCount - 1);
+          const startY = Math.max(zoneMargin, (H - totalHeight) / 2);
+          const x = placement === 'left' ? zoneMargin : W - zoneMargin - zoneWidth;
+
+          return cats.map((cat, idx) => {
+              const y = startY + idx * (zoneHeight + zoneGap);
+              return {
+                  id: cat.id,
+                  color: cat.color,
+                  label: cat.label.replace(' Req', ''),
+                  x,
+                  y,
+                  w: zoneWidth,
+                  h: zoneHeight,
+                  labelX: x + zoneWidth / 2,
+                  labelY: y + zoneHeight / 2 + 4,
+                  targetX: x + zoneWidth / 2,
+                  targetY: y + zoneHeight / 2
+              };
+          });
+      }
+
+      const zoneCount = cats.length;
+      const zoneHeight = Math.max(110, Math.min(150, H * 0.18));
+      const availableWidth = W - zoneMargin * 2 - zoneGap * (zoneCount - 1);
+      const zoneWidth = Math.max(140, availableWidth / zoneCount);
+      const totalWidth = zoneWidth * zoneCount + zoneGap * (zoneCount - 1);
+      const startX = Math.max(zoneMargin, (W - totalWidth) / 2);
+      const y = placement === 'bottom' ? H - zoneMargin - zoneHeight : zoneMargin + 20;
+
+      return cats.map((cat, idx) => {
+          const x = startX + idx * (zoneWidth + zoneGap);
           return {
               id: cat.id,
               color: cat.color,
@@ -1956,31 +2016,14 @@ function buildGoalZones() {
               targetY: y + zoneHeight / 2
           };
       });
-  }
+  };
 
-  const zoneHeight = Math.max(110, Math.min(150, H * 0.18));
-  const availableWidth = W - zoneMargin * 2 - zoneGap * (zoneCount - 1);
-  const zoneWidth = Math.max(140, availableWidth / zoneCount);
-  const totalWidth = zoneWidth * zoneCount + zoneGap * (zoneCount - 1);
-  const startX = Math.max(zoneMargin, (W - totalWidth) / 2);
-  const y = placement === 'bottom' ? H - zoneMargin - zoneHeight : zoneMargin + 20;
-
-  return CFG.categories.map((cat, idx) => {
-      const x = startX + idx * (zoneWidth + zoneGap);
-      return {
-          id: cat.id,
-          color: cat.color,
-          label: cat.label.replace(' Req', ''),
-          x,
-          y,
-          w: zoneWidth,
-          h: zoneHeight,
-          labelX: x + zoneWidth / 2,
-          labelY: y + zoneHeight / 2 + 4,
-          targetX: x + zoneWidth / 2,
-          targetY: y + zoneHeight / 2
-      };
-  });
+  return [
+      ...buildZonesForEdge('top', groups.top),
+      ...buildZonesForEdge('bottom', groups.bottom),
+      ...buildZonesForEdge('left', groups.left),
+      ...buildZonesForEdge('right', groups.right)
+  ];
 }
 
 
@@ -2004,7 +2047,11 @@ function init(resetPolicyWeights = true) {
   CFG.ticketCount = parseInt(document.getElementById('slTicketCount').value); 
   CFG.ticketSpawn.layout = document.getElementById('slTicketLayout').value;
   CFG.ticketSpawn.grouping = document.getElementById('slTicketGrouping').value;
-  CFG.goalPlacement = document.getElementById('slGoalPlacement').value;
+  CFG.goalPlacements = {
+      incident: document.getElementById('slGoalPlacementIncident').value,
+      request: document.getElementById('slGoalPlacementRequest').value,
+      problem: document.getElementById('slGoalPlacementProblem').value
+  };
   CFG.episodeDuration = parseInt(document.getElementById('slDuration').value); 
   CFG.manualEpisode = document.getElementById('chkManualEpisode').checked;
   CFG.RL_ALPHA = parseInt(document.getElementById('slAlpha').value) / 1000;
@@ -2343,11 +2390,19 @@ document.getElementById('slTicketGrouping').onchange = (e) => {
     tickets.forEach(t => t.respawn());
 };
 
-document.getElementById('slGoalPlacement').onchange = (e) => {
-    CFG.goalPlacement = e.target.value;
-    goalZones = buildGoalZones();
-    tickets.forEach(t => t.respawn());
+const goalPlacementInputs = {
+    incident: document.getElementById('slGoalPlacementIncident'),
+    request: document.getElementById('slGoalPlacementRequest'),
+    problem: document.getElementById('slGoalPlacementProblem')
 };
+
+Object.entries(goalPlacementInputs).forEach(([key, input]) => {
+    input.onchange = (e) => {
+        CFG.goalPlacements[key] = e.target.value;
+        goalZones = buildGoalZones();
+        tickets.forEach(t => t.respawn());
+    };
+});
 
 document.getElementById('slDuration').oninput = (e) => { 
     CFG.episodeDuration = parseInt(e.target.value); 
