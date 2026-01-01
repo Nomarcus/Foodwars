@@ -201,8 +201,8 @@
   <div class="wrap">
     <!-- Left panel: Learning (NEAT) -->
     <aside class="side" id="left-panel">
-      <div class="panel collapsed" id="panel-learn">
-        <div class="panel-head" role="button" tabindex="0" aria-expanded="false" aria-controls="panel-learn-body"><div class="h">Learning (NEAT-lite)</div><span class="chev">▾</span></div>
+      <div class="panel" id="panel-learn">
+        <div class="panel-head" role="button" tabindex="0" aria-expanded="true" aria-controls="panel-learn-body"><div class="h">Learning (NEAT-lite)</div><span class="chev">▾</span></div>
         <div class="panel-body" id="panel-learn-body">
           <div class="grid">
             <div class="label" title="Number of simulation steps each generation runs before evaluating fitness.">Steps / gen</div>
@@ -315,7 +315,7 @@
           <span class="stat-value" id="stat-top">0</span>
         </div>
       </section>
-      <section class="brain-viz brain-viz--hidden" aria-live="polite" aria-label="Best performing neural network">
+      <section class="brain-viz" aria-live="polite" aria-label="Best performing neural network">
         <div class="brain-head">
           <div>
             <div class="brain-title">Neural Network Monitor</div>
@@ -325,8 +325,8 @@
               <select id="brainTeamSelect" class="brain-select">
                 <option value="auto">Auto — top performer</option>
               </select>
-              <button type="button" id="brainToggleBtn" class="brain-toggle" aria-pressed="false">
-                Show visualization
+              <button type="button" id="brainToggleBtn" class="brain-toggle" aria-pressed="true">
+                Hide visualization
               </button>
             </div>
           </div>
@@ -342,8 +342,8 @@
         </div>
         <div class="brain-visual-wrap">
           <div class="brain-canvas-wrap">
-            <canvas id="brainVizCanvas" class="brain-canvas" width="560" height="240" role="img" aria-label="Visualization of the current top neural network" hidden></canvas>
-            <div id="brainPausedNotice" class="brain-paused">
+            <canvas id="brainVizCanvas" class="brain-canvas" width="560" height="240" role="img" aria-label="Visualization of the current top neural network"></canvas>
+            <div id="brainPausedNotice" class="brain-paused" hidden>
               Visualization hidden to save performance. Toggle it back on anytime to resume live updates.
             </div>
           </div>
@@ -459,12 +459,12 @@
 
     <!-- Right panels: controls and teams -->
     <aside class="side" id="right-panel">
-      <div class="panel collapsed" id="panel-global">
-        <div class="panel-head" role="button" tabindex="0" aria-expanded="false" aria-controls="panel-global-body"><div class="h">Global controls</div><span class="chev">▾</span></div>
+      <div class="panel" id="panel-global">
+        <div class="panel-head" role="button" tabindex="0" aria-expanded="true" aria-controls="panel-global-body"><div class="h">Global controls</div><span class="chev">▾</span></div>
         <div class="panel-body" id="panel-global-body">
           <div class="grid">
             <div class="label">Fruit (max)</div>
-            <input id="slFruits" type="range" min="2" max="1000" value="32"><div class="val" id="lbFruits">32</div>
+            <input id="slFruits" type="range" min="2" max="1000" value="80"><div class="val" id="lbFruits">80</div>
 
             <div class="label" id="fruitPlacementLabel">Fruit placement</div>
             <div class="fruit-placement-options" role="group" aria-labelledby="fruitPlacementLabel">
@@ -489,12 +489,12 @@
                 <span class="sr-only">Top left</span>
               </label>
               <label class="fruit-placement-option">
-                <input type="checkbox" name="fruitPlacement" value="center">
+                <input type="checkbox" name="fruitPlacement" value="center" checked>
                 <span aria-hidden="true">C</span>
                 <span class="sr-only">Center</span>
               </label>
               <label class="fruit-placement-option">
-                <input type="checkbox" name="fruitPlacement" value="random" checked>
+                <input type="checkbox" name="fruitPlacement" value="random">
                 <span aria-hidden="true">R</span>
                 <span class="sr-only">Random</span>
               </label>
@@ -773,7 +773,7 @@ const statElements = {
 const statCache = { gen:null, teams:null, fruits:null, deliveries:null, top:null };
 let brainCanvasWidth = brainCanvas ? brainCanvas.clientWidth : 0;
 let brainCanvasHeight = brainCanvas ? brainCanvas.clientHeight : 0;
-let brainVizEnabled = false;
+let brainVizEnabled = true;
 let performanceModeActive = false;
 const performanceModePrefs = { topHighlight:null, energyHalo:null, brainViz:null, sensorRadar:null };
 const AGENT_BASE_RADIUS = 5.2;
@@ -803,7 +803,7 @@ let NET_HIDDEN = 16;
 
 // ===== Parameters =====
 const params = {
-  maxFruits: 32,
+  maxFruits: 80,
   spawnMs: 900,
   simSpeed: 1.0,
   obstacles: 0,
@@ -817,7 +817,7 @@ const params = {
   dieOnEnergyLoss: false,
   showSensorRadar: false,
   awarenessBoost: 1.0,
-  fruitPlacement: 'random',
+  fruitPlacement: 'center',
   teams: TEAM_PRESETS.map((preset, index)=>({
     id:preset.id,
     label:preset.label,
@@ -829,7 +829,7 @@ const params = {
     goalAnchor:Object.assign({}, preset.goalAnchor),
     spawn:preset.spawn ? { x:preset.spawn.x.slice(), y:preset.spawn.y.slice() } : { x:[0.1,0.9], y:[0.1,0.9] },
     active:index < 2,
-    count:28,
+    count:(preset.id === 'green' || preset.id === 'red') ? 80 : 28,
     speed:4.60,
     smart:2.80,
     strat:2.40,
