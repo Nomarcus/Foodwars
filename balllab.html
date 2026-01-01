@@ -6,9 +6,9 @@
   <title>BallLab – NEAT Bouncing Ball Lab</title>
   <style>
     :root {
-      --bg1:#050516;
-      --bg2:#0f1536;
-      --panel:rgba(14,19,48,.9);
+      --bg1:#02030f;
+      --bg2:#0a1028;
+      --panel:rgba(9,14,32,.92);
       --ink:#f5f7ff;
       --muted:#a0accf;
       --accent:#38bdf8;
@@ -23,10 +23,10 @@
       min-height:100vh;
       display:flex;
       flex-direction:column;
-      background:radial-gradient(circle at 18% 10%, rgba(56,189,248,.18) 0%, transparent 45%),
-                 radial-gradient(circle at 82% 8%, rgba(244,114,182,.16) 0%, transparent 52%),
-                 radial-gradient(circle at 12% 78%, rgba(120,242,157,.12) 0%, transparent 55%),
-                 linear-gradient(160deg, var(--bg1) 0%, var(--bg2) 60%, #1a2344 100%);
+      background:radial-gradient(circle at 18% 10%, rgba(56,189,248,.12) 0%, transparent 48%),
+                 radial-gradient(circle at 82% 8%, rgba(244,114,182,.1) 0%, transparent 55%),
+                 radial-gradient(circle at 12% 78%, rgba(120,242,157,.08) 0%, transparent 58%),
+                 linear-gradient(160deg, var(--bg1) 0%, var(--bg2) 65%, #121a34 100%);
       color:var(--ink);
       font-family:"Inter",system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
     }
@@ -55,9 +55,9 @@
     main{flex:1; display:flex; justify-content:center; align-items:flex-start; padding:40px 48px 64px;}
     .wrap{display:flex; width:100%; max-width:2000px; gap:36px; align-items:flex-start; justify-content:center;}
     .field-area{flex:1 1 auto; display:flex; flex-direction:column; gap:18px; min-width:0;}
-    .playfield-frame{position:relative; padding:20px; border-radius:30px; background:rgba(4,8,26,.85); box-shadow:var(--shadow); border:1px solid rgba(148,163,209,.22);}
+    .playfield-frame{position:relative; padding:20px; border-radius:30px; background:rgba(2,6,20,.9); box-shadow:var(--shadow); border:1px solid rgba(148,163,209,.22);}
 
-    canvas{border-radius:24px; background:linear-gradient(180deg, #1a1f2e 0%, #0d1117 100%); box-shadow:0 0 45px rgba(15,23,61,.65), inset 0 0 22px rgba(118,133,255,.12); border:1px solid rgba(148,163,209,.25); width:100%; height:auto; display:block;}
+    canvas{border-radius:24px; background:linear-gradient(180deg, #121827 0%, #070a10 100%); box-shadow:0 0 45px rgba(15,23,61,.65), inset 0 0 22px rgba(118,133,255,.1); border:1px solid rgba(148,163,209,.25); width:100%; height:auto; display:block;}
 
     .stats{display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:16px; padding:18px 22px; border-radius:22px; background:rgba(11,16,44,.78); border:1px solid rgba(148,163,209,.28); box-shadow:0 18px 32px rgba(5,9,25,.45);}
     .stat-box{display:flex; flex-direction:column; gap:6px; text-align:left; padding:6px 0;}
@@ -880,14 +880,14 @@ class Ball {
             const endX = screenX + dx * clampedDist * config.zoom;
             const endY = screenY + dy * clampedDist * config.zoom;
 
-            const pulse = Math.sin(time * 3 + i * 0.3) * 0.2 + 0.6;
-            let startColor = `rgba(40, 140, 200, ${0.55 * pulse})`;
-            let midColor = `rgba(40, 140, 200, ${0.25 * pulse})`;
-            let endColor = 'rgba(40, 140, 200, 0)';
+            const pulse = Math.sin(time * 3 + i * 0.3) * 0.15 + 0.75;
+            let startColor = `rgba(24, 96, 160, ${0.75 * pulse})`;
+            let midColor = `rgba(24, 96, 160, ${0.4 * pulse})`;
+            let endColor = 'rgba(24, 96, 160, 0)';
 
             if (reading.type === 'Obstacle') {
-                startColor = `rgba(200, 90, 120, ${0.6 * pulse})`;
-                midColor = `rgba(200, 90, 120, ${0.3 * pulse})`;
+                startColor = `rgba(160, 60, 90, ${0.8 * pulse})`;
+                midColor = `rgba(160, 60, 90, ${0.45 * pulse})`;
             }
 
             const gradient = ctx.createLinearGradient(screenX, screenY, endX, endY);
@@ -896,23 +896,23 @@ class Ball {
             gradient.addColorStop(1, endColor);
 
             ctx.strokeStyle = gradient;
-            ctx.lineWidth = 1.8;
+            ctx.lineWidth = 2.4;
             ctx.beginPath();
             ctx.moveTo(screenX, screenY);
             ctx.lineTo(endX, endY);
             ctx.stroke();
 
-            const hitAlphaBase = clampedDist < rayLength ? 0.8 : 0.35;
+            const hitAlphaBase = clampedDist < rayLength ? 0.9 : 0.5;
             const hitAlpha = hitAlphaBase * pulse;
             const markerColor = reading.type === 'Obstacle'
-                ? `rgba(200, 90, 120, ${hitAlpha})`
-                : `rgba(40, 140, 200, ${hitAlpha})`;
+                ? `rgba(160, 60, 90, ${hitAlpha})`
+                : `rgba(24, 96, 160, ${hitAlpha})`;
 
             ctx.fillStyle = markerColor;
             ctx.shadowColor = markerColor;
-            ctx.shadowBlur = 6;
+            ctx.shadowBlur = 8;
             ctx.beginPath();
-            ctx.arc(endX, endY, 3, 0, Math.PI * 2);
+            ctx.arc(endX, endY, 4, 0, Math.PI * 2);
             ctx.fill();
             ctx.shadowBlur = 0;
         }
@@ -979,31 +979,16 @@ class Terrain {
 
         const roll = Math.random();
 
-        if (roll < 0.18) {
-            const leadIn = 120 + Math.random() * 180;
-            nextX += leadIn;
+        if (roll < 0.45) {
+            const flatLength = 220 + Math.random() * 340;
+            nextX += flatLength;
             this.surfacePoints.push({ x: nextX, y: baseGroundY, type: 'Flat' });
-
-            const waveLength = 260 + Math.random() * 220;
-            const crestHeight = 60 + Math.random() * 90 + progressFactor * 60;
-            const crestY = clamp(baseGroundY - crestHeight, 340, 560);
-            nextX += waveLength * 0.5;
-            this.surfacePoints.push({ x: nextX, y: crestY, type: 'Uphill' });
-
-            const troughHeight = 40 + Math.random() * 80;
-            const troughY = clamp(baseGroundY + troughHeight, 360, 600);
-            nextX += waveLength * 0.5;
-            this.surfacePoints.push({ x: nextX, y: troughY, type: 'Downhill' });
-
-            const settleGap = 140 + Math.random() * 220;
-            nextX += settleGap;
-            this.surfacePoints.push({ x: nextX, y: baseGroundY, type: 'Flat' });
-        } else if (roll < 0.48) {
-            const preObstacleGap = 90 + Math.random() * 160 + Math.random() * 140;
+        } else {
+            const preObstacleGap = 120 + Math.random() * 220;
             nextX += preObstacleGap;
             const groundYAtObstacleStart = this.getGroundY(nextX);
 
-            const obsHeight = (30 + Math.random() * 80) * config.obstacleHeight + progressFactor * 100;
+            const obsHeight = (30 + Math.random() * 70) * config.obstacleHeight + progressFactor * 80;
             const obsWidth = 25 + Math.random() * 45;
 
             this.surfacePoints.push({ x: nextX, y: groundYAtObstacleStart, type: 'Flat' });
@@ -1016,55 +1001,13 @@ class Terrain {
                 index: this.obstacleIndex++
             });
 
-            let postObstacleGap = obsWidth + 180 + Math.random() * 220;
+            let postObstacleGap = obsWidth + 200 + Math.random() * 240;
             if (Math.random() < 0.35) {
-                postObstacleGap += 120 + Math.random() * 250;
+                postObstacleGap += 120 + Math.random() * 240;
             }
 
             nextX += postObstacleGap;
             this.surfacePoints.push({ x: nextX, y: groundYAtObstacleStart, type: 'Flat' });
-        } else if (roll < 0.78) {
-            nextX += 50 + Math.random() * 50;
-            const uphill = Math.random() < 0.5;
-            const rampLength = 180 + Math.random() * 220;
-            const rampHeight = 40 + Math.random() * 120;
-
-            nextX += rampLength;
-            let nextY = uphill ? baseGroundY - rampHeight : baseGroundY + rampHeight;
-            nextY = Math.max(360, Math.min(580, nextY));
-
-            this.surfacePoints.push({ x: nextX, y: nextY, type: uphill ? 'Uphill' : 'Downhill' });
-        } else {
-            const leadIn = 100 + Math.random() * 160;
-            nextX += leadIn;
-            this.surfacePoints.push({ x: nextX, y: baseGroundY, type: 'Flat' });
-
-            const climbLength = 160 + Math.random() * 220;
-            const climbHeight = 40 + Math.random() * 110 + progressFactor * 40;
-            const peakY = clamp(baseGroundY - climbHeight, 360, 580);
-
-            nextX += climbLength;
-            this.surfacePoints.push({ x: nextX, y: peakY, type: 'Uphill' });
-
-            const descendLength = 160 + Math.random() * 220;
-            const makeValley = Math.random() < 0.45;
-            const descendTarget = makeValley
-                ? clamp(baseGroundY + (30 + Math.random() * 90), 360, 580)
-                : baseGroundY;
-
-            nextX += descendLength;
-            this.surfacePoints.push({ x: nextX, y: descendTarget, type: 'Downhill' });
-
-            if (makeValley) {
-                const climbOutLength = 140 + Math.random() * 220;
-                nextX += climbOutLength;
-                this.surfacePoints.push({ x: nextX, y: baseGroundY, type: 'Uphill' });
-            } else {
-                const flatExit = 120 + Math.random() * 200;
-                nextX += flatExit;
-                this.surfacePoints.push({ x: nextX, y: baseGroundY, type: 'Flat' });
-            }
-            this.obstacleIndex++;
         }
 
         const trailingBuffer = 120 + Math.random() * 120;
@@ -1147,9 +1090,9 @@ class Terrain {
         ctx.lineCap = 'round';
 
         const groundGradient = ctx.createLinearGradient(0, canvasHeight * 0.7, 0, canvasHeight);
-        groundGradient.addColorStop(0, '#283554');
-        groundGradient.addColorStop(0.5, '#1f2a44');
-        groundGradient.addColorStop(1, '#141b2f');
+        groundGradient.addColorStop(0, '#1a2236');
+        groundGradient.addColorStop(0.5, '#111829');
+        groundGradient.addColorStop(1, '#0b1220');
         ctx.fillStyle = groundGradient;
 
         ctx.beginPath();
@@ -1173,9 +1116,9 @@ class Terrain {
         ctx.fill();
 
         const grassGradient = ctx.createLinearGradient(0, (500 - 8) * config.zoom, 0, 508 * config.zoom);
-        grassGradient.addColorStop(0, '#6fdcff');
-        grassGradient.addColorStop(0.5, '#4cc3f0');
-        grassGradient.addColorStop(1, '#368bbd');
+        grassGradient.addColorStop(0, '#4aa7d2');
+        grassGradient.addColorStop(0.5, '#3c8fba');
+        grassGradient.addColorStop(1, '#2b6e95');
         ctx.strokeStyle = grassGradient;
         ctx.lineWidth = 6 * config.zoom;
 
