@@ -42,6 +42,29 @@ header .header-inner{
   align-items:center;
   gap:18px;
 }
+.back-link{
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  padding:8px 14px;
+  border-radius:999px;
+  border:1px solid rgba(139,92,246,0.45);
+  background:rgba(26,32,74,0.6);
+  color:#eef2ff;
+  font-weight:600;
+  text-decoration:none;
+  letter-spacing:0.01em;
+  transition:transform 0.2s ease, background 0.2s ease, border-color 0.2s ease;
+}
+.back-link:hover{
+  transform:translateY(-1px);
+  background:rgba(32,38,82,0.85);
+  border-color:rgba(236,72,153,0.5);
+}
+.back-link:focus-visible{
+  outline:2px solid rgba(139,92,246,0.6);
+  outline-offset:3px;
+}
 .logo{
   font-weight:800;
   font-size:20px;
@@ -1103,6 +1126,7 @@ footer{
 <body>
 <header>
   <div class="header-inner">
+    <a class="back-link" href="index.html">← Back to Lab</a>
     <div class="logo"><span class="logo-text">Snake Simulation</span></div>
     <div class="status-group">
       <span class="badge" id="trainState">idle</span>
