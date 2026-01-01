@@ -810,15 +810,6 @@ class Ticket {
     constructor() { this.respawn(); }
 
     update() {
-        this.x += Math.sin(frame * 0.05 + this.id) * 0.2;
-        this.y += Math.cos(frame * 0.05 + this.id) * 0.2;
-        
-        this.life -= this.decay;
-        if(this.life <= 0) {
-            spawnParticles(this.x, this.y, '#555', 5);
-            this.respawn();
-        }
-
         deposit('food', this.x, this.y, PHEROMONE_CAP * CFG.smart.ticketDeposit, { spread: PHEROMONE_SPREAD });
     }
 
@@ -829,8 +820,6 @@ class Ticket {
         const spawn = getTicketSpawnPoint(this.typeIdx);
         this.x = spawn.x;
         this.y = spawn.y;
-        this.life = 1.0;
-        this.decay = rand(0.0002, 0.0008); 
         this.r = 8;
     }
 
@@ -848,9 +837,6 @@ class Ticket {
         ctx.roundRectPolyfill(-w/2, -h/2, w, h, 3);
         ctx.fill();
         ctx.globalAlpha = 1;
-
-        ctx.fillStyle = '#fff';
-        ctx.fillRect(-w/2 + 1, -h/2 + 1, (w-2) * this.life, 2);
 
         ctx.strokeStyle = '#fff';
         ctx.lineWidth = 1;
@@ -907,10 +893,8 @@ class Agent {
     const distance = dist(this.x, this.y, ticket.x, ticket.y);
     const distanceScore = 1 - clamp(distance / (CFG.sensorRange * 2.2), 0, 1);
     const pheromoneScore = clamp(pheromoneValue('food', ticket.x, ticket.y) / PHEROMONE_CAP, 0, 1);
-    const urgencyScore = clamp(1 - ticket.life, 0, 1);
     return (distanceScore * CFG.smart.targetScoreDistance)
-        + (pheromoneScore * CFG.smart.targetScorePheromone)
-        + (urgencyScore * CFG.smart.targetScoreUrgency);
+        + (pheromoneScore * CFG.smart.targetScorePheromone);
   }
 
   getTargetTicket() {
@@ -1271,9 +1255,8 @@ class Agent {
       for(let z of zones) {
         if(pointInZone(z, this.x, this.y)) {
           if(z.id === this.carrying.def.id) {
-            const urgencyFactor = 1 / this.carrying.decay; 
             const baseReward = 50 + (this.energy * 10);
-            reward += baseReward + (baseReward * urgencyFactor * 0.05);
+            reward += baseReward;
             this.energy = clamp(this.energy + 0.2, 0, 1);
 
             stats.solved++;
