@@ -338,7 +338,7 @@
         </article>
         <article class="card">
           <h3>Snake AI</h3>
-          <p>Grid-based reinforcement learning: watch the snake improve with smooth rendering.</p>
+          <p>Grid-based pathfinding: watch the snake route with BFS, Hamilton cycles, and endgame safeguards.</p>
           <a class="btn btn-ghost" href="snake-ml.html">Open Snake AI</a>
         </article>
         <article class="card">
@@ -367,11 +367,11 @@
       <div class="details-grid">
         <article class="card">
           <h3>Snake AI</h3>
-          <p>Snake AI uses reinforcement learning on a grid. The agent senses the food, its own body, and nearby walls, then picks actions that maximize reward over time.</p>
+          <p>Snake AI uses deterministic pathfinding on a grid. The snake tracks food, its own body, and open space to choose safe routes and survive late-game.</p>
           <ul>
-            <li><strong>Algorithm:</strong> value-based reinforcement learning with rewards for eating and penalties for collisions.</li>
-            <li><strong>Work with it:</strong> adjust speed or reset to compare how quickly the policy improves.</li>
-            <li><strong>Explore:</strong> watch how the snake shifts from random wandering to path planning as rewards accumulate.</li>
+            <li><strong>Algorithm:</strong> BFS for shortest paths, A+-style heuristic scoring, Hamilton cycles for full-board coverage, and endgame tail-follow logic.</li>
+            <li><strong>Work with it:</strong> toggle overlays to see the BFS/Hamilton routes and switch playback speed to study decisions.</li>
+            <li><strong>Explore:</strong> watch how the planner pivots to Hamilton routes as the board fills and endgame safety kicks in.</li>
           </ul>
         </article>
         <article class="card">

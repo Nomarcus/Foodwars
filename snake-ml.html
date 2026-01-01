@@ -4,7 +4,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>Snake — RL studio with smooth rendering</title>
+<title>Snake — Pathfinding studio with smooth rendering</title>
 <script defer src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.20.0/dist/tf.min.js"></script>
 <style>
 :root {
@@ -1123,7 +1123,7 @@ footer{
     <div class="card-head">
       <div>
         <h2>Snake Simulation</h2>
-        <p class="subtitle">Smooth rendering for reinforcement learning experiments.</p>
+        <p class="subtitle">Smooth rendering for pathfinding heuristics and endgame play.</p>
       </div>
       <div class="card-actions">
         <span class="badge soft" id="playbackLabel">Smooth realtime</span>
@@ -1683,12 +1683,13 @@ footer{
 
 <section id="guideView" class="hidden">
   <div class="card">
-    <h2>Training primer – overview</h2>
-    <p>This primer explains how the training environment works and why the different reinforcement learning strategies in Snake-ML behave the way they do. Keep it alongside the controls so you can make confident tweaks while you experiment.</p>
+    <h2>Pathfinding primer – overview</h2>
+    <p>This primer explains how Snake-ML solves the board without relying on reinforcement learning. The main loop blends deterministic planners and safety heuristics so the snake can route to fruit, survive late-game, and finish the board.</p>
     <ul>
-      <li><strong>Background:</strong> what happens on the board and how rewards are generated.</li>
-      <li><strong>Algorithms:</strong> theoretical explanations of DQN, policy gradient, A2C, and PPO.</li>
-      <li><strong>Sliders:</strong> practical guidance for every control and how to adjust it.</li>
+      <li><strong>BFS (shortest path):</strong> computes the direct route to fruit when the path is safe.</li>
+      <li><strong>A+ scoring:</strong> ranks candidate moves using Manhattan distance and free-space safety, similar to A* heuristics.</li>
+      <li><strong>Hamilton cycle:</strong> provides a guaranteed full-board traversal when the snake gets long.</li>
+      <li><strong>Endgame safeguards:</strong> tail-follow and space checks keep the snake alive when the grid fills.</li>
     </ul>
   </div>
 
@@ -1870,7 +1871,7 @@ footer{
 
 <input type="file" id="fileLoader" accept="application/json" hidden>
 
-<footer class="hint">© Marcus — Snake learns with multiple RL strategies and cinematic movement.</footer>
+<footer class="hint">© Marcus — Snake navigates with BFS, Hamilton routing, and endgame heuristics.</footer>
 
 <script>
 // Important: set the Render base here
