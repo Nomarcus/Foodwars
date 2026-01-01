@@ -340,11 +340,52 @@
     
    
   <div class="panel-section">
-    <h2>Policy Network</h2>
-    
+    <h2>Learning (NEAT-lite)</h2>
     <div class="control-group">
-      <label title="Antal noder i dolda lagret.">Hidden Nodes: <span id="valHidden">20</span></label>
+      <label title="Antal frames per generation">Steps / Gen: <span id="lbGenSteps">2500</span></label>
+      <input type="range" id="slGenSteps" min="500" max="10000" step="100" value="2500">
+    </div>
+    <div class="control-group">
+      <label title="Antal noder i dolda lagret.">Hidden Nodes: <span id="lbHidden">20</span></label>
       <input type="range" id="slHidden" min="8" max="40" step="4" value="20">
+    </div>
+    <div class="control-group">
+      <label title="Andel av nästa generation som muteras">Mutation %: <span id="lbMut">22%</span></label>
+      <input type="range" id="slMut" min="1" max="80" value="22">
+    </div>
+    <div class="control-group">
+      <label title="Andel av bästa agenter som kopieras">Elite ratio: <span id="lbElite">20%</span></label>
+      <input type="range" id="slElite" min="1" max="100" value="20">
+    </div>
+    <div class="control-group">
+      <label title="Styrka på mutationer i vikter">Mutate weights: <span id="lbMutStrengthW">0.25</span></label>
+      <input type="range" id="slMutStrengthW" min="5" max="100" value="25">
+    </div>
+    <div class="control-group">
+      <label title="Styrka på mutationer i bias">Mutate biases: <span id="lbMutStrengthB">0.25</span></label>
+      <input type="range" id="slMutStrengthB" min="5" max="100" value="25">
+    </div>
+    <div class="control-group">
+      <label title="Hur ofta crossover väljer parent A">Crossover bias: <span id="lbCrossover">50% A</span></label>
+      <input type="range" id="slCrossover" min="0" max="100" value="50">
+    </div>
+    <div class="control-group">
+      <label title="Antal kandidater i turnering">Selection pool: <span id="lbTournament">×2.0</span></label>
+      <input type="range" id="slTournament" min="10" max="60" value="20">
+    </div>
+    <div class="control-group">
+      <label title="Andel helt nya nät varje generation">Fresh spawn %: <span id="lbFresh">6%</span></label>
+      <input type="range" id="slFresh" min="0" max="40" value="6">
+    </div>
+    <label class="checkbox-row"><input type="checkbox" id="chkAuto" checked> Auto next gen <span id="lbAuto">on</span></label>
+    <div class="btn-group">
+      <button class="btn" id="btnNextGen">Advance Generation</button>
+      <button class="btn alt" id="btnResetTraining">Reset Training</button>
+    </div>
+    <div class="btn-group">
+      <button class="btn" id="btnSaveTraining">Save Training (.json)</button>
+      <button class="btn" id="btnLoadTraining">Load Training…</button>
+      <input type="file" id="inputLoadTraining" accept="application/json" style="display:none">
     </div>
   </div>
 
@@ -484,6 +525,21 @@ const CFG = {
   ]
 };
 
+const params = {
+  learn: {
+    genSteps: 2500,
+    hidden: 20,
+    mut: 0.22,
+    elite: 0.2,
+    mutStrengthW: 0.25,
+    mutStrengthB: 0.25,
+    crossoverBias: 0.5,
+    tournamentFactor: 2.0,
+    fresh: 0.06,
+    auto: true
+  }
+};
+
 // --- GLOBALS ---
 const canvas = document.getElementById('simCanvas');
 const ctx = canvas.getContext('2d', { alpha: false });
@@ -533,6 +589,192 @@ const normAngle = (a) => {
 // Sigmoid activation function (useful for policy outputs)
 const sigmoid = (x) => 1 / (1 + Math.exp(-x));
 const tanh = (x) => Math.tanh(x);
+
+const NET_HIDDEN_MIN = 8;
+const NET_HIDDEN_MAX = 40;
+let NET_INPUTS = CFG.inputs;
+let NET_OUTPUTS = CFG.outputs;
+let NET_HIDDEN = CFG.hiddens;
+
+function randn(){
+    let u = 0, v = 0;
+    while(u === 0) u = Math.random();
+    while(v === 0) v = Math.random();
+    return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+}
+function matmulVec(W, x, out){
+    const rows = W.length;
+    const cols = W[0]?.length || 0;
+    for(let i = 0; i < rows; i++){
+        let s = 0;
+        const Wi = W[i];
+        for(let j = 0; j < cols; j++) s += Wi[j] * x[j];
+        out[i] = s;
+    }
+    return out;
+}
+function tanhVec(v){
+    for(let i = 0; i < v.length; i++) v[i] = Math.tanh(v[i]);
+    return v;
+}
+function addBias(v, b){
+    for(let i = 0; i < v.length; i++) v[i] += b[i];
+    return v;
+}
+function ensureArraySize(arr, length){
+    return (Array.isArray(arr) && arr.length === length) ? arr : new Array(length);
+}
+function ensureNetHiddenSize(net, desired = NET_HIDDEN){
+    if(!net) return net;
+    const target = Math.max(1, Math.round(Number.isFinite(desired) ? desired : NET_HIDDEN));
+    if(!Array.isArray(net.W1)) net.W1 = [];
+    if(!Array.isArray(net.b1)) net.b1 = [];
+    const inputDim = Array.isArray(net.W1?.[0]) ? net.W1[0].length : (Array.isArray(net.W2?.[0]) ? net.W2[0].length : NET_INPUTS);
+    while(net.W1.length < target){
+        net.W1.push(Array.from({length: inputDim}, () => (Math.random() * 2 - 1) * 0.5));
+    }
+    while(net.b1.length < target){
+        net.b1.push((Math.random() * 2 - 1) * 0.2);
+    }
+    if(net.W1.length > target) net.W1.length = target;
+    if(net.b1.length > target) net.b1.length = target;
+    return net;
+}
+function ensureNetInputSize(net, desired = NET_INPUTS){
+    if(!net || !Array.isArray(net.W1)) return net;
+    for(let i = 0; i < net.W1.length; i++){
+        let row = Array.isArray(net.W1[i]) ? net.W1[i] : [];
+        while(row.length < desired){
+            row.push((Math.random() * 2 - 1) * 0.5);
+        }
+        if(row.length > desired){
+            row.length = desired;
+        }
+        net.W1[i] = row;
+    }
+    return net;
+}
+function ensureNetOutputSize(net, desired = NET_OUTPUTS){
+    if(!net) return net;
+    ensureNetHiddenSize(net, NET_HIDDEN);
+    ensureNetInputSize(net, NET_INPUTS);
+    const hiddenDim = Array.isArray(net.W1) ? net.W1.length : NET_HIDDEN;
+    if(!Array.isArray(net.W2)) net.W2 = [];
+    if(!Array.isArray(net.b2)) net.b2 = [];
+    for(let i = 0; i < net.W2.length; i++){
+        const row = Array.isArray(net.W2[i]) ? net.W2[i].slice() : [];
+        if(row.length !== hiddenDim){
+            net.W2[i] = Array.from({length: hiddenDim}, (_v, idx)=> (idx < row.length && Number.isFinite(row[idx])) ? row[idx] : (Math.random() * 2 - 1) * 0.5);
+        } else {
+            net.W2[i] = row;
+        }
+    }
+    while(net.W2.length < desired){
+        net.W2.push(Array.from({length: hiddenDim}, ()=> (Math.random() * 2 - 1) * 0.5));
+    }
+    while(net.b2.length < desired){
+        net.b2.push((Math.random() * 2 - 1) * 0.2);
+    }
+    if(net.W2.length > desired) net.W2.length = desired;
+    if(net.b2.length > desired) net.b2.length = desired;
+    return net;
+}
+function makeNet(inDim = NET_INPUTS, h = NET_HIDDEN, out = NET_OUTPUTS){
+    const net = {
+        W1: Array.from({length: h}, ()=> Array.from({length: inDim}, ()=> (Math.random() * 2 - 1) * 0.5)),
+        b1: Array.from({length: h}, ()=> (Math.random() * 2 - 1) * 0.2),
+        W2: Array.from({length: out}, ()=> Array.from({length: h}, ()=> (Math.random() * 2 - 1) * 0.5)),
+        b2: Array.from({length: out}, ()=> (Math.random() * 2 - 1) * 0.2)
+    };
+    ensureNetHiddenSize(net, h);
+    ensureNetInputSize(net, inDim);
+    return ensureNetOutputSize(net, out);
+}
+function cloneNet(n){
+    const cloned = {
+        W1: n.W1.map(r => r.slice()),
+        b1: n.b1.slice(),
+        W2: n.W2.map(r => r.slice()),
+        b2: n.b2.slice()
+    };
+    ensureNetHiddenSize(cloned, NET_HIDDEN);
+    ensureNetInputSize(cloned, NET_INPUTS);
+    return ensureNetOutputSize(cloned);
+}
+function mutateNet(n, rate){
+    const sW = params.learn?.mutStrengthW ?? 0.25;
+    const sB = params.learn?.mutStrengthB ?? 0.25;
+    for(const r of n.W1){
+        for(let i = 0; i < r.length; i++){
+            if(Math.random() < rate) r[i] += randn() * sW;
+        }
+    }
+    for(let i = 0; i < n.b1.length; i++){
+        if(Math.random() < rate) n.b1[i] += randn() * sB;
+    }
+    for(const r of n.W2){
+        for(let i = 0; i < r.length; i++){
+            if(Math.random() < rate) r[i] += randn() * sW;
+        }
+    }
+    for(let i = 0; i < n.b2.length; i++){
+        if(Math.random() < rate) n.b2[i] += randn() * sB;
+    }
+}
+function crossover(a, b){
+    const bias = params.learn?.crossoverBias ?? 0.5;
+    const c = cloneNet(a);
+    const pick = () => (Math.random() < bias);
+    for(let i = 0; i < c.W1.length; i++){
+        for(let j = 0; j < c.W1[0].length; j++){
+            c.W1[i][j] = pick() ? a.W1[i][j] : b.W1[i][j];
+        }
+    }
+    for(let i = 0; i < c.b1.length; i++){
+        c.b1[i] = pick() ? a.b1[i] : b.b1[i];
+    }
+    for(let i = 0; i < c.W2.length; i++){
+        for(let j = 0; j < c.W2[0].length; j++){
+            c.W2[i][j] = pick() ? a.W2[i][j] : b.W2[i][j];
+        }
+    }
+    for(let i = 0; i < c.b2.length; i++){
+        c.b2[i] = pick() ? a.b2[i] : b.b2[i];
+    }
+    return c;
+}
+function forward(net, x, capture = null){
+    ensureNetInputSize(net, x.length);
+    ensureNetHiddenSize(net, NET_HIDDEN);
+    ensureNetOutputSize(net, NET_OUTPUTS);
+    const hidden = capture ? ensureArraySize(capture.hidden, net.b1.length) : new Array(net.b1.length);
+    const output = capture ? ensureArraySize(capture.output, net.b2.length) : new Array(net.b2.length);
+    matmulVec(net.W1, x, hidden);
+    addBias(hidden, net.b1);
+    tanhVec(hidden);
+    matmulVec(net.W2, hidden, output);
+    addBias(output, net.b2);
+    tanhVec(output);
+    if(capture){
+        capture.hidden = hidden;
+        capture.output = output;
+        const inputStore = ensureArraySize(capture.input, x.length);
+        for(let i = 0; i < x.length; i++) inputStore[i] = x[i];
+        capture.input = inputStore;
+        capture.timestamp = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+    }
+    return output;
+}
+function makePopulation(size){
+    return Array.from({length: size}, ()=> ({ net: makeNet(), fitness: 0 }));
+}
+const evo = { gen: 1, population: [] };
+const bestBrainState = {
+    fitness: -Infinity,
+    gen: 1,
+    net: null,
+    activations: { input: [], hidden: [], output: [], timestamp: 0 }
+};
 
 // --- FEROMON SYSTEM (ACO) ---
 const PHEROMONE_CAP = 10;
@@ -869,8 +1111,8 @@ class Ticket {
 
 
 class Agent {
-  constructor(policy = null) {
-    this.policy = policy || new PolicyNetwork(CFG.inputs, CFG.hiddens, CFG.outputs);
+  constructor(netRef = null) {
+    this.netRef = netRef || { net: makeNet(), fitness: 0 };
     this.x = nest ? nest.x : W/2; 
     this.y = nest ? nest.y : H/2; 
     this.angle = rand(0, Math.PI*2);
@@ -894,6 +1136,7 @@ class Agent {
     this.targetTicketId = null;
     this.targetLockFrames = 0;
     this.currentTargetTicket = null;
+    this.activationScratch = { input: [], hidden: [], output: [], timestamp: 0 };
   }
 
   getSensorRange() {
@@ -1157,9 +1400,9 @@ class Agent {
         prevProgressDist = dist(this.x, this.y, this.currentTargetTicket.x, this.currentTargetTicket.y);
     }
 
-    const { outputs, hiddens: h } = this.policy.predict(prevState);
+    const outputs = forward(this.netRef.net, prevState, this.activationScratch);
     policyOutputs = Array.from(outputs);
-    hiddens = h;
+    hiddens = this.activationScratch.hidden;
     
     this.lastState = prevState;
     this.lastAction = policyOutputs;
@@ -1633,8 +1876,8 @@ function updateFPS(now) {
 }
 
 function updateUI() {
-  document.getElementById('hudGen').innerText = `EPISODE ${episode}`;
-  document.getElementById('dispGen').innerText = episode;
+  document.getElementById('hudGen').innerText = `GEN ${evo.gen}`;
+  document.getElementById('dispGen').innerText = evo.gen;
   document.getElementById('dispSolved').innerText = stats.solved;
   document.getElementById('dispWrong').innerText = stats.wrong;
   
@@ -1667,7 +1910,8 @@ function drawBrain(agent) {
     const H_B = brainCanvas.height;
     brainCtx.clearRect(0, 0, W_B, H_B);
     
-    const net = agent.policy;
+    const net = agent.netRef?.net;
+    if(!net) return;
     const nodeR = 4; 
     
     const layerX = [W_B*0.15, W_B*0.5, W_B*0.85];
@@ -1685,23 +1929,21 @@ function drawBrain(agent) {
     // Input to Hidden
     for(let i=0; i<CFG.inputs; i++) {
         for(let h=0; h<CFG.hiddens; h++) {
-            try{
-                const w = net.w1[i*CFG.hiddens + h];
-                brainCtx.strokeStyle = getLineColor(w, agent.lastState[i] || 0);
-                brainCtx.beginPath(); brainCtx.moveTo(layerX[0], getY(i, CFG.inputs)); brainCtx.lineTo(layerX[1], getY(h, CFG.hiddens)); brainCtx.stroke();
-            } catch(e) {}
+            const w = net?.W1?.[h]?.[i];
+            if(!Number.isFinite(w)) continue;
+            brainCtx.strokeStyle = getLineColor(w, agent.lastState[i] || 0);
+            brainCtx.beginPath(); brainCtx.moveTo(layerX[0], getY(i, CFG.inputs)); brainCtx.lineTo(layerX[1], getY(h, CFG.hiddens)); brainCtx.stroke();
         }
     }
     
     // Hidden to Output
     for(let h=0; h<CFG.hiddens; h++) {
         for(let o=0; o<CFG.outputs; o++) {
-            try{
-                const w = net.w2[h*CFG.outputs + o];
-                const hVal = agent.lastHiddens ? agent.lastHiddens[h] : 0;
-                brainCtx.strokeStyle = getLineColor(w, hVal);
-                brainCtx.beginPath(); brainCtx.moveTo(layerX[1], getY(h, CFG.hiddens)); brainCtx.lineTo(layerX[2], getY(o, CFG.outputs)); brainCtx.stroke();
-            } catch(e) {}
+            const w = net?.W2?.[o]?.[h];
+            if(!Number.isFinite(w)) continue;
+            const hVal = agent.lastHiddens ? agent.lastHiddens[h] : 0;
+            brainCtx.strokeStyle = getLineColor(w, hVal);
+            brainCtx.beginPath(); brainCtx.moveTo(layerX[1], getY(h, CFG.hiddens)); brainCtx.lineTo(layerX[2], getY(o, CFG.outputs)); brainCtx.stroke();
         }
     }
 
@@ -1914,6 +2156,50 @@ function buildGoalZones() {
   ];
 }
 
+function updateLearnReadouts() {
+  document.getElementById('lbGenSteps').innerText = params.learn.genSteps;
+  document.getElementById('lbHidden').innerText = params.learn.hidden;
+  document.getElementById('lbMut').innerText = `${Math.round(params.learn.mut * 100)}%`;
+  document.getElementById('lbElite').innerText = `${Math.round(params.learn.elite * 100)}%`;
+  document.getElementById('lbMutStrengthW').innerText = params.learn.mutStrengthW.toFixed(2);
+  document.getElementById('lbMutStrengthB').innerText = params.learn.mutStrengthB.toFixed(2);
+  document.getElementById('lbCrossover').innerText = `${Math.round(params.learn.crossoverBias * 100)}% A`;
+  document.getElementById('lbTournament').innerText = `×${params.learn.tournamentFactor.toFixed(1)}`;
+  document.getElementById('lbFresh').innerText = `${Math.round(params.learn.fresh * 100)}%`;
+  document.getElementById('lbAuto').innerText = params.learn.auto ? 'on' : 'off';
+}
+
+function syncLearnParams() {
+  params.learn.genSteps = parseInt(document.getElementById('slGenSteps').value);
+  params.learn.mut = parseInt(document.getElementById('slMut').value) / 100;
+  params.learn.elite = parseInt(document.getElementById('slElite').value) / 100;
+  params.learn.mutStrengthW = parseInt(document.getElementById('slMutStrengthW').value) / 100;
+  params.learn.mutStrengthB = parseInt(document.getElementById('slMutStrengthB').value) / 100;
+  params.learn.crossoverBias = parseInt(document.getElementById('slCrossover').value) / 100;
+  params.learn.tournamentFactor = parseInt(document.getElementById('slTournament').value) / 10;
+  params.learn.fresh = parseInt(document.getElementById('slFresh').value) / 100;
+  params.learn.auto = document.getElementById('chkAuto').checked;
+
+  CFG.episodeDuration = params.learn.genSteps;
+  document.getElementById('slDuration').value = params.learn.genSteps;
+  document.getElementById('valDuration').innerText = params.learn.genSteps;
+
+  const newHiddens = parseInt(document.getElementById('slHidden').value);
+  const clampedHidden = clamp(newHiddens, NET_HIDDEN_MIN, NET_HIDDEN_MAX);
+  const topologyChanged = clampedHidden !== NET_HIDDEN;
+  NET_HIDDEN = clampedHidden;
+  CFG.hiddens = clampedHidden;
+  params.learn.hidden = clampedHidden;
+
+  updateLearnReadouts();
+  return topologyChanged;
+}
+
+function rebuildAgentsFromPopulation() {
+  agents = evo.population.map((member)=> new Agent(member));
+  bestAgent = agents[0] || null;
+}
+
 
 // --- MAIN LOOP ---
 function init(resetPolicyWeights = true) {
@@ -1941,7 +2227,6 @@ function init(resetPolicyWeights = true) {
       request: document.getElementById('slGoalPlacementRequest').value,
       problem: document.getElementById('slGoalPlacementProblem').value
   };
-  CFG.episodeDuration = parseInt(document.getElementById('slDuration').value); 
   CFG.manualEpisode = document.getElementById('chkManualEpisode').checked;
   CFG.penalties.wall = parseInt(document.getElementById('slPenaltyWall').value);
   CFG.penalties.stalled = parseInt(document.getElementById('slPenaltyStalled').value) / 10;
@@ -1952,11 +2237,8 @@ function init(resetPolicyWeights = true) {
   document.getElementById('valPenaltyWrong').innerText = `-${CFG.penalties.wrongSort}`;
   document.getElementById('valGoalScale').innerText = `${Math.round(CFG.goalScale * 100)}%`;
 
-  // Check for Topology Change (Hidden Nodes)
-  const newHiddens = parseInt(document.getElementById('slHidden').value);
-  const topologyChanged = newHiddens !== CFG.hiddens;
+  const topologyChanged = syncLearnParams();
   if (topologyChanged) {
-      CFG.hiddens = newHiddens;
       pushFeed(`Topology updated. Rebuilding Policy Networks...`, 'warn');
       resetPolicyWeights = true; // Force weight reset on topology change
   }
@@ -1967,15 +2249,15 @@ function init(resetPolicyWeights = true) {
   makeGrid(); 
 
   // Agent Initialization Logic
-  if(agents.length !== CFG.popSize || topologyChanged) {
-      // Re-create agents if population size or topology changed
-      agents = [];
-      for(let i=0; i<CFG.popSize; i++) agents.push(new Agent());
-      bestAgent = agents[0];
-  } else if (resetPolicyWeights) {
-      // Reset weights of existing agents
-      agents = agents.map(a => new Agent());
-      bestAgent = agents[0];
+  const sizeChanged = evo.population.length !== CFG.popSize;
+  if(sizeChanged || topologyChanged || resetPolicyWeights) {
+      if(resetPolicyWeights || topologyChanged || sizeChanged) {
+          evo.gen = 1;
+          evo.population = makePopulation(CFG.popSize);
+          bestBrainState.fitness = -Infinity;
+          bestBrainState.net = null;
+      }
+      rebuildAgentsFromPopulation();
   } else {
       // Keep weights, just reset episode state
       resetEpisode({ evolve: false });
@@ -1995,59 +2277,178 @@ function init(resetPolicyWeights = true) {
   }
 }
 
-function resetEpisode({ evolve = true } = {}) {
-  const ranked = [...agents].sort((a, b) => b.fitness - a.fitness);
-  const eliteCount = Math.max(1, Math.floor(CFG.evolve.elite * ranked.length));
-  const elites = ranked.slice(0, eliteCount);
-  const eliteSet = new Set(elites);
-  const pickElite = () => elites[Math.floor(Math.random() * elites.length)];
-  const bestFitness = ranked[0] ? ranked[0].fitness : 0;
+function resetAgentState(agent){
+  agent.x = nest.x;
+  agent.y = nest.y;
+  agent.angle = rand(0, Math.PI*2);
+  agent.vel = 0;
+  agent.carrying = null;
+  agent.energy = 1.0;
+  agent.fitness = 0;
+  agent.stalled = false;
+  agent.trail = [];
+  agent.stuckFrames = 0;
+  agent.searchFrames = 0;
+  agent.progressStreak = 0;
+  agent.visitedCells = new Set();
+  agent.activationScratch = { input: [], hidden: [], output: [], timestamp: 0 };
+}
 
-  agents.forEach(a => {
-      // Reset agent state
-      a.x = nest.x;
-      a.y = nest.y;
-      a.angle = rand(0, Math.PI*2);
-      a.vel = 0;
-      a.carrying = null;
-      a.energy = 1.0;
-      a.fitness = 0;
-      a.stalled = false;
-      a.trail = [];
-      a.stuckFrames = 0;
-      a.searchFrames = 0;
-      a.progressStreak = 0;
-      a.visitedCells = new Set();
+function evolvePopulation() {
+  const pop = evo.population;
+  if(!pop.length) return;
+  pop.sort((a, b) => b.fitness - a.fitness);
+  const eliteN = Math.max(1, Math.floor(pop.length * params.learn.elite));
+  const elites = pop.slice(0, eliteN).map((e)=> cloneNet(e.net));
+  const tournamentFactor = Math.max(1, params.learn.tournamentFactor || 1);
+  const freshRatio = clamp(params.learn.fresh || 0, 0, 1);
+  const newPop = [];
+  for(let i = 0; i < eliteN; i++) newPop.push({ net: cloneNet(elites[i]), fitness: 0 });
 
-      if (evolve && !eliteSet.has(a)) {
-          if (Math.random() < CFG.evolve.fresh) {
-              a.policy = new PolicyNetwork(CFG.inputs, CFG.hiddens, CFG.outputs);
-          } else {
-              const parent = pickElite();
-              a.policy = parent.policy.clone();
-              a.policy.mutate(CFG.evolve.mutRate, CFG.evolve.mutStrength);
-          }
-      }
-  });
-
-  // Track performance
-  if(bestFitness > 0) {
-      history.push({
-          episode: episode,
-          best: bestFitness
-      });
+  function pick(){
+    const k = Math.min(pop.length, Math.max(2, Math.round(eliteN * tournamentFactor)));
+    const a = pop[Math.floor(Math.random() * k)];
+    const b = pop[Math.floor(Math.random() * k)];
+    return (a.fitness > b.fitness ? a : b).net;
   }
 
-  bestAgent = elites[0] || agents[0];
+  while(newPop.length < pop.length){
+    const pa = pick();
+    const pb = pick();
+    let child = crossover(pa, pb);
+    mutateNet(child, params.learn.mut);
+    newPop.push({ net: child, fitness: 0 });
+  }
 
-  episode++;
+  const freshCount = Math.min(pop.length - eliteN, Math.max(0, Math.round(pop.length * freshRatio)));
+  for(let i = 0; i < freshCount; i++){
+    newPop[newPop.length - 1 - i] = { net: makeNet(), fitness: 0 };
+  }
+
+  for(let i = 0; i < pop.length; i++){
+    pop[i].net = newPop[i].net;
+    pop[i].fitness = 0;
+  }
+}
+
+function resetEpisode({ evolve = true } = {}) {
+  const pop = evo.population;
+  pop.forEach((member, idx)=>{
+    member.fitness = agents[idx]?.fitness ?? 0;
+  });
+  pop.sort((a, b) => b.fitness - a.fitness);
+  const bestFitness = pop[0]?.fitness || 0;
+
+  if(bestFitness > 0) {
+    history.push({
+      episode: evo.gen,
+      best: bestFitness
+    });
+  }
+
+  if(evolve) {
+    evolvePopulation();
+    evo.gen++;
+    bestBrainState.fitness = -Infinity;
+    bestBrainState.net = null;
+  }
+
+  agents.forEach((agent, idx)=>{
+    agent.netRef = pop[idx];
+    resetAgentState(agent);
+  });
+
+  bestAgent = agents[0] || null;
+  episode = evo.gen;
   frame = 0;
   stats.solved = 0;
   stats.wrong = 0;
-  
+
   makeGrid();
   tickets.forEach(t => t.respawn());
-  pushFeed(`--- NEW EPISODE (${episode}) ---`);
+  pushFeed(`--- NEW GENERATION (${evo.gen}) ---`);
+}
+
+function serializeNet(net){
+  return {
+    W1: net.W1.map(r => r.slice()),
+    b1: net.b1.slice(),
+    W2: net.W2.map(r => r.slice()),
+    b2: net.b2.slice()
+  };
+}
+
+function exportTrainingSnapshot(){
+  return {
+    learn: { ...params.learn },
+    evo: {
+      gen: evo.gen,
+      population: evo.population.map((member)=>({
+        net: serializeNet(member.net),
+        fitness: member.fitness
+      }))
+    }
+  };
+}
+
+function applyTrainingSnapshot(snapshot){
+  if(!snapshot || typeof snapshot !== 'object') return;
+  const learn = snapshot.learn || {};
+  if(learn.genSteps != null) params.learn.genSteps = Number(learn.genSteps);
+  if(learn.hidden != null) params.learn.hidden = Number(learn.hidden);
+  if(learn.mut != null) params.learn.mut = Number(learn.mut);
+  if(learn.elite != null) params.learn.elite = Number(learn.elite);
+  if(learn.mutStrengthW != null) params.learn.mutStrengthW = Number(learn.mutStrengthW);
+  if(learn.mutStrengthB != null) params.learn.mutStrengthB = Number(learn.mutStrengthB);
+  if(learn.crossoverBias != null) params.learn.crossoverBias = Number(learn.crossoverBias);
+  if(learn.tournamentFactor != null) params.learn.tournamentFactor = Number(learn.tournamentFactor);
+  if(learn.fresh != null) params.learn.fresh = Number(learn.fresh);
+  if(learn.auto !== undefined) params.learn.auto = !!learn.auto;
+
+  NET_HIDDEN = clamp(params.learn.hidden || NET_HIDDEN, NET_HIDDEN_MIN, NET_HIDDEN_MAX);
+  params.learn.hidden = NET_HIDDEN;
+  CFG.hiddens = NET_HIDDEN;
+  CFG.episodeDuration = params.learn.genSteps;
+  document.getElementById('slGenSteps').value = params.learn.genSteps;
+  document.getElementById('slHidden').value = NET_HIDDEN;
+  document.getElementById('slMut').value = Math.round(params.learn.mut * 100);
+  document.getElementById('slElite').value = Math.round(params.learn.elite * 100);
+  document.getElementById('slMutStrengthW').value = Math.round(params.learn.mutStrengthW * 100);
+  document.getElementById('slMutStrengthB').value = Math.round(params.learn.mutStrengthB * 100);
+  document.getElementById('slCrossover').value = Math.round(params.learn.crossoverBias * 100);
+  document.getElementById('slTournament').value = Math.round(params.learn.tournamentFactor * 10);
+  document.getElementById('slFresh').value = Math.round(params.learn.fresh * 100);
+  document.getElementById('chkAuto').checked = params.learn.auto;
+  document.getElementById('slDuration').value = params.learn.genSteps;
+  document.getElementById('valDuration').innerText = params.learn.genSteps;
+  updateLearnReadouts();
+
+  const evoData = snapshot.evo || snapshot;
+  if(Array.isArray(evoData.population)){
+    evo.population = evoData.population.map((member)=>{
+      const netData = member.net || {};
+      const net = {
+        W1: Array.isArray(netData.W1) ? netData.W1.map(r => r.slice()) : [],
+        b1: Array.isArray(netData.b1) ? netData.b1.slice() : [],
+        W2: Array.isArray(netData.W2) ? netData.W2.map(r => r.slice()) : [],
+        b2: Array.isArray(netData.b2) ? netData.b2.slice() : []
+      };
+      ensureNetHiddenSize(net, NET_HIDDEN);
+      ensureNetInputSize(net, NET_INPUTS);
+      ensureNetOutputSize(net, NET_OUTPUTS);
+      return { net, fitness: Number(member.fitness) || 0 };
+    });
+    evo.gen = Number(evoData.gen) || 1;
+  }
+
+  CFG.popSize = evo.population.length;
+  document.getElementById('slPop').value = CFG.popSize;
+  document.getElementById('valPop').innerText = CFG.popSize;
+  bestBrainState.fitness = -Infinity;
+  bestBrainState.net = null;
+  history = [];
+  rebuildAgentsFromPopulation();
+  resetEpisode({ evolve: false });
 }
 
 function getTicketSpawnAreas() {
@@ -2119,7 +2520,7 @@ function loop(now) {
     for(let n=0; n<speedMult; n++) {
       frame++;
       
-      if(!CFG.manualEpisode && frame > CFG.episodeDuration) { resetEpisode(); break; }
+      if(!CFG.manualEpisode && frame > CFG.episodeDuration) { resetEpisode({ evolve: params.learn.auto }); break; }
       
       tickets.forEach(t => { t.update(); });
       
@@ -2145,6 +2546,14 @@ function loop(now) {
       if (bestAgent) {
           const leadType = bestAgent.carrying ? bestAgent.carrying.def.id : 'food';
           deposit(leadType, bestAgent.x, bestAgent.y, PHEROMONE_CAP * CFG.smart.leaderDeposit, { spread: PHEROMONE_SPREAD });
+          if(bestAgent.netRef?.net) {
+              if(bestAgent.fitness > bestBrainState.fitness) {
+                  bestBrainState.fitness = bestAgent.fitness;
+                  bestBrainState.gen = evo.gen;
+                  bestBrainState.net = cloneNet(bestAgent.netRef.net);
+              }
+              bestBrainState.activations = bestAgent.activationScratch;
+          }
       }
       updateParticles();
       
@@ -2221,16 +2630,69 @@ canvas.addEventListener('mouseup', () => {
 // Buttons & Keyboard
 document.getElementById('btnSkip').onclick = () => { 
     if(paused) paused = false; 
-    resetEpisode();
+    resetEpisode({ evolve: params.learn.auto });
 };
 
 document.getElementById('btnResetAI').onclick = () => { 
-    init(true); 
-    pushFeed('Policy Weights Reset: Agents must learn from scratch.', 'bad'); 
+    evo.gen = 1;
+    evo.population = makePopulation(CFG.popSize);
+    bestBrainState.fitness = -Infinity;
+    bestBrainState.net = null;
+    history = [];
+    rebuildAgentsFromPopulation();
+    resetEpisode({ evolve: false });
+    pushFeed('Training Reset: Agents must learn from scratch.', 'bad'); 
 };
 document.getElementById('btnReset').onclick = () => { 
     init(true); 
     pushFeed('Hard Reset: All settings and AI reset', 'danger'); 
+};
+
+document.getElementById('btnNextGen').onclick = () => {
+    if(paused) paused = false;
+    resetEpisode({ evolve: true });
+};
+
+document.getElementById('btnResetTraining').onclick = () => {
+    evo.gen = 1;
+    evo.population = makePopulation(CFG.popSize);
+    bestBrainState.fitness = -Infinity;
+    bestBrainState.net = null;
+    history = [];
+    rebuildAgentsFromPopulation();
+    resetEpisode({ evolve: false });
+    pushFeed('Training Reset: Generation reset to 1.', 'warn');
+};
+
+document.getElementById('btnSaveTraining').onclick = () => {
+    const data = exportTrainingSnapshot();
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `data-sorting-training-gen-${String(evo.gen).padStart(3, '0')}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    pushFeed('Training snapshot saved.', 'good');
+};
+
+document.getElementById('btnLoadTraining').onclick = () => {
+    document.getElementById('inputLoadTraining').click();
+};
+
+document.getElementById('inputLoadTraining').onchange = (e) => {
+    const file = e.target.files?.[0];
+    if(!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+        const data = JSON.parse(reader.result);
+        applyTrainingSnapshot(data);
+        pushFeed('Training snapshot loaded.', 'good');
+    };
+    reader.readAsText(file);
+    e.target.value = '';
 };
 
 document.addEventListener('keydown', e => { 
@@ -2289,8 +2751,12 @@ Object.entries(goalPlacementInputs).forEach(([key, input]) => {
 });
 
 document.getElementById('slDuration').oninput = (e) => { 
-    CFG.episodeDuration = parseInt(e.target.value); 
-    document.getElementById('valDuration').innerText = CFG.episodeDuration; 
+    const val = parseInt(e.target.value);
+    document.getElementById('slGenSteps').value = val;
+    params.learn.genSteps = val;
+    CFG.episodeDuration = val;
+    document.getElementById('valDuration').innerText = val;
+    document.getElementById('lbGenSteps').innerText = val;
 };
 
 document.getElementById('chkManualEpisode').onchange = (e) => {
@@ -2316,8 +2782,59 @@ document.getElementById('slDecay').oninput = (e) => {
 };
 
 document.getElementById('slHidden').oninput = (e) => { 
-    document.getElementById('valHidden').innerText = e.target.value; 
-    pushFeed('Hidden Nodes changed. Press "Hard Reset All" to refresh the Policy Networks.', 'warn');
+    const val = parseInt(e.target.value);
+    document.getElementById('lbHidden').innerText = val;
+    params.learn.hidden = val;
+    pushFeed('Hidden Nodes changed. Reset training to rebuild networks.', 'warn');
+};
+
+document.getElementById('slGenSteps').oninput = (e) => {
+    const val = parseInt(e.target.value);
+    params.learn.genSteps = val;
+    CFG.episodeDuration = val;
+    document.getElementById('lbGenSteps').innerText = val;
+    document.getElementById('valDuration').innerText = val;
+    document.getElementById('slDuration').value = val;
+};
+
+document.getElementById('slMut').oninput = (e) => {
+    params.learn.mut = parseInt(e.target.value) / 100;
+    document.getElementById('lbMut').innerText = `${Math.round(params.learn.mut * 100)}%`;
+};
+
+document.getElementById('slElite').oninput = (e) => {
+    params.learn.elite = parseInt(e.target.value) / 100;
+    document.getElementById('lbElite').innerText = `${Math.round(params.learn.elite * 100)}%`;
+};
+
+document.getElementById('slMutStrengthW').oninput = (e) => {
+    params.learn.mutStrengthW = parseInt(e.target.value) / 100;
+    document.getElementById('lbMutStrengthW').innerText = params.learn.mutStrengthW.toFixed(2);
+};
+
+document.getElementById('slMutStrengthB').oninput = (e) => {
+    params.learn.mutStrengthB = parseInt(e.target.value) / 100;
+    document.getElementById('lbMutStrengthB').innerText = params.learn.mutStrengthB.toFixed(2);
+};
+
+document.getElementById('slCrossover').oninput = (e) => {
+    params.learn.crossoverBias = parseInt(e.target.value) / 100;
+    document.getElementById('lbCrossover').innerText = `${Math.round(params.learn.crossoverBias * 100)}% A`;
+};
+
+document.getElementById('slTournament').oninput = (e) => {
+    params.learn.tournamentFactor = parseInt(e.target.value) / 10;
+    document.getElementById('lbTournament').innerText = `×${params.learn.tournamentFactor.toFixed(1)}`;
+};
+
+document.getElementById('slFresh').oninput = (e) => {
+    params.learn.fresh = parseInt(e.target.value) / 100;
+    document.getElementById('lbFresh').innerText = `${Math.round(params.learn.fresh * 100)}%`;
+};
+
+document.getElementById('chkAuto').onchange = (e) => {
+    params.learn.auto = e.target.checked;
+    document.getElementById('lbAuto').innerText = params.learn.auto ? 'on' : 'off';
 };
 
 document.getElementById('slPenaltyWall').oninput = (e) => {
