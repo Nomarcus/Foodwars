@@ -922,23 +922,37 @@ class Ball {
 class Terrain {
     constructor() {
         this.obstacles = [];
-        this.surfacePoints = [];
-        this.nextSegmentX = config.firstObstacle;
+        this.segments = [];
         this.obstacleIndex = 0;
         this.generate();
+    }
+
+    getLastSegment() {
+        return this.segments[this.segments.length - 1];
+    }
+
+    getLastX() {
+        const last = this.getLastSegment();
+        return last ? last.endX : 0;
     }
 
     getGroundY(x) {
         const segment = this.getSegmentAt(x);
         if (!segment) return 500;
 
-        const { p1, p2 } = segment;
+        const { startX, endX, startY, endY, type, amplitude } = segment;
+        const length = endX - startX || 0.0001;
+        const t = clamp((x - startX) / length, 0, 1);
 
-        if (p2.x !== p1.x) {
-            const t = (x - p1.x) / (p2.x - p1.x);
-            return p1.y + t * (p2.y - p1.y);
+        if (type === 'Hill') {
+            return startY - Math.sin(t * Math.PI) * amplitude;
         }
-        return p1.y;
+
+        if (type === 'SlopeUp' || type === 'SlopeDown') {
+            return startY + t * (endY - startY);
+        }
+
+        return startY;
     }
 
     getSurfaceInfo(x) {
@@ -952,75 +966,105 @@ class Terrain {
             return { height: 500, type: 'Flat', slope: 0 };
         }
 
-        const { p1, p2 } = segment;
-        const dx = p2.x - p1.x || 0.0001;
-        const slope = Math.atan2(p2.y - p1.y, dx);
+        const { startX, endX, startY, endY, type, amplitude } = segment;
+        const length = endX - startX || 0.0001;
+        const t = clamp((x - startX) / length, 0, 1);
+
+        let slope = 0;
+        if (type === 'Hill') {
+            const dydx = -amplitude * (Math.PI / length) * Math.cos(t * Math.PI);
+            slope = Math.atan(dydx);
+        } else if (type === 'SlopeUp' || type === 'SlopeDown') {
+            const dydx = (endY - startY) / length;
+            slope = Math.atan(dydx);
+        }
 
         const groundY = this.getGroundY(x);
-        return { height: groundY, type: p2.type || 'Flat', slope };
+        return { height: groundY, type, slope };
     }
 
     getSegmentAt(x) {
-        for (let i = 1; i < this.surfacePoints.length; i++) {
-            const p1 = this.surfacePoints[i - 1];
-            const p2 = this.surfacePoints[i];
-            if (x >= p1.x && x < p2.x) {
-                return { p1, p2, index: i, type: p2.type };
+        for (const segment of this.segments) {
+            if (x >= segment.startX && x < segment.endX) {
+                return segment;
             }
         }
         return null;
     }
 
     generateSegment() {
-        const lastPoint = this.surfacePoints[this.surfacePoints.length - 1];
-        let nextX = lastPoint.x;
-        const baseGroundY = lastPoint.y;
+        const lastSegment = this.getLastSegment();
+        const startX = lastSegment.endX;
+        const startY = lastSegment.endY;
         const progressFactor = Math.min((this.obstacleIndex / 50) * config.difficultyGrowth, 1.0);
-
         const roll = Math.random();
 
-        if (roll < 0.45) {
+        if (roll < 0.35) {
             const flatLength = 220 + Math.random() * 340;
-            nextX += flatLength;
-            this.surfacePoints.push({ x: nextX, y: baseGroundY, type: 'Flat' });
-        } else {
-            const preObstacleGap = 120 + Math.random() * 220;
-            nextX += preObstacleGap;
-            const groundYAtObstacleStart = this.getGroundY(nextX);
-
-            const obsHeight = (30 + Math.random() * 70) * config.obstacleHeight + progressFactor * 80;
-            const obsWidth = 25 + Math.random() * 45;
-
-            this.surfacePoints.push({ x: nextX, y: groundYAtObstacleStart, type: 'Flat' });
-
-            this.obstacles.push({
-                x: nextX,
-                y: groundYAtObstacleStart - obsHeight,
-                width: obsWidth,
-                height: obsHeight,
-                index: this.obstacleIndex++
+            this.segments.push({
+                startX,
+                endX: startX + flatLength,
+                startY,
+                endY: startY,
+                type: 'Flat'
             });
-
-            let postObstacleGap = obsWidth + 200 + Math.random() * 240;
-            if (Math.random() < 0.35) {
-                postObstacleGap += 120 + Math.random() * 240;
-            }
-
-            nextX += postObstacleGap;
-            this.surfacePoints.push({ x: nextX, y: groundYAtObstacleStart, type: 'Flat' });
+        } else if (roll < 0.7) {
+            const slopeLength = 240 + Math.random() * 320;
+            const maxDelta = 90 + progressFactor * 40;
+            const delta = (Math.random() * 2 - 1) * maxDelta;
+            const endY = clamp(startY + delta, 360, 520);
+            this.segments.push({
+                startX,
+                endX: startX + slopeLength,
+                startY,
+                endY,
+                type: endY > startY ? 'SlopeUp' : 'SlopeDown'
+            });
+        } else {
+            const hillLength = 300 + Math.random() * 360;
+            const amplitude = 30 + Math.random() * 60 + progressFactor * 40;
+            this.segments.push({
+                startX,
+                endX: startX + hillLength,
+                startY,
+                endY: startY,
+                type: 'Hill',
+                amplitude
+            });
         }
 
-        const trailingBuffer = 120 + Math.random() * 120;
-        this.nextSegmentX = nextX + trailingBuffer;
+        const obstacleChance = 0.35;
+        if (Math.random() < obstacleChance) {
+            const segment = this.getLastSegment();
+            if (segment && segment.endX - segment.startX > 200) {
+                const obstacleX = segment.startX + (segment.endX - segment.startX) * (0.35 + Math.random() * 0.45);
+                const groundYAtObstacle = this.getGroundY(obstacleX);
+                const obsHeight = (30 + Math.random() * 70) * config.obstacleHeight + progressFactor * 80;
+                const obsWidth = 25 + Math.random() * 45;
+
+                this.obstacles.push({
+                    x: obstacleX,
+                    y: groundYAtObstacle - obsHeight,
+                    width: obsWidth,
+                    height: obsHeight,
+                    index: this.obstacleIndex++
+                });
+            }
+        }
     }
 
     generate() {
         this.obstacles = [];
-        this.surfacePoints = [{ x: 0, y: 500, type: 'Flat' }];
-        this.nextSegmentX = config.firstObstacle;
+        this.segments = [];
         this.obstacleIndex = 0;
 
-        this.surfacePoints.push({ x: config.firstObstacle, y: 500, type: 'Flat' });
+        this.segments.push({
+            startX: 0,
+            endX: config.firstObstacle,
+            startY: 500,
+            endY: 500,
+            type: 'Flat'
+        });
 
         for (let i = 0; i < 25; i++) {
             this.generateSegment();
@@ -1028,17 +1072,12 @@ class Terrain {
     }
 
     update(leadX) {
-        while (this.nextSegmentX < leadX + 2600) {
+        while (this.getLastX() < leadX + 2600) {
             this.generateSegment();
         }
 
         this.obstacles = this.obstacles.filter(obs => obs.x + obs.width > leadX - 800);
-        this.surfacePoints = this.surfacePoints.filter(p => p.x > leadX - 1200);
-
-        if (this.surfacePoints.length && this.surfacePoints[0].x > leadX - 1200) {
-            const x = leadX - 1200;
-            this.surfacePoints.unshift({ x, y: this.getGroundY(x), type: 'Flat' });
-        }
+        this.segments = this.segments.filter(segment => segment.endX > leadX - 1400);
     }
 
     getObstacleAt(x) {
@@ -1084,6 +1123,9 @@ class Terrain {
     draw(ctx, cameraX) {
         const worldToScreen = (x) => (x - cameraX) * config.zoom;
         const canvasHeight = canvas.height;
+        const startX = cameraX - 200;
+        const endX = cameraX + canvas.width / config.zoom + 200;
+        const samples = this.getSurfaceSamples(startX, endX, 16);
 
         ctx.save();
         ctx.lineJoin = 'round';
@@ -1096,20 +1138,20 @@ class Terrain {
         ctx.fillStyle = groundGradient;
 
         ctx.beginPath();
-        ctx.moveTo(worldToScreen(this.surfacePoints[0].x), canvasHeight);
-        ctx.lineTo(worldToScreen(this.surfacePoints[0].x), this.surfacePoints[0].y * config.zoom);
+        if (samples.length) {
+            ctx.moveTo(worldToScreen(samples[0].x), canvasHeight);
+            ctx.lineTo(worldToScreen(samples[0].x), samples[0].y * config.zoom);
+        }
 
-        for (let i = 1; i < this.surfacePoints.length; i++) {
-            const p = this.surfacePoints[i];
-            const screenX = worldToScreen(p.x);
-            const screenY = p.y * config.zoom;
-
-            if (screenX > canvas.width + 50) break;
-
+        for (const point of samples) {
+            const screenX = worldToScreen(point.x);
+            const screenY = point.y * config.zoom;
             ctx.lineTo(screenX, screenY);
         }
 
-        ctx.lineTo(canvas.width, this.surfacePoints[this.surfacePoints.length - 1].y * config.zoom);
+        if (samples.length) {
+            ctx.lineTo(worldToScreen(samples[samples.length - 1].x), samples[samples.length - 1].y * config.zoom);
+        }
 
         ctx.lineTo(canvas.width, canvasHeight);
         ctx.closePath();
@@ -1123,18 +1165,11 @@ class Terrain {
         ctx.lineWidth = 6 * config.zoom;
 
         ctx.beginPath();
-        if (this.surfacePoints.length) {
-            ctx.moveTo(worldToScreen(this.surfacePoints[0].x), this.surfacePoints[0].y * config.zoom);
-        }
-
-        for (let i = 1; i < this.surfacePoints.length; i++) {
-            const p = this.surfacePoints[i];
-            const screenX = worldToScreen(p.x);
-            const screenY = p.y * config.zoom;
-
-            ctx.lineTo(screenX, screenY);
-
-            if (screenX > canvas.width + 50) break;
+        if (samples.length) {
+            ctx.moveTo(worldToScreen(samples[0].x), samples[0].y * config.zoom);
+            for (const point of samples) {
+                ctx.lineTo(worldToScreen(point.x), point.y * config.zoom);
+            }
         }
         ctx.stroke();
 
@@ -1193,6 +1228,22 @@ class Terrain {
         }
 
         ctx.restore();
+    }
+
+    getSurfaceSamples(startX, endX, step) {
+        const samples = [];
+        const sampleStart = Math.max(startX, this.segments.length ? this.segments[0].startX : startX);
+        const sampleEnd = Math.max(sampleStart, endX);
+
+        for (let x = sampleStart; x <= sampleEnd; x += step) {
+            samples.push({ x, y: this.getGroundY(x) });
+        }
+
+        if (samples.length && samples[samples.length - 1].x < sampleEnd) {
+            samples.push({ x: sampleEnd, y: this.getGroundY(sampleEnd) });
+        }
+
+        return samples;
     }
 }
 
