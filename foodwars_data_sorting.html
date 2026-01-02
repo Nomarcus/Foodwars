@@ -285,6 +285,10 @@
           <input type="range" id="slTicketCount" min="5" max="300" value="15">
         </div>
         <div class="control-group">
+          <label title="Minimum distance from goals for ticket spawns">Ticket Goal Buffer: <span id="valTicketGoalBuffer">120px</span></label>
+          <input type="range" id="slTicketGoalBuffer" min="0" max="300" value="120" step="10">
+        </div>
+        <div class="control-group">
           <label>Ticket Spawn Layout</label>
           <select id="slTicketLayout">
             <option value="random">Random (Full Map)</option>
@@ -531,7 +535,8 @@ const CFG = {
   manualEpisode: false,
   ticketSpawn: {
     layout: 'random',
-    grouping: 'mixed'
+    grouping: 'mixed',
+    minGoalDistance: 120
   },
   goalScale: 1,
   goalPlacements: {
@@ -2247,6 +2252,7 @@ function init(resetPolicyWeights = true) {
   CFG.ticketCount = parseInt(document.getElementById('slTicketCount').value); 
   CFG.ticketSpawn.layout = document.getElementById('slTicketLayout').value;
   CFG.ticketSpawn.grouping = document.getElementById('slTicketGrouping').value;
+  CFG.ticketSpawn.minGoalDistance = parseInt(document.getElementById('slTicketGoalBuffer').value);
   CFG.goalScale = parseInt(document.getElementById('slGoalScale').value) / 100;
   CFG.goalPlacements = {
       incident: document.getElementById('slGoalPlacementIncident').value,
@@ -2282,6 +2288,7 @@ function init(resetPolicyWeights = true) {
   document.getElementById('valPenaltyNearWrong').innerText = `-${CFG.rewards.nearWrong.toFixed(2)}`;
   document.getElementById('valPenaltyTargetSwitch').innerText = `-${CFG.rewards.targetSwitchPenalty.toFixed(2)}`;
   document.getElementById('valGoalScale').innerText = `${Math.round(CFG.goalScale * 100)}%`;
+  document.getElementById('valTicketGoalBuffer').innerText = `${CFG.ticketSpawn.minGoalDistance}px`;
 
   const topologyChanged = syncLearnParams();
   if (topologyChanged) {
@@ -2530,7 +2537,8 @@ function getTicketSpawnAreas() {
 }
 
 function getTicketSpawnPoint(typeIdx, spawnIndex = 0, totalCount = CFG.ticketCount) {
-    if (CFG.ticketSpawn.layout === 'circle') {
+    const minGoalDistance = CFG.ticketSpawn.minGoalDistance || 0;
+    const spawnInCircle = () => {
         const count = Math.max(1, totalCount);
         const angle = (Math.PI * 2 / count) * spawnIndex;
         const radius = Math.min(W, H) * 0.18;
@@ -2541,20 +2549,48 @@ function getTicketSpawnPoint(typeIdx, spawnIndex = 0, totalCount = CFG.ticketCou
             x: centerX + Math.cos(angle) * (radius + rand(-jitter, jitter)),
             y: centerY + Math.sin(angle) * (radius + rand(-jitter, jitter))
         };
-    }
-
-    const areas = getTicketSpawnAreas();
-    let areaIndex = Math.floor(Math.random() * areas.length);
-
-    if (CFG.ticketSpawn.grouping === 'grouped') {
-        areaIndex = typeIdx % areas.length;
-    }
-
-    const area = areas[areaIndex];
-    return {
-        x: rand(area.xMin, area.xMax),
-        y: rand(area.yMin, area.yMax)
     };
+
+    const spawnInArea = () => {
+        const areas = getTicketSpawnAreas();
+        let areaIndex = Math.floor(Math.random() * areas.length);
+
+        if (CFG.ticketSpawn.grouping === 'grouped') {
+            areaIndex = typeIdx % areas.length;
+        }
+
+        const area = areas[areaIndex];
+        return {
+            x: rand(area.xMin, area.xMax),
+            y: rand(area.yMin, area.yMax)
+        };
+    };
+
+    const isFarFromGoals = (point) => {
+        if (minGoalDistance <= 0 || !goalZones.length) return true;
+        return goalZones.every((zone) => dist(point.x, point.y, zone.targetX, zone.targetY) >= minGoalDistance);
+    };
+
+    const spawnCandidate = () => {
+        if (CFG.ticketSpawn.layout === 'circle') {
+            return spawnInCircle();
+        }
+        return spawnInArea();
+    };
+
+    let candidate = spawnCandidate();
+    if (minGoalDistance <= 0) {
+        return candidate;
+    }
+
+    for (let attempt = 0; attempt < 40; attempt++) {
+        candidate = spawnCandidate();
+        if (isFarFromGoals(candidate)) {
+            return candidate;
+        }
+    }
+
+    return candidate;
 }
 
 function loop(now) {
@@ -2764,6 +2800,12 @@ document.getElementById('slTicketCount').oninput = (e) => {
     document.getElementById('valTickets').innerText = CFG.ticketCount; 
     tickets = [];
     for(let i=0; i<CFG.ticketCount; i++) tickets.push(new Ticket(i));
+};
+
+document.getElementById('slTicketGoalBuffer').oninput = (e) => {
+    CFG.ticketSpawn.minGoalDistance = parseInt(e.target.value);
+    document.getElementById('valTicketGoalBuffer').innerText = `${CFG.ticketSpawn.minGoalDistance}px`;
+    tickets.forEach(t => t.respawn());
 };
 
 document.getElementById('slTicketLayout').onchange = (e) => {
