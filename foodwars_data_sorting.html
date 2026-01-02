@@ -393,18 +393,18 @@
     <h2>Penalties</h2>
 
     <div class="control-group">
-      <label title="Penalty when agents hit the wall">Wall Penalty: <span id="valPenaltyWall">-10</span></label>
-      <input type="range" id="slPenaltyWall" min="0" max="50" value="10" step="1">
+      <label title="Penalty when agents hit the wall">Wall Penalty: <span id="valPenaltyWall">0</span></label>
+      <input type="range" id="slPenaltyWall" min="0" max="50" value="0" step="1">
     </div>
 
     <div class="control-group">
-      <label title="Penalty when agents are stalled">Stalled Penalty: <span id="valPenaltyStalled">-0.5</span></label>
-      <input type="range" id="slPenaltyStalled" min="0" max="50" value="5" step="1">
+      <label title="Penalty when agents are stalled">Stalled Penalty: <span id="valPenaltyStalled">0</span></label>
+      <input type="range" id="slPenaltyStalled" min="0" max="50" value="0" step="1">
     </div>
 
     <div class="control-group">
-      <label title="Penalty for dropping a ticket in the wrong zone">Wrong Zone Penalty: <span id="valPenaltyWrong">-50</span></label>
-      <input type="range" id="slPenaltyWrong" min="0" max="100" value="50" step="1">
+      <label title="Penalty for dropping a ticket in the wrong zone">Wrong Zone Penalty: <span id="valPenaltyWrong">-1</span></label>
+      <input type="range" id="slPenaltyWrong" min="0" max="100" value="1" step="1">
     </div>
   </div>
 
@@ -412,53 +412,53 @@
     <h2>Reward Shaping</h2>
 
     <div class="control-group">
-      <label title="Reward for movement (distance-based)">Movement Reward: <span id="valRewardMove">0.15</span></label>
-      <input type="range" id="slRewardMove" min="0" max="50" value="15" step="1">
+      <label title="Reward for movement (distance-based)">Movement Reward: <span id="valRewardMove">0.00</span></label>
+      <input type="range" id="slRewardMove" min="0" max="50" value="0" step="1">
     </div>
 
     <div class="control-group">
-      <label title="Reward for discovering new cells">Curiosity Reward: <span id="valRewardCuriosity">0.30</span></label>
-      <input type="range" id="slRewardCuriosity" min="0" max="100" value="30" step="1">
+      <label title="Reward for discovering new cells">Curiosity Reward: <span id="valRewardCuriosity">0.00</span></label>
+      <input type="range" id="slRewardCuriosity" min="0" max="100" value="0" step="1">
     </div>
 
     <div class="control-group">
-      <label title="Scales progress reward toward targets">Progress Scale: <span id="valRewardProgressScale">1.00</span></label>
-      <input type="range" id="slRewardProgressScale" min="0" max="200" value="100" step="1">
+      <label title="Scales progress reward toward targets">Progress Scale: <span id="valRewardProgressScale">0.00</span></label>
+      <input type="range" id="slRewardProgressScale" min="0" max="200" value="0" step="1">
     </div>
 
     <div class="control-group">
-      <label title="Reward for sustained progress streaks">Progress Streak Reward: <span id="valRewardStreak">0.12</span></label>
-      <input type="range" id="slRewardStreak" min="0" max="50" value="12" step="1">
+      <label title="Reward for sustained progress streaks">Progress Streak Reward: <span id="valRewardStreak">0.00</span></label>
+      <input type="range" id="slRewardStreak" min="0" max="50" value="0" step="1">
     </div>
 
     <div class="control-group">
-      <label title="Reward for picking up a ticket">Pickup Reward: <span id="valRewardPickup">10</span></label>
-      <input type="range" id="slRewardPickup" min="0" max="30" value="10" step="1">
+      <label title="Reward for picking up a ticket">Pickup Reward: <span id="valRewardPickup">0</span></label>
+      <input type="range" id="slRewardPickup" min="0" max="30" value="0" step="1">
     </div>
 
     <div class="control-group">
-      <label title="Base reward for correct delivery">Delivery Base Reward: <span id="valRewardDeliveryBase">50</span></label>
-      <input type="range" id="slRewardDeliveryBase" min="10" max="120" value="50" step="1">
+      <label title="Base reward for correct delivery">Delivery Base Reward: <span id="valRewardDeliveryBase">1</span></label>
+      <input type="range" id="slRewardDeliveryBase" min="0" max="120" value="1" step="1">
     </div>
 
     <div class="control-group">
-      <label title="Bonus for energy left on delivery">Delivery Energy Bonus: <span id="valRewardDeliveryEnergy">10</span></label>
-      <input type="range" id="slRewardDeliveryEnergy" min="0" max="40" value="10" step="1">
+      <label title="Bonus for energy left on delivery">Delivery Energy Bonus: <span id="valRewardDeliveryEnergy">0</span></label>
+      <input type="range" id="slRewardDeliveryEnergy" min="0" max="40" value="0" step="1">
     </div>
 
     <div class="control-group">
-      <label title="Reward for being close to the correct goal zone">Near Correct Goal Reward: <span id="valRewardNearCorrect">0.40</span></label>
-      <input type="range" id="slRewardNearCorrect" min="0" max="100" value="40" step="1">
+      <label title="Reward for being close to the correct goal zone">Near Correct Goal Reward: <span id="valRewardNearCorrect">0.00</span></label>
+      <input type="range" id="slRewardNearCorrect" min="0" max="100" value="0" step="1">
     </div>
 
     <div class="control-group">
-      <label title="Penalty for being close to the wrong goal zones">Near Wrong Goal Penalty: <span id="valPenaltyNearWrong">-0.25</span></label>
-      <input type="range" id="slPenaltyNearWrong" min="0" max="100" value="25" step="1">
+      <label title="Penalty for being close to the wrong goal zones">Near Wrong Goal Penalty: <span id="valPenaltyNearWrong">-0.00</span></label>
+      <input type="range" id="slPenaltyNearWrong" min="0" max="100" value="0" step="1">
     </div>
 
     <div class="control-group">
-      <label title="Penalty when the agent switches targets too often">Target Switch Penalty: <span id="valPenaltyTargetSwitch">-0.40</span></label>
-      <input type="range" id="slPenaltyTargetSwitch" min="0" max="50" value="40" step="1">
+      <label title="Penalty when the agent switches targets too often">Target Switch Penalty: <span id="valPenaltyTargetSwitch">-0.00</span></label>
+      <input type="range" id="slPenaltyTargetSwitch" min="0" max="50" value="0" step="1">
     </div>
   </div>
 
@@ -522,9 +522,9 @@ const CFG = {
     fresh: 0.06
   },
   penalties: {
-    wall: 10,
-    stalled: 0.5,
-    wrongSort: 50
+    wall: 0,
+    stalled: 0,
+    wrongSort: 1
   },
   
   ticketCount: 15,
@@ -570,16 +570,16 @@ const CFG = {
     targetScoreUrgency: 0.3
   },
   rewards: {
-    move: 0.15,
-    curiosity: 0.3,
-    progressScale: 1.0,
-    progressStreak: 0.12,
-    pickup: 10,
-    deliveryBase: 50,
-    deliveryEnergy: 10,
-    nearCorrect: 0.4,
-    nearWrong: 0.25,
-    targetSwitchPenalty: 0.4
+    move: 0,
+    curiosity: 0,
+    progressScale: 0,
+    progressStreak: 0,
+    pickup: 0,
+    deliveryBase: 1,
+    deliveryEnergy: 0,
+    nearCorrect: 0,
+    nearWrong: 0,
+    targetSwitchPenalty: 0
   },
   
   categories: [
@@ -1451,19 +1451,11 @@ class Agent {
     }
 
     const prevState = this.getState();
-    let prevProgressDist = null;
     
     // --- Policy Prediction ---
     let policyOutputs;
     let hiddens;
     let reward = 0;
-
-    if(this.carrying) {
-        const targetZone = getZones().find(z => z.id === this.carrying.def.id);
-        if(targetZone) prevProgressDist = dist(this.x, this.y, targetZone.targetX, targetZone.targetY);
-    } else if (this.currentTargetTicket) {
-        prevProgressDist = dist(this.x, this.y, this.currentTargetTicket.x, this.currentTargetTicket.y);
-    }
 
     const outputs = forward(this.netRef.net, prevState, this.activationScratch);
     policyOutputs = Array.from(outputs);
@@ -1480,8 +1472,6 @@ class Agent {
     const postX = this.x, postY = this.y;
     
     // --- Calculate Reward ($R_t$) ---
-    const movementReward = dist(prevX, prevY, postX, postY) * CFG.rewards.move;
-    reward += movementReward;
 
     const movedDist = dist(prevX, prevY, postX, postY);
     if (movedDist < 0.2) {
@@ -1490,63 +1480,10 @@ class Agent {
         this.stuckFrames = 0;
     }
 
-    const cellX = clampi((this.x / CS) | 0, 0, GW - 1);
-    const cellY = clampi((this.y / CS) | 0, 0, GH - 1);
-    const cellIdx = gi(cellX, cellY);
-    if (!this.visitedCells.has(cellIdx)) {
-        this.visitedCells.add(cellIdx);
-        reward += CFG.rewards.curiosity;
-    }
-
     if (!this.carrying) {
-        const newTargetId = this.currentTargetTicket?.id ?? null;
-        if (this.lastTargetChoice && newTargetId && this.lastTargetChoice !== newTargetId) {
-            reward -= CFG.rewards.targetSwitchPenalty;
-        }
-        this.lastTargetChoice = newTargetId;
+        this.lastTargetChoice = this.currentTargetTicket?.id ?? null;
     } else {
         this.lastTargetChoice = null;
-    }
-
-    // Dense shaping: reward moving toward target ticket/zone
-    if(Number.isFinite(prevProgressDist)) {
-        let newProgressDist = prevProgressDist;
-        if(this.carrying) {
-            const targetZone = getZones().find(z => z.id === this.carrying.def.id);
-            if(targetZone) newProgressDist = dist(this.x, this.y, targetZone.targetX, targetZone.targetY);
-        } else if (this.currentTargetTicket) {
-            newProgressDist = dist(this.x, this.y, this.currentTargetTicket.x, this.currentTargetTicket.y);
-        }
-
-        const progressDelta = (prevProgressDist - newProgressDist) || 0;
-        const progressBoost = (this.carrying ? 0.6 : 0.35) * CFG.rewards.progressScale;
-        reward += progressDelta * progressBoost;
-
-        if (progressDelta > 0.05) {
-            this.progressStreak = clamp(this.progressStreak + 1, -8, 8);
-        } else if (progressDelta < -0.05) {
-            this.progressStreak = clamp(this.progressStreak - 1, -8, 8);
-        } else {
-            this.progressStreak *= 0.95;
-        }
-        reward += this.progressStreak * CFG.rewards.progressStreak;
-    }
-
-    if (this.carrying) {
-        const zones = getZones();
-        const correctZone = zones.find(z => z.id === this.carrying.def.id);
-        const proximityRange = this.lastSensorRange * 1.15;
-        if (correctZone) {
-            const correctDist = dist(this.x, this.y, correctZone.targetX, correctZone.targetY);
-            const correctProximity = clamp(1 - (correctDist / proximityRange), 0, 1);
-            reward += correctProximity * CFG.rewards.nearCorrect;
-        }
-        for (const zone of zones) {
-            if (!correctZone || zone.id === correctZone.id) continue;
-            const wrongDist = dist(this.x, this.y, zone.targetX, zone.targetY);
-            const wrongProximity = clamp(1 - (wrongDist / proximityRange), 0, 1);
-            reward -= wrongProximity * CFG.rewards.nearWrong;
-        }
     }
     
     // Bounds (Wall Bounce)
@@ -1573,7 +1510,6 @@ class Agent {
           this.targetLockFrames = 0;
           this.currentTargetTicket = null;
           pushFeed(`Picked up ${t.def.label}`, 'good');
-          reward += CFG.rewards.pickup; 
           zoneHighlight = { id: t.def.id, frame: frame }; 
           break;
         }
@@ -1584,8 +1520,7 @@ class Agent {
       for(let z of zones) {
         if(pointInZone(z, this.x, this.y)) {
           if(z.id === this.carrying.def.id) {
-            const baseReward = CFG.rewards.deliveryBase + (this.energy * CFG.rewards.deliveryEnergy);
-            reward += baseReward;
+            reward += CFG.rewards.deliveryBase;
             this.energy = clamp(this.energy + 0.2, 0, 1);
 
             stats.solved++;
@@ -1610,7 +1545,6 @@ class Agent {
         this.vel = clamp(this.vel + 1.2, -CFG.maxSpeed, CFG.maxSpeed);
         this.energy = clamp(this.energy + 0.1, 0, 1);
         this.stuckFrames = 0;
-        reward += 1;
     }
     
     this.accumulatedReward = reward; // Store for display/debugging
