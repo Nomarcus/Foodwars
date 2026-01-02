@@ -227,6 +227,10 @@
         <span class="stat-val" id="dispAcc">0%</span>
       </div>
       <div class="stat-box">
+        <span class="stat-label">Rolling Accuracy</span>
+        <span class="stat-val" id="dispAccRolling">0%</span>
+      </div>
+      <div class="stat-box">
         <span class="stat-label">Successes</span>
         <span class="stat-val" id="dispSolved" style="color:var(--accent-ok)">0</span>
       </div>
@@ -631,6 +635,8 @@ let nest = null;
 let goalZones = []; 
 let mouse = { x:0, y:0, down:false, dragAgent:null, dragNest: false, dragZone: null }; 
 let zoneHighlight = null; 
+const ROLLING_ACCURACY_WINDOW = 500;
+const rollingResults = [];
 
 // FPS Counter Variables
 let lastFrameTime = 0;
@@ -642,6 +648,13 @@ let stats = {
     wrong: 0,
     activeCount: 0
 };
+
+function recordRollingResult(isCorrect) {
+    rollingResults.push(isCorrect ? 1 : 0);
+    if (rollingResults.length > ROLLING_ACCURACY_WINDOW) {
+        rollingResults.splice(0, rollingResults.length - ROLLING_ACCURACY_WINDOW);
+    }
+}
 
 // --- MATH UTILS ---
 const dist = (x1,y1,x2,y2) => Math.hypot(x2-x1, y2-y1);
@@ -1134,6 +1147,22 @@ class Nest {
     }
 }
 
+function getBalancedCategoryIndex(excludeTicket = null) {
+    const counts = Array.from({ length: CFG.categories.length }, () => 0);
+    for (const t of tickets) {
+        if (!t || t === excludeTicket) continue;
+        if (!Number.isInteger(t.typeIdx)) continue;
+        counts[t.typeIdx] = (counts[t.typeIdx] || 0) + 1;
+    }
+    const minCount = Math.min(...counts);
+    const candidates = counts
+        .map((count, idx) => ({ count, idx }))
+        .filter(entry => entry.count === minCount)
+        .map(entry => entry.idx);
+    if (!candidates.length) return Math.floor(Math.random() * CFG.categories.length);
+    return candidates[Math.floor(Math.random() * candidates.length)];
+}
+
 class Ticket {
     // ... (Ticket class remains the same) ...
     constructor(spawnIndex = 0) {
@@ -1147,7 +1176,7 @@ class Ticket {
 
     respawn() {
         this.id = Math.random();
-        this.typeIdx = Math.floor(Math.random() * CFG.categories.length);
+        this.typeIdx = getBalancedCategoryIndex(this);
         this.def = CFG.categories[this.typeIdx];
         const spawn = getTicketSpawnPoint(this.typeIdx, this.spawnIndex, CFG.ticketCount);
         this.x = spawn.x;
@@ -1206,6 +1235,7 @@ class Agent {
     this.targetLockFrames = 0;
     this.currentTargetTicket = null;
     this.lastTargetChoice = null;
+    this.lastTargetDistance = null;
     this.activationScratch = { input: [], hidden: [], output: [], timestamp: 0 };
   }
 
@@ -1455,6 +1485,7 @@ class Agent {
         this.currentTargetTicket = this.getTargetTicket();
     }
 
+    const prevTargetChoice = this.lastTargetChoice;
     const prevState = this.getState();
     
     // --- Policy Prediction ---
@@ -1473,8 +1504,16 @@ class Agent {
 
     // --- Execute Action ---
     const prevX = this.x, prevY = this.y;
+    const targetZone = this.carrying
+        ? getZones().find(z => z.id === this.carrying?.def?.id) || null
+        : null;
+    const targetPoint = this.carrying
+        ? (targetZone ? zoneTargetPoint(targetZone) : null)
+        : (this.currentTargetTicket ? { x: this.currentTargetTicket.x, y: this.currentTargetTicket.y } : null);
+    const prevTargetDistance = targetPoint ? dist(prevX, prevY, targetPoint.x, targetPoint.y) : null;
     this.executeAction(policyOutputs);
     const postX = this.x, postY = this.y;
+    const postTargetDistance = targetPoint ? dist(postX, postY, targetPoint.x, targetPoint.y) : null;
     
     // --- Calculate Reward ($R_t$) ---
 
@@ -1490,6 +1529,10 @@ class Agent {
     } else {
         this.lastTargetChoice = null;
     }
+
+    if (!this.carrying && prevTargetChoice && this.lastTargetChoice && prevTargetChoice !== this.lastTargetChoice) {
+        reward -= CFG.rewards.targetSwitchPenalty;
+    }
     
     // Bounds (Wall Bounce)
     if(this.x < this.r || this.x > W-this.r || this.y < this.r || this.y > H-this.r) {
@@ -1501,6 +1544,37 @@ class Agent {
 
     if(this.stalled) {
         reward -= CFG.penalties.stalled;
+    }
+
+    if (targetPoint && prevTargetDistance !== null && postTargetDistance !== null) {
+        const progressDelta = prevTargetDistance - postTargetDistance;
+        const normalizedProgress = clamp(progressDelta / this.getSensorRange(), -1, 1);
+        reward += normalizedProgress * CFG.rewards.progressScale;
+        if (progressDelta > 0.001) {
+            this.progressStreak = clamp(this.progressStreak + 1, 0, 50);
+            reward += this.progressStreak * CFG.rewards.progressStreak;
+        } else {
+            this.progressStreak = 0;
+        }
+    } else {
+        this.progressStreak = 0;
+    }
+
+    if (this.carrying && targetZone) {
+        const distToCorrect = dist(postX, postY, targetZone.targetX, targetZone.targetY);
+        const correctProximity = 1 - clamp(distToCorrect / this.getSensorRange(), 0, 1);
+        reward += correctProximity * CFG.rewards.nearCorrect;
+
+        const wrongZones = getZones().filter(z => z.id !== targetZone.id);
+        let nearestWrong = Infinity;
+        for (const z of wrongZones) {
+            const d = dist(postX, postY, z.targetX, z.targetY);
+            if (d < nearestWrong) nearestWrong = d;
+        }
+        if (Number.isFinite(nearestWrong)) {
+            const wrongProximity = 1 - clamp(nearestWrong / this.getSensorRange(), 0, 1);
+            reward -= wrongProximity * CFG.rewards.nearWrong;
+        }
     }
     
     // --- Interactions (Source of Major Rewards/Penalties) ---
@@ -1529,12 +1603,14 @@ class Agent {
             this.energy = clamp(this.energy + 0.2, 0, 1);
 
             stats.solved++;
+            recordRollingResult(true);
             spawnParticles(this.x, this.y, z.color, 15);
             deposit(z.id, z.targetX, z.targetY, PHEROMONE_CAP * CFG.smart.successDeposit, { spread: PHEROMONE_SPREAD });
             pushFeed(`Sorted: ${this.carrying.def.label}`, 'good');
           } else {
             reward -= CFG.penalties.wrongSort;
             stats.wrong++;
+            recordRollingResult(false);
             spawnParticles(this.x, this.y, varStyles.accentBad, 8);
             pushFeed(`Wrong Zone!`, 'bad');
           }
@@ -1916,6 +1992,13 @@ function updateUI() {
   let acc = total === 0 ? 0 : (stats.solved / total) * 100;
   document.getElementById('dispAcc').innerText = acc.toFixed(1) + '%';
   document.getElementById('dispAcc').style.color = acc > 80 ? varStyles.accentOk : (acc > 50 ? '#fff' : varStyles.accentBad);
+
+  const rollingTotal = rollingResults.length;
+  const rollingAcc = rollingTotal === 0
+      ? 0
+      : (rollingResults.reduce((sum, val) => sum + val, 0) / rollingTotal) * 100;
+  document.getElementById('dispAccRolling').innerText = rollingAcc.toFixed(1) + '%';
+  document.getElementById('dispAccRolling').style.color = rollingAcc > 80 ? varStyles.accentOk : (rollingAcc > 50 ? '#fff' : varStyles.accentBad);
 
   let stalledCount = agents.filter(a => a.stalled).length;
   stats.activeCount = agents.length - stalledCount;
@@ -2345,7 +2428,18 @@ function resetAgentState(agent){
   agent.progressStreak = 0;
   agent.visitedCells = new Set();
   agent.lastTargetChoice = null;
+  agent.lastTargetDistance = null;
   agent.activationScratch = { input: [], hidden: [], output: [], timestamp: 0 };
+}
+
+function getAdaptiveMutationRate() {
+  const baseMut = params.learn.mut;
+  const rollingTotal = rollingResults.length;
+  if (rollingTotal < 50) return baseMut;
+  const rollingAcc = rollingResults.reduce((sum, val) => sum + val, 0) / rollingTotal;
+  if (rollingAcc >= 0.98) return clamp(baseMut * 0.4, 0.02, 0.25);
+  if (rollingAcc <= 0.8) return clamp(baseMut * 1.5, 0.05, 0.6);
+  return baseMut;
 }
 
 function evolvePopulation() {
@@ -2358,6 +2452,7 @@ function evolvePopulation() {
   const freshRatio = clamp(params.learn.fresh || 0, 0, 1);
   const newPop = [];
   for(let i = 0; i < eliteN; i++) newPop.push({ net: cloneNet(elites[i]), fitness: 0 });
+  const adaptiveMut = getAdaptiveMutationRate();
 
   function pick(){
     const k = Math.min(pop.length, Math.max(2, Math.round(eliteN * tournamentFactor)));
@@ -2370,7 +2465,7 @@ function evolvePopulation() {
     const pa = pick();
     const pb = pick();
     let child = crossover(pa, pb);
-    mutateNet(child, params.learn.mut);
+    mutateNet(child, adaptiveMut);
     newPop.push({ net: child, fitness: 0 });
   }
 
