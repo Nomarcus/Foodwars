@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FoodSim guide – What to do and what to adjust</title>
+  <style>
+    :root {
+      --bg1:#050516;
+      --bg2:#0f1536;
+      --panel:rgba(14,19,48,.9);
+      --ink:#f5f7ff;
+      --muted:#a0accf;
+      --accent:#f472b6;
+      --accent-cyan:#38bdf8;
+      --silver:rgba(148,163,209,.35);
+    }
+    *{box-sizing:border-box}
+    body{margin:0; min-height:100vh; display:flex; flex-direction:column; background:radial-gradient(circle at 18% 10%, rgba(56,189,248,.18) 0%, transparent 46%), radial-gradient(circle at 82% 8%, rgba(244,114,182,.16) 0%, transparent 54%), radial-gradient(circle at 12% 78%, rgba(124,242,157,.12) 0%, transparent 55%), linear-gradient(160deg, var(--bg1) 0%, var(--bg2) 55%, #1a2344 100%); color:var(--ink); font-family:"Inter",system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;}
+    .main-nav{position:sticky; top:0; z-index:200; padding:22px 48px; display:flex; align-items:center; justify-content:space-between; background:linear-gradient(120deg, rgba(15,20,48,.92) 0%, rgba(10,14,34,.75) 60%, rgba(10,14,34,.35) 100%); backdrop-filter:blur(14px); border-bottom:1px solid var(--silver); box-shadow:0 22px 45px rgba(5,9,25,.55)}
+    .brand{display:flex; align-items:center; gap:12px; font-size:22px; font-weight:700; letter-spacing:.02em}
+    .brand-dot{width:14px; height:14px; border-radius:50%; background:linear-gradient(135deg, var(--accent) 0%, #8b5cf6 100%); box-shadow:0 0 18px rgba(244,114,182,.6)}
+    .nav-links{display:flex; gap:12px; align-items:center}
+    .pill-link{display:inline-flex; align-items:center; justify-content:center; padding:10px 20px; border-radius:999px; border:1px solid rgba(139,92,246,.45); background:linear-gradient(120deg, rgba(139,92,246,.2), rgba(244,114,182,.2)); color:var(--ink); text-decoration:none; font-size:14px; font-weight:600; letter-spacing:.03em; transition:transform .2s ease, box-shadow .2s ease, filter .2s ease}
+    .pill-link:hover{transform:translateY(-1px); filter:brightness(1.05); box-shadow:0 16px 32px rgba(139,92,246,.25)}
+    .pill-link:focus-visible{outline:2px solid rgba(56,189,248,.65); outline-offset:3px}
+
+    main{flex:1; display:flex; justify-content:center; align-items:flex-start; padding:40px 48px 64px}
+    .content{max-width:920px; width:100%; background:var(--panel); border:1px solid var(--silver); border-radius:32px; padding:44px 56px; box-shadow:0 40px 120px rgba(5,9,25,.6); backdrop-filter:blur(18px)}
+    h1{margin-top:0; font-size:36px; letter-spacing:-.01em}
+    h2{margin-top:34px; font-size:22px; letter-spacing:.01em}
+    p{line-height:1.8; margin:16px 0; color:var(--ink)}
+    ul{line-height:1.8; padding-left:22px; margin:18px 0; color:var(--ink)}
+    li{margin-bottom:10px}
+    .pill{display:inline-flex; gap:6px; align-items:center; padding:6px 12px; border-radius:999px; background:rgba(56,189,248,.16); border:1px solid rgba(56,189,248,.35); font-size:13px; letter-spacing:.05em; text-transform:uppercase; color:var(--accent-cyan)}
+    .note{border-left:3px solid var(--accent-cyan); background:rgba(56,189,248,.08); padding:16px 20px; border-radius:14px; margin:24px 0; font-size:14px; line-height:1.7; color:var(--ink)}
+    a{color:var(--accent-cyan); text-decoration:none}
+    a:hover{text-decoration:underline}
+    .back-link{display:inline-flex; align-items:center; gap:8px; margin-top:36px; font-weight:600}
+    .back-link span{font-size:18px}
+
+    @media (max-width:900px){
+      main{padding:32px 28px 56px}
+      .content{padding:36px 32px; border-radius:26px}
+    }
+    @media (max-width:620px){
+      .main-nav{flex-direction:column; align-items:flex-start; gap:16px; padding:18px 24px}
+      main{padding:28px 20px 48px}
+      .content{padding:28px 22px}
+      h1{font-size:30px}
+      h2{margin-top:28px; font-size:20px}
+    }
+  </style>
+</head>
+<body>
+  <header class="main-nav">
+    <div class="brand"><span class="brand-dot"></span>FoodSim NEAT Lab</div>
+    <nav class="nav-links" aria-label="Secondary navigation">
+      <a class="pill-link" href="foodwars.html">← FoodSim</a>
+      <a class="pill-link" href="index.html">Start</a>
+    </nav>
+  </header>
+  <main>
+    <article class="content">
+      <div class="pill">FoodSim guide</div>
+      <h1>What FoodSim is and how the experience works</h1>
+      <p>
+        FoodSim is a top-down arena where two teams of agents collect fruit and deliver it to their goals. Each agent runs a tiny
+        neural network, and the network evolves every generation so the teams slowly get smarter. Your job is to guide the run,
+        watch patterns appear, and tune the controls to shape their behaviour.
+      </p>
+
+      <h2>What you can do while it runs</h2>
+      <ul>
+        <li><strong>Watch the action</strong>: the canvas shows agents, fruit, goals, and any obstacles you add.</li>
+        <li><strong>Track progress</strong>: the stats bar shows the current generation, deliveries, and the best fitness so far.</li>
+        <li><strong>Follow the best brain</strong>: the network monitor highlights the top performer and its live fitness score.</li>
+        <li><strong>Paint obstacles</strong>: use the obstacle tools to draw circles, rectangles, lines, or half-shields.</li>
+        <li><strong>Switch perspectives</strong>: toggle Performance mode to hide side panels and focus on the field.</li>
+      </ul>
+
+      <h2>What you should adjust (simple checklist)</h2>
+      <ul>
+        <li><strong>Fruit count & placement</strong>: set how many fruit spawn and where they start for each round.</li>
+        <li><strong>Team sliders</strong>: tweak speed, awareness, strategy, and separation to change team style.</li>
+        <li><strong>Learning sliders</strong>: control mutation rate, elites, and generation length to speed up learning.</li>
+        <li><strong>Collisions & energy</strong>: decide if agents collide and how fast they tire out.</li>
+        <li><strong>Obstacles</strong>: start with an open field, then add obstacles only when you want more challenge.</li>
+      </ul>
+
+      <h2>Quick way to get a good run</h2>
+      <ul>
+        <li>Start in the open field and let a few generations play out.</li>
+        <li>Increase mutation if the teams look stuck, or lower it when you see good behaviour.</li>
+        <li>Raise awareness and speed if agents feel too slow to react.</li>
+        <li>Add obstacles only after you see consistent fruit delivery.</li>
+      </ul>
+
+      <div class="note">
+        Tip: If the agents spiral or crash too much, lower speed and raise separation. If they take forever to deliver fruit,
+        increase awareness or add more fruit to the map.
+      </div>
+
+      <a class="back-link" href="foodwars.html"><span>⟵</span> Back to FoodSim</a>
+    </article>
+  </main>
+</body>
+</html>
