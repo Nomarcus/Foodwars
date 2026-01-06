@@ -673,14 +673,14 @@ const NAV_PRESETS = {
     obstacleGenerator:'labyrinth',
     ui: { awarenessBoostPct:160, team:{speed:3.8,smart:3.0,strat:2.6,sep:1.1},
           agentScalePct:90, energyEmptyPct:60, energyCapacity:180,
-          agentCollisions:false, learn:{steps:150, mutPct:24, elitePct:12} },
+          agentCollisions:false, learn:{steps:2500, mutPct:24, elitePct:12} },
     nav: { obstacleThreshold:22, boundaryPadding:16, avoidPushGain:0.08, safeNavReward:0.10 }
   },
   open: {
     name: "Open Field",
     ui: { awarenessBoostPct:110, team:{speed:4.8,smart:2.4,strat:2.2,sep:1.0},
           agentScalePct:100, energyEmptyPct:45, energyCapacity:120,
-          agentCollisions:true, learn:{steps:150, mutPct:16, elitePct:20} },
+          agentCollisions:true, learn:{steps:2500, mutPct:16, elitePct:20} },
     nav: { obstacleThreshold:12, boundaryPadding:10, avoidPushGain:0.055, safeNavReward:0.06 }
   }
 };
@@ -841,7 +841,7 @@ const params = {
     strat:2.40,
     sep:1.10
   })),
-  learn: { genSteps:150, hidden: NET_HIDDEN, mut:0.16, elite:0.20, mutStrengthW:0.20, mutStrengthB:0.20, crossoverBias:0.50, tournamentFactor:2.0, fresh:0, auto:true }
+  learn: { genSteps:2500, hidden: NET_HIDDEN, mut:0.16, elite:0.20, mutStrengthW:0.20, mutStrengthB:0.20, crossoverBias:0.50, tournamentFactor:2.0, fresh:0, auto:true }
 };
 let lastObstCount = params.obstacles;
 
