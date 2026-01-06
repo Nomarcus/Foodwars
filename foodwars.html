@@ -207,7 +207,7 @@
         <div class="panel-body" id="panel-learn-body">
           <div class="grid">
             <div class="label" title="Number of simulation steps each generation runs before evaluating fitness.">Steps / gen</div>
-            <input id="slGenSteps" type="range" min="600" max="100000" value="2800" title="Number of simulation steps each generation runs before evaluating fitness."><div class="val" id="lbGenSteps">2800</div>
+            <input id="slGenSteps" type="range" min="150" max="100000" value="150" title="Number of simulation steps each generation runs before evaluating fitness."><div class="val" id="lbGenSteps">150</div>
 
             <div class="label" title="Hidden neurons connecting the sensory inputs to the outputs.">Hidden neurons</div>
             <input id="slHidden" type="range" min="4" max="96" value="16" title="Hidden neurons connecting the sensory inputs to the outputs."><div class="val" id="lbHidden">16 neurons</div>
@@ -310,6 +310,10 @@
         <div class="stat-card">
           <span class="stat-label">Deliveries</span>
           <span class="stat-value" id="stat-deliveries">0</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-label">Steps</span>
+          <span class="stat-value" id="stat-steps">0 / 0</span>
         </div>
         <div class="stat-card">
           <span class="stat-label">Top fitness</span>
@@ -465,7 +469,7 @@
         <div class="panel-body" id="panel-global-body">
           <div class="grid">
             <div class="label">Fruit (max)</div>
-            <input id="slFruits" type="range" min="2" max="1000" value="80"><div class="val" id="lbFruits">80</div>
+            <input id="slFruits" type="range" min="2" max="1000" value="150"><div class="val" id="lbFruits">150</div>
 
             <div class="label" id="fruitPlacementLabel">Fruit placement</div>
             <div class="fruit-placement-options" role="group" aria-labelledby="fruitPlacementLabel">
@@ -508,7 +512,7 @@
             <input id="slSimSpeed" type="range" min="10" max="600" value="100" step="5"><div class="val" id="lbSimSpeed">1.00×</div>
 
             <div class="label">Obstacles</div>
-            <input id="slObst" type="range" min="0" max="40" value="0"><div class="val" id="lbObst">0</div>
+            <input id="slObst" type="range" min="0" max="40" value="10"><div class="val" id="lbObst">10</div>
 
             <div class="label">Trail length</div>
             <input id="slTail" type="range" min="4" max="1500" value="24"><div class="val" id="lbTail">24</div>
@@ -657,7 +661,7 @@ const FRUIT_PLACEMENT_MODES = Object.keys(FRUIT_PLACEMENT_LABELS);
 const TEAM_PRESETS = [
   { id:'green', label:'Greens', icon:'🟢', color:'#00ff91', outline:'#003322', badge:'#bbf7d0', goalAnchor:{ x:0.86, y:0.35 }, spawn:{ x:[0.06,0.46], y:[0.12,0.92] } },
   { id:'red', label:'Reds', icon:'🔴', color:'#ff0055', outline:'#5a001a', badge:'#fecdd3', goalAnchor:{ x:0.14, y:0.65 }, spawn:{ x:[0.54,0.94], y:[0.08,0.9] } },
-  { id:'blocker', label:'Blockers', icon:'🛡️', color:'#a855f7', outline:'#581c87', badge:'#e9d5ff', role:'blocker', goalAnchor:{ x:0.48, y:0.50 }, spawn:{ x:[0.16,0.84], y:[0.18,0.82] } },
+  { id:'blocker', label:'Blockers', icon:'🛡️', color:'#a855f7', outline:'#581c87', badge:'#e9d5ff', role:'blocker', goalAnchor:{ x:0.48, y:0.50 }, spawn:{ x:[0.42,0.58], y:[0.76,0.94] } },
   { id:'blue', label:'Blues', icon:'🔵', color:'#60a5fa', outline:'#1e3a8a', badge:'#bfdbfe', goalAnchor:{ x:0.22, y:0.24 }, spawn:{ x:[0.18,0.52], y:[0.06,0.42] } },
   { id:'amber', label:'Ambers', icon:'🟠', color:'#f97316', outline:'#7c2d12', badge:'#fed7aa', goalAnchor:{ x:0.80, y:0.76 }, spawn:{ x:[0.52,0.90], y:[0.58,0.94] } }
 ];
@@ -669,14 +673,14 @@ const NAV_PRESETS = {
     obstacleGenerator:'labyrinth',
     ui: { awarenessBoostPct:160, team:{speed:3.8,smart:3.0,strat:2.6,sep:1.1},
           agentScalePct:90, energyEmptyPct:60, energyCapacity:180,
-          agentCollisions:false, learn:{steps:9000, mutPct:24, elitePct:12} },
+          agentCollisions:false, learn:{steps:150, mutPct:24, elitePct:12} },
     nav: { obstacleThreshold:22, boundaryPadding:16, avoidPushGain:0.08, safeNavReward:0.10 }
   },
   open: {
     name: "Open Field",
     ui: { awarenessBoostPct:110, team:{speed:4.8,smart:2.4,strat:2.2,sep:1.0},
           agentScalePct:100, energyEmptyPct:45, energyCapacity:120,
-          agentCollisions:true, learn:{steps:3600, mutPct:16, elitePct:20} },
+          agentCollisions:true, learn:{steps:150, mutPct:16, elitePct:20} },
     nav: { obstacleThreshold:12, boundaryPadding:10, avoidPushGain:0.055, safeNavReward:0.06 }
   }
 };
@@ -769,9 +773,10 @@ const statElements = {
   teams: document.getElementById('stat-teams'),
   fruits: document.getElementById('stat-fruits'),
   deliveries: document.getElementById('stat-deliveries'),
+  steps: document.getElementById('stat-steps'),
   top: document.getElementById('stat-top')
 };
-const statCache = { gen:null, teams:null, fruits:null, deliveries:null, top:null };
+const statCache = { gen:null, teams:null, fruits:null, deliveries:null, steps:null, top:null };
 let brainCanvasWidth = brainCanvas ? brainCanvas.clientWidth : 0;
 let brainCanvasHeight = brainCanvas ? brainCanvas.clientHeight : 0;
 let brainVizEnabled = false;
@@ -804,10 +809,10 @@ let NET_HIDDEN = 16;
 
 // ===== Parameters =====
 const params = {
-  maxFruits: 80,
+  maxFruits: 150,
   spawnMs: 900,
   simSpeed: 1.0,
-  obstacles: 0,
+  obstacles: 10,
   tailLen: 24,
   agentScale: 1.00,
   agentCollisions: false,
@@ -836,7 +841,7 @@ const params = {
     strat:2.40,
     sep:1.10
   })),
-  learn: { genSteps:2800, hidden: NET_HIDDEN, mut:0.16, elite:0.20, mutStrengthW:0.20, mutStrengthB:0.20, crossoverBias:0.50, tournamentFactor:2.0, fresh:0, auto:true }
+  learn: { genSteps:150, hidden: NET_HIDDEN, mut:0.16, elite:0.20, mutStrengthW:0.20, mutStrengthB:0.20, crossoverBias:0.50, tournamentFactor:2.0, fresh:0, auto:true }
 };
 let lastObstCount = params.obstacles;
 
@@ -2105,6 +2110,7 @@ function refreshStats(){
     teams: String(activeTeamStates.length),
     fruits: String(fruits.length),
     deliveries: String(deliveries),
+    steps: `${simSteps} / ${params.learn.genSteps}`,
     top: String(Math.round(topFitness))
   };
   for(const key of Object.keys(statElements)){
@@ -2631,13 +2637,13 @@ function getFruitSpawnArea(){
   let minY = margin;
   switch(mode){
     case 'center':{
-      const desiredMinX = (W - spanX) / 2;
-      const desiredMinY = (H - spanY) / 2;
-      const maxMinX = Math.max(margin, W - margin - spanX);
-      const maxMinY = Math.max(margin, H - margin - spanY);
-      minX = clamp(desiredMinX, margin, maxMinX);
-      minY = clamp(desiredMinY, margin, maxMinY);
-      break;
+      const radius = Math.min(spanX, spanY) * 0.5;
+      return {
+        shape: 'circle',
+        cx: W * 0.5,
+        cy: H * 0.5,
+        r: radius
+      };
     }
     case 'ne':
       minX = Math.max(margin, W - margin - spanX);
@@ -2667,6 +2673,23 @@ function getFruitSpawnArea(){
 
 function normalizeFruitArea(area){
   if(!area) return null;
+  if(area.shape === 'circle'){
+    const cx = clamp(Number(area.cx) || W * 0.5, 40, W - 40);
+    const cy = clamp(Number(area.cy) || H * 0.5, 40, H - 40);
+    const maxRadius = Math.min(cx - 40, cy - 40, W - cx - 40, H - cy - 40);
+    const r = clamp(Number(area.r) || 0, 12, Math.max(12, maxRadius));
+    if(!Number.isFinite(r) || r <= 0) return null;
+    return {
+      shape: 'circle',
+      cx,
+      cy,
+      r,
+      minX: cx - r,
+      maxX: cx + r,
+      minY: cy - r,
+      maxY: cy + r
+    };
+  }
   const minX = Math.max(40, Math.min(area.minX, W - 40));
   const maxX = Math.min(area.maxX, W - 40);
   const minY = Math.max(40, Math.min(area.minY, H - 40));
@@ -2748,6 +2771,18 @@ function findFreeFruitSpot(maxTry=80, preferredArea=null){
     return null;
   };
   if(area){
+    if(area.shape === 'circle'){
+      const circleSampler = ()=>{
+        const angle = Math.random() * TAU;
+        const radius = Math.sqrt(Math.random()) * area.r;
+        return {
+          x: clamp(area.cx + Math.cos(angle) * radius, area.minX, area.maxX),
+          y: clamp(area.cy + Math.sin(angle) * radius, area.minY, area.maxY)
+        };
+      };
+      const circleSpot = trySampler(circleSampler);
+      if(circleSpot) return circleSpot;
+    }
     const midX = (area.minX + area.maxX) / 2;
     const midY = (area.minY + area.maxY) / 2;
     const spanX = Math.max(20, (area.maxX - area.minX));
