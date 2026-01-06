@@ -192,6 +192,7 @@
   <header class="main-nav">
     <div class="brand"><span class="brand-dot"></span>FoodSim NEAT Lab</div>
     <nav class="nav-links" aria-label="Primary navigation">
+      <a class="pill-link secondary" href="foodsim-about.html">FoodSim guide</a>
       <a class="pill-link secondary" href="learn-neat.html">How NEAT works</a>
       <a class="pill-link" href="index.html">← Start</a>
     </nav>
@@ -5891,7 +5892,7 @@ window.addEventListener('beforeunload', clearCurrentObjectUrl);
 // Start
 initMusicPanel();
 renderTeamRoster();
-let savedNavPreset = 'lab';
+let savedNavPreset = 'open';
 let storedNavPreset = null;
 try{
   if(typeof localStorage !== 'undefined' && localStorage){
@@ -5901,7 +5902,8 @@ try{
   console.warn('Unable to read nav preset preference', err);
 }
 if(typeof storedNavPreset === 'string' && storedNavPreset.trim()){
-  savedNavPreset = storedNavPreset.trim();
+  const storedPresetValue = storedNavPreset.trim();
+  savedNavPreset = storedPresetValue === 'lab' ? 'open' : storedPresetValue;
 }
 applyPreset(savedNavPreset);
 readParams();
