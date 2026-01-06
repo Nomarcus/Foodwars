@@ -1367,6 +1367,7 @@ const BLOCKER_BLOCK_REWARD = 60;
 const BLOCKER_BLOCK_PENALTY = 40;
 const BLOCKER_EVENT_COOLDOWN = 55;
 const BLOCKER_TRIGGER_RADIUS_BASE = 18;
+const BLOCKER_HOLD_FRAMES = 28;
 const PATH_COST_OBSTACLE_PADDING = 10;
 const PATH_SEGMENT_SAMPLE_STEP = 12;
 const LINE_OF_SIGHT_PADDING = 8;
@@ -4023,7 +4024,7 @@ function evolveTeam(teamState){
 
 // ===== Agent core =====
 class Agent{
-  constructor(x,y,color,maxSpeed,team){ this.x=x; this.y=y; this.vx=rand(-1,1); this.vy=rand(-1,1); this.color=color; this.baseSpeed=maxSpeed; this.speedFactor=1; this.minSpeedFactor=SPEED_FACTOR_MIN; this.maxSpeedFactor=SPEED_FACTOR_MAX; this.energyMultiplier=1; this.minEnergyMultiplier=ENERGY_MULTIPLIER_MIN; this.maxEnergyMultiplier=ENERGY_MULTIPLIER_MAX; this.energyMax=0; this.energy=0; this.updateMaxSpeed(); this.trail=[]; this.carry=false; this.team=team; this.side=Math.random()<0.5?-1:1; this.stuckT=0; this.wander={x:rand(-1,1), y:rand(-1,1)}; this.activationScratch={ input:[], hidden:[], output:[], timestamp:0 }; this.blockCooldown=0; this.sensorVectors={}; this.dead=false; }
+  constructor(x,y,color,maxSpeed,team){ this.x=x; this.y=y; this.vx=rand(-1,1); this.vy=rand(-1,1); this.color=color; this.baseSpeed=maxSpeed; this.speedFactor=1; this.minSpeedFactor=SPEED_FACTOR_MIN; this.maxSpeedFactor=SPEED_FACTOR_MAX; this.energyMultiplier=1; this.minEnergyMultiplier=ENERGY_MULTIPLIER_MIN; this.maxEnergyMultiplier=ENERGY_MULTIPLIER_MAX; this.energyMax=0; this.energy=0; this.updateMaxSpeed(); this.trail=[]; this.carry=false; this.team=team; this.side=Math.random()<0.5?-1:1; this.stuckT=0; this.wander={x:rand(-1,1), y:rand(-1,1)}; this.activationScratch={ input:[], hidden:[], output:[], timestamp:0 }; this.blockCooldown=0; this.blockHold=0; this.blockHoldBy=null; this.sensorVectors={}; this.dead=false; }
   updateMaxSpeed(){ this.maxSpeed=this.baseSpeed*this.speedFactor*this.energyMultiplier; }
   stepSpeed(v){ this.baseSpeed=v; this.updateMaxSpeed(); }
   setSpeedFactor(factor){ this.speedFactor=clamp(factor, this.minSpeedFactor, this.maxSpeedFactor); this.updateMaxSpeed(); }
@@ -4711,34 +4712,68 @@ function applyBlockerInteractions(){
   if(blockers.length===0 || rivals.length===0) return;
   const blockRadius = Math.max(BLOCKER_TRIGGER_RADIUS_BASE * params.agentScale, 10);
   const blockRadiusSq = blockRadius * blockRadius;
+  for(const opponent of rivals){
+    if(opponent.dead) continue;
+    if(!opponent.carry || opponent.blockCooldown > 0){
+      opponent.blockHold = 0;
+      opponent.blockHoldBy = null;
+      continue;
+    }
+    let closestBlocker = null;
+    let closestDistSq = Infinity;
+    for(const blocker of blockers){
+      if(blocker.dead || blocker.blockCooldown > 0) continue;
+      const blockerTeamId = blocker.teamState?.config?.id;
+      if(opponent.team === blockerTeamId) continue;
+      const dx = opponent.x - blocker.x;
+      const dy = opponent.y - blocker.y;
+      const distSq = dx*dx + dy*dy;
+      if(distSq > blockRadiusSq) continue;
+      if(distSq < closestDistSq){
+        closestDistSq = distSq;
+        closestBlocker = blocker;
+      }
+    }
+    if(!closestBlocker){
+      opponent.blockHold = 0;
+      opponent.blockHoldBy = null;
+      continue;
+    }
+    if(opponent.blockHoldBy !== closestBlocker){
+      opponent.blockHold = 0;
+      opponent.blockHoldBy = closestBlocker;
+    }
+    opponent.blockHold += 1;
+    if(opponent.blockHold < BLOCKER_HOLD_FRAMES) continue;
+    const dist = Math.sqrt(closestDistSq);
+    const proximity = 1 - Math.min(dist / blockRadius, 1);
+    const reward = BLOCKER_BLOCK_REWARD * (0.6 + 0.4*proximity);
+    const penalty = -BLOCKER_BLOCK_PENALTY * (0.5 + 0.5*proximity);
+    spawnFruit(opponent.x, opponent.y);
+    opponent.carry = false;
+    opponent.blockCooldown = BLOCKER_EVENT_COOLDOWN;
+    closestBlocker.blockCooldown = BLOCKER_EVENT_COOLDOWN;
+    opponent.blockHold = 0;
+    opponent.blockHoldBy = null;
+    closestBlocker.fitness += reward;
+    awardTeamPoints(closestBlocker.teamState, 'block', reward);
+    if(Number.isFinite(penalty)){
+      opponent.fitness += penalty;
+      registerTeamFumble(opponent.teamState, penalty);
+    }
+  }
   for(const blocker of blockers){
     if(blocker.dead) continue;
     const blockerTeamId = blocker.teamState?.config?.id;
     for(const opponent of rivals){
       if(opponent.dead) continue;
       if(opponent.team === blockerTeamId) continue;
+      if(opponent.carry) continue;
       const dx = opponent.x - blocker.x;
       const dy = opponent.y - blocker.y;
       const distSq = dx*dx + dy*dy;
       if(distSq > blockRadiusSq) continue;
-      if(opponent.carry && opponent.blockCooldown <= 0){
-        const dist = Math.sqrt(distSq);
-        const proximity = 1 - Math.min(dist / blockRadius, 1);
-        const reward = BLOCKER_BLOCK_REWARD * (0.6 + 0.4*proximity);
-        const penalty = -BLOCKER_BLOCK_PENALTY * (0.5 + 0.5*proximity);
-        spawnFruit(opponent.x, opponent.y);
-        opponent.carry = false;
-        opponent.blockCooldown = BLOCKER_EVENT_COOLDOWN;
-        blocker.blockCooldown = BLOCKER_EVENT_COOLDOWN;
-        blocker.fitness += reward;
-        awardTeamPoints(blocker.teamState, 'block', reward);
-        if(Number.isFinite(penalty)){
-          opponent.fitness += penalty;
-          registerTeamFumble(opponent.teamState, penalty);
-        }
-        continue;
-      }
-      if(blocker.blockCooldown <= 0 && opponent.blockCooldown <= 0 && !opponent.carry){
+      if(blocker.blockCooldown <= 0 && opponent.blockCooldown <= 0){
         const harassmentReward = BLOCKER_BLOCK_REWARD * 0.12;
         blocker.fitness += harassmentReward;
         blocker.blockCooldown = Math.floor(BLOCKER_EVENT_COOLDOWN * 0.5);
