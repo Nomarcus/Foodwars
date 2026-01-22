@@ -212,6 +212,54 @@
 
     .btn-ghost:hover { transform: translateY(-2px); background: rgba(17, 22, 48, 0.95); }
 
+    .tooltip {
+      position: relative;
+      padding-right: 18px;
+    }
+
+    .tooltip::after {
+      content: 'ⓘ';
+      font-size: 0.95rem;
+      opacity: 0.85;
+    }
+
+    .tooltip-text {
+      position: absolute;
+      left: 50%;
+      bottom: calc(100% + 12px);
+      transform: translateX(-50%);
+      width: min(320px, 70vw);
+      padding: 14px 16px;
+      border-radius: 16px;
+      background: rgba(14, 18, 42, 0.95);
+      border: 1px solid rgba(140, 91, 255, 0.4);
+      color: var(--ink);
+      font-size: 0.95rem;
+      line-height: 1.45;
+      box-shadow: 0 20px 40px rgba(6, 8, 24, 0.65);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s ease, transform 0.2s ease;
+      z-index: 5;
+    }
+
+    .tooltip:focus-visible .tooltip-text,
+    .tooltip:hover .tooltip-text {
+      opacity: 1;
+      transform: translateX(-50%) translateY(-4px);
+    }
+
+    .tooltip-text::after {
+      content: '';
+      position: absolute;
+      top: 100%;
+      left: 50%;
+      transform: translateX(-50%);
+      border-width: 8px;
+      border-style: solid;
+      border-color: rgba(14, 18, 42, 0.95) transparent transparent transparent;
+    }
+
     .hero-stats {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
@@ -372,6 +420,12 @@
         <div class="hero-actions">
           <a class="btn btn-primary" href="info.html">Open the info guide</a>
           <a class="btn btn-ghost" href="#experiments">Browse experiments</a>
+          <button class="btn btn-ghost tooltip" type="button" aria-describedby="foodsim-tooltip">
+            What is FOODSIM?
+            <span class="tooltip-text" id="foodsim-tooltip">
+              FOODSIM is a playful collection of mini simulations about how AI agents learn. Hover here anytime for a quick guide, then pick an experience below to watch agents compete, cooperate, and improve.
+            </span>
+          </button>
         </div>
       </div>
     </section>
