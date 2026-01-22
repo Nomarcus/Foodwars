@@ -1,6 +1,6 @@
-# Foodwars
+# Foodsim
 
-Foodwars is a simple front-end HTML project — a browser-based game or interactive demo built with plain HTML (and optionally CSS/JS included in the repo). This repository currently contains only HTML files.
+Foodsim is a simple front-end HTML project — a browser-based game or interactive demo built with plain HTML (and optionally CSS/JS included in the repo). This repository currently contains only HTML files.
 
 ## Features
 - Single-page or multi-page HTML-based experience, including the new cooperative VolleySim experiment (`volleyball.html`)
@@ -11,8 +11,8 @@ Foodwars is a simple front-end HTML project — a browser-based game or interact
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/Nomarcus/Foodwars.git
-   cd Foodwars
+   git clone https://github.com/Nomarcus/Foodsim.git
+   cd Foodsim
    ```
 
 2. Open the project in your browser:
