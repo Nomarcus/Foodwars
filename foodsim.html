@@ -244,8 +244,8 @@
         </div>
       </div>
 
-      <div class="panel collapsed" id="panel-toolbox">
-        <div class="panel-head" role="button" tabindex="0" aria-expanded="false" aria-controls="panel-toolbox-body"><div class="h">Obstacle toolbox</div><span class="chev">▾</span></div>
+      <div class="panel" id="panel-toolbox">
+        <div class="panel-head" role="button" tabindex="0" aria-expanded="true" aria-controls="panel-toolbox-body"><div class="h">Obstacle toolbox</div><span class="chev">▾</span></div>
         <div class="panel-body" id="panel-toolbox-body">
           <p class="tool-hint">Choose a tool to draw glowing obstacles directly on the field.</p>
           <div class="tool-buttons" role="group" aria-label="Obstacle drawing tools">
@@ -539,7 +539,7 @@
             <input id="slAwarenessBoost" type="range" min="50" max="200" value="100" step="5"><div class="val" id="lbAwarenessBoost">100%</div>
 
             <div class="label" title="Agents that run out of energy will be removed and penalized.">Energy exhaustion death</div>
-            <input id="chkEnergyDeath" type="checkbox"><div class="val" id="lbEnergyDeath">off</div>
+            <input id="chkEnergyDeath" type="checkbox" checked><div class="val" id="lbEnergyDeath">on</div>
 
             <div class="label">Sensor overlay</div>
             <input id="chkSensorRadar" type="checkbox"><div class="val" id="lbSensorRadar">off</div>
@@ -554,8 +554,8 @@
         </div>
       </div>
 
-      <div class="panel collapsed" id="panel-teams">
-        <div class="panel-head" role="button" tabindex="0" aria-expanded="false" aria-controls="panel-teams-body"><div class="h">Team settings</div><span class="chev">▾</span></div>
+      <div class="panel" id="panel-teams">
+        <div class="panel-head" role="button" tabindex="0" aria-expanded="true" aria-controls="panel-teams-body"><div class="h">Team settings</div><span class="chev">▾</span></div>
         <div class="panel-body" id="panel-teams-body">
           <div class="sub">Teams</div>
           <div class="team-roster" id="teamRoster"></div>
@@ -659,8 +659,8 @@ const FRUIT_PLACEMENT_LABELS = {
 const FRUIT_PLACEMENT_MODES = Object.keys(FRUIT_PLACEMENT_LABELS);
 
 const TEAM_PRESETS = [
-  { id:'green', label:'Greens', icon:'🟢', color:'#00ff91', outline:'#003322', badge:'#bbf7d0', goalAnchor:{ x:0.86, y:0.35 }, spawn:{ x:[0.06,0.46], y:[0.12,0.92] } },
-  { id:'red', label:'Reds', icon:'🔴', color:'#ff0055', outline:'#5a001a', badge:'#fecdd3', goalAnchor:{ x:0.14, y:0.65 }, spawn:{ x:[0.54,0.94], y:[0.08,0.9] } },
+  { id:'green', label:'Greens', icon:'🟢', color:'#00ff91', outline:'#003322', badge:'#bbf7d0', goalAnchor:{ x:0.86, y:0.35 }, spawn:{ areas:[{ x:[0.04,0.12], y:[0.04,0.12] }, { x:[0.04,0.12], y:[0.88,0.96] }] } },
+  { id:'red', label:'Reds', icon:'🔴', color:'#ff0055', outline:'#5a001a', badge:'#fecdd3', goalAnchor:{ x:0.14, y:0.65 }, spawn:{ areas:[{ x:[0.88,0.96], y:[0.04,0.12] }, { x:[0.88,0.96], y:[0.88,0.96] }] } },
   { id:'blocker', label:'Blockers', icon:'🛡️', color:'#a855f7', outline:'#581c87', badge:'#e9d5ff', role:'blocker', goalAnchor:{ x:0.48, y:0.50 }, spawn:{ x:[0.42,0.58], y:[0.76,0.94] } },
   { id:'blue', label:'Blues', icon:'🔵', color:'#60a5fa', outline:'#1e3a8a', badge:'#bfdbfe', goalAnchor:{ x:0.22, y:0.24 }, spawn:{ x:[0.18,0.52], y:[0.06,0.42] } },
   { id:'amber', label:'Ambers', icon:'🟠', color:'#f97316', outline:'#7c2d12', badge:'#fed7aa', goalAnchor:{ x:0.80, y:0.76 }, spawn:{ x:[0.52,0.90], y:[0.58,0.94] } }
@@ -820,7 +820,7 @@ const params = {
   showEnergyHalo: true,
   energyCapacity: COLLECTOR_ENERGY_CAPACITY_DEFAULT,
   energyEmptySpeed: COLLECTOR_ENERGY_SPEED_MIN_DEFAULT,
-  dieOnEnergyLoss: false,
+  dieOnEnergyLoss: true,
   showSensorRadar: false,
   awarenessBoost: 1.0,
   fruitPlacement: 'center',
@@ -833,7 +833,11 @@ const params = {
     badge:preset.badge,
     role:preset.role || 'collector',
     goalAnchor:Object.assign({}, preset.goalAnchor),
-    spawn:preset.spawn ? { x:preset.spawn.x.slice(), y:preset.spawn.y.slice() } : { x:[0.1,0.9], y:[0.1,0.9] },
+    spawn:preset.spawn
+      ? (preset.spawn.areas
+        ? { areas: preset.spawn.areas.map((area)=> ({ x: area.x.slice(), y: area.y.slice() })) }
+        : { x:preset.spawn.x.slice(), y:preset.spawn.y.slice() })
+      : { x:[0.1,0.9], y:[0.1,0.9] },
     active:index < 2,
     count:(preset.id === 'green' || preset.id === 'red') ? 80 : 28,
     speed:4.60,
@@ -4828,7 +4832,13 @@ function setup(){
     return state;
   });
   activeTeamStates.forEach((state)=>{
-    const spawn = state.config.spawn || { x:[0.1,0.9], y:[0.1,0.9] };
+    const spawnConfig = state.config.spawn || {};
+    const spawnAreas = Array.isArray(spawnConfig.areas) && spawnConfig.areas.length
+      ? spawnConfig.areas
+      : null;
+    const spawn = spawnAreas
+      ? spawnAreas[Math.floor(Math.random() * spawnAreas.length)]
+      : spawnConfig;
     const minX = (spawn.x?.[0] ?? 0.1) * W;
     const maxX = (spawn.x?.[1] ?? 0.9) * W;
     const minY = (spawn.y?.[0] ?? 0.1) * H;
