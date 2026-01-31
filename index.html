@@ -117,7 +117,8 @@
       flex-wrap: wrap;
     }
 
-    .nav-links a {
+    .nav-links a,
+    .nav-links button {
       text-decoration: none;
       color: var(--ink);
       font-weight: 600;
@@ -125,9 +126,13 @@
       border-radius: 999px;
       border: 1px solid transparent;
       transition: transform 0.16s ease, border-color 0.18s ease, background 0.18s ease;
+      background: transparent;
+      cursor: pointer;
+      font: inherit;
     }
 
-    .nav-links a:hover {
+    .nav-links a:hover,
+    .nav-links button:hover {
       border-color: var(--stroke);
       background: rgba(16, 22, 48, 0.8);
       transform: translateY(-2px);
@@ -406,6 +411,7 @@
           </span>
         </a>
         <div class="nav-links">
+          <button type="button" onclick="history.back()">Back</button>
           <a href="info.html">Info</a>
           <a href="https://github.com/Nomarcus/Foodsim" target="_blank" rel="noreferrer">GitHub</a>
         </div>
