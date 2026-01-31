@@ -79,6 +79,10 @@
     .brain-legend-dot--boundary{background:linear-gradient(135deg, rgba(96,165,250,.9), rgba(59,130,246,.75)); box-shadow:0 0 10px rgba(96,165,250,.45)}
     .brain-legend-note{font-size:11px; line-height:1.6; color:var(--muted); border-top:1px dashed rgba(148,163,209,.3); padding-top:10px}
     .brain-guide{margin-top:16px; padding:18px 20px; border-radius:18px; border:1px solid var(--silver); background:rgba(11,16,44,.78); box-shadow:0 12px 28px rgba(5,9,25,.35);}
+    .intro-guide{border-color:rgba(45,212,191,.45); background:rgba(9,18,42,.82)}
+    .intro-guide summary{color:var(--ink)}
+    .intro-list{margin:0; padding-left:18px; display:grid; gap:8px; font-size:13px; color:var(--ink); line-height:1.6}
+    .intro-list li{margin:0}
     .brain-guide summary{cursor:pointer; font-weight:600; letter-spacing:.04em; text-transform:uppercase; font-size:12px; color:var(--muted); display:flex; align-items:center; justify-content:space-between; gap:12px}
     .brain-guide summary::-webkit-details-marker{display:none}
     .brain-guide summary::after{content:'▾'; font-size:12px; transition:transform .25s ease}
@@ -376,6 +380,25 @@
           </aside>
         </div>
       </section>
+      <details class="brain-guide intro-guide" id="quickStartGuide" open>
+        <summary>Quick start: your first machine-learning run</summary>
+        <div class="brain-guide-body">
+          <p>
+            You are watching tiny teams learn to collect fruit and bring it back to their home base. They start out clumsy, but the
+            longer you let the sim run, the smarter their routes become.
+          </p>
+          <ul class="intro-list">
+            <li><strong>Look at the field:</strong> snakes try to reach fruit, then return home with it.</li>
+            <li><strong>Avoid obstacles:</strong> the rocks block paths, so teams learn to go around them.</li>
+            <li><strong>Try an easy tweak:</strong> move the <em>Obstacles</em> slider or switch the <em>Navigation preset</em>.</li>
+            <li><strong>Restart anytime:</strong> hit <em>Restart</em> to reshuffle and watch a new learning run.</li>
+          </ul>
+          <p>
+            Want to see what the agents sense? Toggle <em>Sensor overlay</em> in Global controls to paint their guidance signals on
+            the field.
+          </p>
+        </div>
+      </details>
       <details class="brain-guide" id="brainGuide">
         <summary>Neural network visual guide</summary>
         <div class="brain-guide-body">
