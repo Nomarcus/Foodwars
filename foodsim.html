@@ -35,6 +35,9 @@
     .field-area{flex:1 1 auto; display:flex; flex-direction:column; align-items:stretch; gap:18px; min-width:0}
     .playfield-frame{position:relative; padding:18px; border-radius:30px; background:rgba(4,8,26,.85); box-shadow:0 18px 36px rgba(9,14,36,.55); border:1px solid rgba(148,163,209,.22); transition:box-shadow .3s ease, transform .3s ease, background .3s ease, border-color .3s ease; width:100%; max-width:min(1100px, 100%)}
     .playfield-frame::before{content:""; position:absolute; inset:-8px; border-radius:inherit; background:linear-gradient(135deg, rgba(56,189,248,.35), rgba(244,114,182,.32)); opacity:0; filter:blur(12px); transition:opacity .35s ease, filter .35s ease; z-index:0}
+    .info-overlay{position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); z-index:3; width:min(480px, 92%); pointer-events:auto}
+    .info-overlay .brain-guide{margin-top:0}
+    .info-overlay .intro-guide{box-shadow:0 22px 48px rgba(4,8,26,.75)}
     .playfield-frame canvas{position:relative; z-index:1; width:100%; height:auto; display:block}
     canvas{border-radius:24px; background:#04091f; box-shadow:0 0 45px rgba(15,23,61,.65), inset 0 0 22px rgba(118,133,255,.12); cursor:crosshair; border:1px solid var(--silver);}
     .stats-bar{display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:16px; padding:18px 22px; border-radius:18px; background:rgba(11,16,44,.78); border:1px solid var(--silver); box-shadow:0 18px 32px rgba(5,9,25,.45)}
@@ -189,6 +192,7 @@
       .brain-canvas{height:200px}
       .brain-visual-wrap{flex-direction:column}
       .brain-legend{width:100%; min-width:0}
+      .info-overlay{width:min(520px, 92%); top:52%}
     }
   </style>
 </head>
@@ -296,6 +300,27 @@
     <!-- Middle: playfield -->
     <div class="field-area">
       <div class="playfield-frame" title="Welcome to Foodsim! Two AI teams roam the arena, learn over generations, and try to deliver fruit back home. Watch how they adapt, dodge obstacles, and cooperate as the simulation scores their choices and slowly evolves their strategies into smarter runs.">
+        <div class="info-overlay" aria-live="polite">
+          <details class="brain-guide intro-guide" id="quickStartGuide" open>
+            <summary>Quick start: your first machine-learning run</summary>
+            <div class="brain-guide-body">
+              <p>
+                You are watching tiny teams learn to collect fruit and bring it back to their home base. They start out clumsy, but the
+                longer you let the sim run, the smarter their routes become.
+              </p>
+              <ul class="intro-list">
+                <li><strong>Look at the field:</strong> snakes try to reach fruit, then return home with it.</li>
+                <li><strong>Avoid obstacles:</strong> the rocks block paths, so teams learn to go around them.</li>
+                <li><strong>Try an easy tweak:</strong> move the <em>Obstacles</em> slider or switch the <em>Navigation preset</em>.</li>
+                <li><strong>Restart anytime:</strong> hit <em>Restart</em> to reshuffle and watch a new learning run.</li>
+              </ul>
+              <p>
+                Want to see what the agents sense? Toggle <em>Sensor overlay</em> in Global controls to paint their guidance signals on
+                the field.
+              </p>
+            </div>
+          </details>
+        </div>
         <canvas id="world" width="1100" height="640"></canvas>
       </div>
       <section class="stats-bar" aria-label="Simulation progress" aria-live="polite">
@@ -380,25 +405,6 @@
           </aside>
         </div>
       </section>
-      <details class="brain-guide intro-guide" id="quickStartGuide" open>
-        <summary>Quick start: your first machine-learning run</summary>
-        <div class="brain-guide-body">
-          <p>
-            You are watching tiny teams learn to collect fruit and bring it back to their home base. They start out clumsy, but the
-            longer you let the sim run, the smarter their routes become.
-          </p>
-          <ul class="intro-list">
-            <li><strong>Look at the field:</strong> snakes try to reach fruit, then return home with it.</li>
-            <li><strong>Avoid obstacles:</strong> the rocks block paths, so teams learn to go around them.</li>
-            <li><strong>Try an easy tweak:</strong> move the <em>Obstacles</em> slider or switch the <em>Navigation preset</em>.</li>
-            <li><strong>Restart anytime:</strong> hit <em>Restart</em> to reshuffle and watch a new learning run.</li>
-          </ul>
-          <p>
-            Want to see what the agents sense? Toggle <em>Sensor overlay</em> in Global controls to paint their guidance signals on
-            the field.
-          </p>
-        </div>
-      </details>
       <details class="brain-guide" id="brainGuide">
         <summary>Neural network visual guide</summary>
         <div class="brain-guide-body">
