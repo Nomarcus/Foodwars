@@ -218,10 +218,21 @@
         <div class="panel-head" role="button" tabindex="0" aria-expanded="true" aria-controls="panel-info-body"><div class="h">Simulation overview</div><span class="chev">▾</span></div>
         <div class="panel-body" id="panel-info-body">
           <p class="tool-hint">Jump back into FoodSim quickly with these essentials.</p>
-          <ul class="info-list">
-            <li>Advance generations to evolve smarter teams (or enable auto next gen).</li>
-            <li>Draw obstacles to reshape the arena and watch agents adapt.</li>
-            <li>Use Performance mode to hide panels and boost frame rate.</li>
+          <p>
+                You are watching tiny teams learn to collect fruit and bring it back to their home base. They start out clumsy, but the
+                longer you let the sim run, the smarter their routes become.
+              </p>
+              <ul class="intro-list">
+                <li><strong>Look at the field:</strong> snakes try to reach fruit, then return home with it.</li>
+                <li><strong>Avoid obstacles:</strong> the rocks block paths, so teams learn to go around them.</li>
+                <li><strong>Try an easy tweak:</strong> move the <em>Obstacles</em> slider or switch the <em>Navigation preset</em>.</li>
+                <li><strong>Restart anytime:</strong> hit <em>Restart</em> to reshuffle and watch a new learning run.</li>
+              </ul>
+              <p>
+                Want to see what the agents sense? Toggle <em>Sensor overlay</em> in Global controls to paint their guidance signals on
+                the field.
+              </p>
+            
           </ul>
         </div>
       </div>
@@ -488,29 +499,7 @@
 
     <!-- Right panels: controls and teams -->
     <aside class="side" id="right-panel">
-
- <div class="info-overlay" aria-live="polite">
-          <details class="brain-guide intro-guide" id="quickStartGuide" open>
-            <summary>Quick start: your first machine-learning run</summary>
-            <div class="brain-guide-body">
-              <p>
-                You are watching tiny teams learn to collect fruit and bring it back to their home base. They start out clumsy, but the
-                longer you let the sim run, the smarter their routes become.
-              </p>
-              <ul class="intro-list">
-                <li><strong>Look at the field:</strong> snakes try to reach fruit, then return home with it.</li>
-                <li><strong>Avoid obstacles:</strong> the rocks block paths, so teams learn to go around them.</li>
-                <li><strong>Try an easy tweak:</strong> move the <em>Obstacles</em> slider or switch the <em>Navigation preset</em>.</li>
-                <li><strong>Restart anytime:</strong> hit <em>Restart</em> to reshuffle and watch a new learning run.</li>
-              </ul>
-              <p>
-                Want to see what the agents sense? Toggle <em>Sensor overlay</em> in Global controls to paint their guidance signals on
-                the field.
-              </p>
-            </div>
-          </details>
-        </div>
-      
+     
       <div class="panel" id="panel-global">
         <div class="panel-head" role="button" tabindex="0" aria-expanded="true" aria-controls="panel-global-body"><div class="h">Global controls</div><span class="chev">▾</span></div>
         <div class="panel-body" id="panel-global-body">
