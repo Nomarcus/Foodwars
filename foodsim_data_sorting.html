@@ -148,6 +148,45 @@
     .callout { background:linear-gradient(135deg, rgba(56,189,248,0.08), rgba(244,114,182,0.06)); border:1px solid rgba(148,163,209,.28); border-radius:8px; padding:8px; font-size:11px; color:var(--text-dim); }
     .callout strong { color:var(--accent); }
 
+    .info-panel {
+        border-radius: 10px;
+        border: 1px solid rgba(148,163,209,.28);
+        background: rgba(7, 10, 26, 0.7);
+        padding: 10px;
+    }
+    .info-panel summary {
+        cursor: pointer;
+        font-size: 12px;
+        color: var(--accent);
+        text-transform: uppercase;
+        letter-spacing: 0.6px;
+        list-style: none;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+    .info-panel summary::-webkit-details-marker { display: none; }
+    .info-panel summary::after {
+        content: "▾";
+        font-size: 12px;
+        color: var(--text-dim);
+        transition: transform 0.2s ease;
+    }
+    .info-panel[open] summary::after { transform: rotate(-180deg); }
+    .info-panel p {
+        margin: 10px 0 0;
+        font-size: 11px;
+        color: var(--text-dim);
+        line-height: 1.5;
+    }
+    .info-panel ul {
+        margin: 8px 0 0 16px;
+        padding: 0;
+        font-size: 11px;
+        color: var(--text-dim);
+        line-height: 1.5;
+    }
+
     
     /* HUD Overlay */
     .hud { position: absolute; pointer-events: none; padding: 20px; width: 100%; display: flex; justify-content: space-between; top: 0; }
@@ -240,9 +279,20 @@
       </div>
       <div class="stat-box">
         <span class="stat-label">Active Agents</span>
-        <span class="stat-val" id="dispActive">40/40</span>
+        <span class="stat-val" id="dispActive">10/10</span>
       </div>
     </div>
+  </div>
+  <div class="panel-section">
+    <details class="info-panel" open>
+      <summary>How to Use This Simulation</summary>
+      <p>Guide the agents as they learn to sort tickets into the correct goal zones. Watch the rolling accuracy and best fitness to see learning progress.</p>
+      <ul>
+        <li>Use <strong>Simulation Pace</strong> and <strong>Episode Duration</strong> to speed up training.</li>
+        <li>Adjust <strong>Population Size</strong> and <strong>Ticket Count</strong> to change difficulty.</li>
+        <li>Drag agents, the nest, or goal zones to reposition the environment.</li>
+      </ul>
+    </details>
   </div>
    <div class="btn-group">
         <button class="btn alt" id="btnResetAI">Reset Policy Weights</button>
@@ -268,12 +318,12 @@
       <div class="control-block">
         <div class="control-title">Simulation Pace</div>
         <div class="control-group">
-          <label>Game Speed: <span id="valSpeed">1x</span></label>
-          <input type="range" id="slSpeed" min="1" max="20" value="1">
+          <label>Game Speed: <span id="valSpeed">3x</span></label>
+          <input type="range" id="slSpeed" min="1" max="20" value="3">
         </div>
         <div class="control-group">
-          <label title="Antal frames per episod">Episode Duration (Frames): <span id="valDuration">2500</span></label>
-          <input type="range" id="slDuration" min="500" max="10000" step="100" value="2500">
+          <label title="Antal frames per episod">Episode Duration (Frames): <span id="valDuration">6000</span></label>
+          <input type="range" id="slDuration" min="500" max="10000" step="100" value="6000">
         </div>
         <label class="checkbox-row"><input type="checkbox" id="chkManualEpisode"> Manual Episode (Ends on Restart)</label>
       </div>
@@ -281,12 +331,12 @@
       <div class="control-block">
         <div class="control-title">Agents & Tickets</div>
         <div class="control-group">
-          <label>Population Size: <span id="valPop">1</span></label>
-          <input type="range" id="slPop" min="1" max="100" value="1">
+          <label>Population Size: <span id="valPop">10</span></label>
+          <input type="range" id="slPop" min="1" max="100" value="10">
         </div>
         <div class="control-group">
-          <label title="Number of tickets in the play area">Ticket Count: <span id="valTickets">15</span></label>
-          <input type="range" id="slTicketCount" min="5" max="300" value="15">
+          <label title="Number of tickets in the play area">Ticket Count: <span id="valTickets">50</span></label>
+          <input type="range" id="slTicketCount" min="5" max="300" value="50">
         </div>
         <div class="control-group">
           <label title="Minimum distance from goals for ticket spawns">Ticket Goal Buffer: <span id="valTicketGoalBuffer">120px</span></label>
@@ -350,8 +400,8 @@
   <div class="panel-section">
     <h2>Learning (NEAT-lite)</h2>
     <div class="control-group">
-      <label title="Antal frames per generation">Steps / Gen: <span id="lbGenSteps">2500</span></label>
-      <input type="range" id="slGenSteps" min="500" max="10000" step="100" value="2500">
+      <label title="Antal frames per generation">Steps / Gen: <span id="lbGenSteps">6000</span></label>
+      <input type="range" id="slGenSteps" min="500" max="10000" step="100" value="6000">
     </div>
     <div class="control-group">
       <label title="Antal noder i dolda lagret.">Hidden Nodes: <span id="lbHidden">20</span></label>
@@ -522,7 +572,7 @@
 <script>
 // --- CONFIGURATION OBJECT (Mutable) ---
 const CFG = {
-  popSize: 1,
+  popSize: 10,
   evolve: {
     elite: 0.2,
     mutRate: 0.22,
@@ -535,7 +585,7 @@ const CFG = {
     wrongSort: 1
   },
   
-  ticketCount: 15,
+  ticketCount: 50,
   manualEpisode: false,
   ticketSpawn: {
     layout: 'random',
@@ -551,7 +601,7 @@ const CFG = {
   sensorRange: 180, 
   maxSpeed: 4.0, 
   turnRate: 0.08, 
-  episodeDuration: 2500, 
+  episodeDuration: 6000, 
   energyDrain: 0.0008, 
   
   // Policy Network Architecture (Fixed)
@@ -600,7 +650,7 @@ const CFG = {
 
 const params = {
   learn: {
-    genSteps: 2500,
+    genSteps: 6000,
     hidden: 20,
     mut: 0.22,
     elite: 0.2,
@@ -624,7 +674,7 @@ const fpsDisplay = document.getElementById('fpsDisplay');
 let W, H;
 let episode = 1;
 let frame = 0;
-let speedMult = 1;
+let speedMult = 3;
 let paused = false;
 let agents = [];
 let tickets = [];
@@ -2331,6 +2381,8 @@ function init(resetPolicyWeights = true) {
   }
   
   // Set CFG from Sliders
+  speedMult = parseInt(document.getElementById('slSpeed').value);
+  document.getElementById('valSpeed').innerText = `${speedMult}x`;
   CFG.popSize = parseInt(document.getElementById('slPop').value); 
   CFG.ticketCount = parseInt(document.getElementById('slTicketCount').value); 
   CFG.ticketSpawn.layout = document.getElementById('slTicketLayout').value;
