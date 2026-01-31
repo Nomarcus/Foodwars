@@ -260,6 +260,37 @@ h2{
   font-size:13px;
   color:#e5e9ff;
 }
+.info-panel{
+  width:100%;
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+  margin-top:14px;
+  padding:16px 18px;
+  border-radius:18px;
+  background:rgba(18,23,52,0.7);
+  border:1px solid rgba(128,138,206,0.24);
+  box-shadow:0 18px 36px rgba(6,10,30,0.38);
+}
+.info-panel h3{
+  margin:0;
+  font-size:14px;
+  letter-spacing:0.08em;
+  text-transform:uppercase;
+  color:#dfe3ff;
+}
+.info-panel p{
+  margin:0;
+  color:#cdd4f7;
+}
+.info-panel ul{
+  margin:0;
+  padding-left:18px;
+  color:#c7cdef;
+}
+.info-panel li{
+  margin:4px 0;
+}
 .path-visual-overlay{
   display:flex;
   justify-content:flex-end;
@@ -1181,6 +1212,15 @@ footer{
         <input type="range" id="testSpeed" min="20" max="200" step="10" value="80">
         <span class="test-speed__value mono" id="testSpeedValue">80&nbsp;ms</span>
       </label>
+    </div>
+    <div class="info-panel" aria-label="Experience overview">
+      <h3>Experience overview</h3>
+      <p>You are watching a live snake agent blend classic pathfinding with learned policy choices. The board renders each step while the agent prioritizes safe routes, food collection, and endgame survivability.</p>
+      <ul>
+        <li>Adjust playback speed, board size, and the BFS/Hamilton overlay to see how routing decisions change.</li>
+        <li>Switch algorithms, toggle curriculum training, and tune reward sliders to change what the agent values.</li>
+        <li>The end-game parameter (especially the tail space threshold) is often crucial—small tweaks can determine when the snake switches into safer late-game behavior.</li>
+      </ul>
     </div>
     <div class="controls secondary">
       <div class="pill-group" id="playbackGroup" role="group" aria-label="Playback mode">
